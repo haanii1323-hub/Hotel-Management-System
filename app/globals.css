@@ -325,21 +325,88 @@ input, select, textarea { font-family: inherit; }
   color: var(--text);
 }
 
-/* ===== BOOKING ROW ===== */
+/* ===== BOOKINGS PAGE & ROW ===== */
+.bookings-container {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.bookings-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0;
+  gap: 12px;
+}
+
+.bookings-toolbar .tabs {
+  margin-bottom: 0;
+  border-bottom: none;
+}
+
+.bookings-search-box {
+  position: relative;
+}
+
+.bookings-search-input {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 7px 10px 7px 30px;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+  width: 220px;
+  transition: border-color 0.15s;
+}
+
+.bookings-search-input:focus {
+  border-color: var(--border-2);
+}
+
+.bookings-divider {
+  height: 1px;
+  background: var(--border);
+  margin-bottom: 20px;
+  margin-top: 0;
+}
+
 .booking-row {
+  display: block;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 6px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.booking-row:hover {
+  background: #181c22;
+  border-color: var(--border-2);
+}
+
+.booking-row:active {
+  background: #1e2229;
+}
+
+.booking-desktop-view {
   display: grid;
   grid-template-columns: 200px 1fr 1fr 140px 1fr 80px;
   align-items: center;
   gap: 12px;
   padding: 14px 16px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  margin-bottom: 6px;
-  transition: border-color 0.15s;
+  width: 100%;
+  box-sizing: border-box;
 }
 
-.booking-row:hover { border-color: var(--border-2); }
+.booking-mobile-view {
+  display: none;
+}
 
 .booking-guest .name {
   font-size: 14px;
@@ -363,6 +430,7 @@ input, select, textarea { font-family: inherit; }
 .booking-amount .balance.partial { color: var(--amber); }
 
 .booking-actions { display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
+
 
 /* ===== SECTION HEADER ===== */
 .section-header {
@@ -1279,13 +1347,200 @@ textarea.form-control { resize: vertical; min-height: 72px; }
 
 @media (max-width: 768px) {
   .sidebar { display: none; }
-  .main-content { margin-left: 0; padding-bottom: 60px; }
-  .page-content { padding: 16px; }
+  .main-content {
+    margin-left: 0;
+    padding-bottom: 70px;
+    width: 100%;
+    max-width: 100vw;
+    box-sizing: border-box;
+    overflow-x: hidden;
+  }
+  .page-content {
+    padding: 14px 14px 70px 14px;
+    width: 100%;
+    max-width: 100vw;
+    box-sizing: border-box;
+    overflow-x: hidden;
+  }
+  .page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    gap: 10px;
+  }
+  .page-title { font-size: 22px; }
+
+  /* Bookings Page Mobile Layout */
+  .bookings-toolbar {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 12px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .bookings-toolbar .tabs {
+    display: flex;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 6px;
+    width: 100%;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .bookings-toolbar .tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .bookings-toolbar .tab {
+    padding: 7px 12px;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+
+  .bookings-search-box {
+    width: 100%;
+    position: relative;
+    box-sizing: border-box;
+  }
+
+  .bookings-search-input {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    padding: 8px 12px 8px 34px !important;
+    font-size: 13px !important;
+    background: var(--card) !important;
+    border-radius: var(--radius-sm) !important;
+  }
+
+  .bookings-divider {
+    display: none;
+  }
+
+  .section-header {
+    margin-top: 14px;
+    margin-bottom: 8px;
+  }
+
+  .section-title {
+    font-size: 15px;
+  }
+
+  .section-meta {
+    font-size: 11px;
+  }
+
+  /* Booking Card Mobile Switch */
+  .booking-row {
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    border-radius: 8px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .booking-desktop-view {
+    display: none !important;
+  }
+
+  .booking-mobile-view {
+    display: flex !important;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .booking-card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .booking-card-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.25;
+  }
+
+  .booking-card-ref {
+    font-size: 12px;
+    color: var(--text-2);
+    margin-top: 2px;
+  }
+
+  .booking-card-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 12px;
+    padding: 8px 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .booking-card-body-item {
+    font-size: 13px;
+    color: var(--text);
+  }
+
+  .booking-card-body-item .sub {
+    font-size: 11px;
+    color: var(--text-2);
+    margin-top: 1px;
+  }
+
+  .booking-card-amount-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2px 0;
+  }
+
+  .booking-card-total {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .booking-card-balance {
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .booking-card-balance.paid { color: var(--green); }
+  .booking-card-balance.pending, .booking-card-balance.partial { color: var(--amber); }
+
+  .booking-card-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 2px;
+  }
+
+  .booking-card-actions .btn,
+  .booking-card-actions .btn-ghost,
+  .booking-card-actions .badge {
+    min-height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    box-sizing: border-box;
+  }
+
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
   .pricing-grid { grid-template-columns: 1fr; }
   .auth-page { grid-template-columns: 1fr; }
   .auth-left { display: none; }
-  .booking-row { grid-template-columns: 1fr; }
   .guest-row { grid-template-columns: 1fr 1fr; }
   .guest-th { display: none; }
   .drawer { width: 100%; }
@@ -1324,6 +1579,33 @@ textarea.form-control { resize: vertical; min-height: 72px; }
 
   .mobile-nav-item.active {
     color: var(--red);
+  }
+}
+
+@media (max-width: 480px) {
+  .page-content {
+    padding: 12px 10px 70px 10px;
+  }
+  .page-title {
+    font-size: 20px;
+  }
+  .section-title {
+    font-size: 14px;
+  }
+  .booking-row {
+    padding: 10px 12px;
+  }
+  .booking-card-name {
+    font-size: 15px;
+  }
+  .booking-card-total {
+    font-size: 16px;
+  }
+  .topbar {
+    padding: 0 12px;
+  }
+  .topbar .user-info {
+    display: none;
   }
 }
 
