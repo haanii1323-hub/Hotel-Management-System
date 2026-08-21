@@ -4,6 +4,7 @@ import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { Metadata } from 'next'
+import { InstallAppButton } from '@/components/ui/InstallApp'
 
 export default function AuthPage() {
   const router = useRouter()
@@ -59,6 +60,11 @@ export default function AuthPage() {
 
   return (
     <div className="auth-page">
+      {/* Top action bar */}
+      <div style={{ position: 'absolute', top: '18px', right: '20px', zIndex: 10 }}>
+        <InstallAppButton variant="landing-badge" />
+      </div>
+
       {/* Left panel */}
       <div className="auth-left">
         <div className="auth-left-logo">
@@ -161,3 +167,4 @@ export default function AuthPage() {
     </div>
   )
 }
+

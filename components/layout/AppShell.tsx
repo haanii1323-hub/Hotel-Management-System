@@ -6,6 +6,7 @@ import { BarChart3, BookOpen, DollarSign, Home, LogOut, TrendingUp, Users } from
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
+import { InstallAppButton } from '@/components/ui/InstallApp'
 
 const fetcher = (url: string) => fetch(url).then(r => r.json())
 
@@ -68,6 +69,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </Link>
           ))}
         </nav>
+
+        {/* Sidebar Install App Widget */}
+        <div className="sidebar-footer">
+          <InstallAppButton variant="sidebar-card" />
+        </div>
       </aside>
 
       {/* Main */}
@@ -117,6 +123,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="topbar-user">
+            {/* Install App Button in Topbar */}
+            <InstallAppButton variant="button" />
+
             <div className="user-info">
               <div className="user-code">APX3630</div>
               <div className="user-sub">Apex Inn · {session?.user?.name || 'Sahasra'}</div>
@@ -140,8 +149,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <span>{label.split(' ')[0]}</span>
             </Link>
           ))}
+          <InstallAppButton variant="mobile-item" />
         </nav>
       </div>
     </div>
   )
 }
+

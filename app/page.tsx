@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { ArrowRight, BarChart3, CreditCard, Hotel } from 'lucide-react'
 import type { Metadata } from 'next'
+import { InstallAppButton } from '@/components/ui/InstallApp'
 
 export const metadata: Metadata = {
   title: 'APEX INN — Every room, every rupee, in real time',
@@ -21,7 +22,10 @@ export default function LandingPage() {
           </div>
           <span>APEX INN</span>
         </div>
-        <Link href="/auth" className="btn btn-red btn-sm">Staff sign in</Link>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <InstallAppButton variant="landing-badge" />
+          <Link href="/auth" className="btn btn-red btn-sm">Staff sign in</Link>
+        </div>
       </nav>
 
       {/* Hero */}
@@ -33,9 +37,12 @@ export default function LandingPage() {
         <p className="landing-desc">
           APEX INN is the admin console for your property — bookings, room inventory, nightly pricing, guest history and revenue trends, live on every screen at once.
         </p>
-        <Link href="/auth" className="btn btn-red" style={{ fontSize: '15px', padding: '12px 28px' }}>
-          Open the console <ArrowRight size={16} />
-        </Link>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px', flexWrap: 'wrap' }}>
+          <Link href="/auth" className="btn btn-red" style={{ fontSize: '15px', padding: '12px 28px' }}>
+            Open the console <ArrowRight size={16} />
+          </Link>
+          <InstallAppButton variant="button" className="btn-hero-install" />
+        </div>
       </div>
 
       {/* Feature Cards */}
@@ -65,3 +72,4 @@ export default function LandingPage() {
     </div>
   )
 }
+
