@@ -26,6 +26,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [search, setSearch] = useState('')
   const [showResults, setShowResults] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const { data: searchResults } = useSWR(
     search.length >= 2 ? `/api/search?q=${encodeURIComponent(search)}` : null,
@@ -38,8 +39,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         setShowResults(false)
       }
     }
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        inputRef.current?.focus()
+      }
+    }
     document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
   }, [])
 
   const formatRupees = (amount: number) => `₹${Number(amount).toLocaleString('en-IN')}`
@@ -57,7 +68,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="sidebar-logo-text">
             <span className="brand">APEX INN</span>
-            <span className="sub">Hotel Management</span>
+            <span className="sub">Hotel Platform</span>
           </div>
         </div>
 
@@ -85,12 +96,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
             </svg>
             <input
+              ref={inputRef}
               type="text"
-              placeholder="Search bookings..."
+              placeholder="Search guests, reference IDs..."
               value={search}
               onChange={e => { setSearch(e.target.value); setShowResults(true) }}
               onFocus={() => setShowResults(true)}
             />
+            <span className="search-shortcut-badge">⌘K</span>
             {showResults && search.length >= 2 && searchResults && searchResults.length > 0 && (
               <div className="search-results">
                 {searchResults.map((b: any) => {

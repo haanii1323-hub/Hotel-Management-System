@@ -27,12 +27,25 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
   const upd = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }))
 
   function calcNights() {
+    if (!form.checkIn || !form.checkOut) return 1
     const diff = new Date(form.checkOut).getTime() - new Date(form.checkIn).getTime()
-    return Math.max(0, Math.ceil(diff / 86400000))
+    return Math.max(1, Math.ceil(diff / 86400000))
   }
 
   const nights = calcNights()
   const total = form.nightlyRate * nights * form.numRooms
+
+  function handleCheckInChange(newCheckIn: string) {
+    setForm(f => {
+      let nextCheckOut = f.checkOut
+      if (!f.checkOut || f.checkOut <= newCheckIn) {
+        const d = new Date(newCheckIn)
+        d.setDate(d.getDate() + 1)
+        nextCheckOut = d.toISOString().split('T')[0]
+      }
+      return { ...f, checkIn: newCheckIn, checkOut: nextCheckOut }
+    })
+  }
 
   function validate() {
     const e: Record<string, string> = {}
@@ -40,7 +53,7 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
     if (!form.phone.trim()) e.phone = 'Phone number is required'
     if (!form.checkIn) e.checkIn = 'Check-in date is required'
     if (!form.checkOut) e.checkOut = 'Check-out date is required'
-    if (nights <= 0) e.checkOut = 'Check-out must be after check-in'
+    if (new Date(form.checkOut) <= new Date(form.checkIn)) e.checkOut = 'Check-out must be after check-in'
     if (form.numRooms < 1) e.numRooms = 'At least 1 room required'
     if (form.adults < 1) e.adults = 'At least 1 adult required'
     if (form.nightlyRate <= 0) e.nightlyRate = 'Rate must be positive'
@@ -120,7 +133,7 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div className="form-group">
                 <label className="form-label">Check-in *</label>
-                <input className="form-control" type="date" value={form.checkIn} onChange={e => upd('checkIn', e.target.value)} />
+                <input className="form-control" type="date" value={form.checkIn} onChange={e => handleCheckInChange(e.target.value)} />
                 {errors.checkIn && <div className="form-error">{errors.checkIn}</div>}
               </div>
               <div className="form-group">
