@@ -9,8 +9,31 @@ interface Props {
   onClose: () => void
 }
 
+function parseBookingDate(d: string | Date | null | undefined): Date | null {
+  if (!d) return null
+  if (typeof d === 'string') {
+    const match = d.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (match) {
+      const year = parseInt(match[1], 10)
+      const month = parseInt(match[2], 10) - 1
+      const day = parseInt(match[3], 10)
+      return new Date(year, month, day, 12, 0, 0)
+    }
+  }
+  const dt = new Date(d)
+  return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), 12, 0, 0)
+}
+
+function fmtDate(d: string | Date | null | undefined) {
+  const parsed = parseBookingDate(d)
+  if (!parsed) return '—'
+  return format(parsed, 'dd MMM yyyy')
+}
+
 export default function InvoiceModal({ booking, collected, balance, onClose }: Props) {
-  const nights = Math.ceil((new Date(booking.checkOut).getTime() - new Date(booking.checkIn).getTime()) / 86400000)
+  const d1 = parseBookingDate(booking.checkIn)
+  const d2 = parseBookingDate(booking.checkOut)
+  const nights = d1 && d2 ? Math.max(1, Math.round((d2.getTime() - d1.getTime()) / 86400000)) : 1
   const invoiceNo = `INV-${booking.bookingRef.replace('#', '')}-${Date.now().toString().slice(-4)}`
 
   function handlePrint() {
@@ -55,7 +78,7 @@ export default function InvoiceModal({ booking, collected, balance, onClose }: P
               <div className="invoice-val">{booking.bookingRef}</div>
               <div className="invoice-val">Source: {booking.source}</div>
               <div className="invoice-val">
-                {format(new Date(booking.checkIn), 'dd MMM yyyy')} → {format(new Date(booking.checkOut), 'dd MMM yyyy')}
+                {fmtDate(booking.checkIn)} → {fmtDate(booking.checkOut)}
               </div>
             </div>
           </div>

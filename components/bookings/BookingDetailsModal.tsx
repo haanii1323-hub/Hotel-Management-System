@@ -25,14 +25,33 @@ function fmt(n: number) {
   return `₹${Number(n || 0).toLocaleString('en-IN')}`
 }
 
+function parseBookingDate(d: string | Date | null | undefined): Date | null {
+  if (!d) return null
+  if (typeof d === 'string') {
+    const match = d.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (match) {
+      const year = parseInt(match[1], 10)
+      const month = parseInt(match[2], 10) - 1
+      const day = parseInt(match[3], 10)
+      return new Date(year, month, day, 12, 0, 0)
+    }
+  }
+  const dt = new Date(d)
+  return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), 12, 0, 0)
+}
+
 function fmtDate(d: string | Date | null | undefined) {
-  if (!d) return '—'
-  return format(new Date(d), 'dd MMM yyyy')
+  const parsed = parseBookingDate(d)
+  if (!parsed) return '—'
+  return format(parsed, 'dd MMM yyyy')
 }
 
 function nights(checkIn: string, checkOut: string) {
   if (!checkIn || !checkOut) return 1
-  return Math.max(1, Math.ceil((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / 86400000))
+  const d1 = parseBookingDate(checkIn)
+  const d2 = parseBookingDate(checkOut)
+  if (!d1 || !d2) return 1
+  return Math.max(1, Math.round((d2.getTime() - d1.getTime()) / 86400000))
 }
 
 interface Props {

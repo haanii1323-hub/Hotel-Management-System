@@ -1,5 +1,5 @@
 'use client'
-import useSWR from 'swr'
+import useSWR, { useSWRConfig } from 'swr'
 import { useRouter } from 'next/navigation'
 import AppShell from '@/components/layout/AppShell'
 import { CalendarDays, Hotel, Percent, IndianRupee, ArrowRight, Phone } from 'lucide-react'
@@ -10,14 +10,52 @@ import { format } from 'date-fns'
 
 const fetcher = (url: string) => fetch(url).then(r => r.json())
 
-function fmt(n: number) { return `₹${Number(n).toLocaleString('en-IN')}` }
-function fmtDate(d: string | Date) { return format(new Date(d), 'dd MMM') }
+function fmt(n: number) { return `₹${Number(n || 0).toLocaleString('en-IN')}` }
+
+function parseBookingDate(d: string | Date | null | undefined): Date | null {
+  if (!d) return null
+  if (typeof d === 'string') {
+    const match = d.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (match) {
+      const year = parseInt(match[1], 10)
+      const month = parseInt(match[2], 10) - 1
+      const day = parseInt(match[3], 10)
+      return new Date(year, month, day, 12, 0, 0)
+    }
+  }
+  const dt = new Date(d)
+  return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), 12, 0, 0)
+}
+
+function fmtDate(d: string | Date | null | undefined) {
+  const parsed = parseBookingDate(d)
+  if (!parsed) return '—'
+  return format(parsed, 'dd MMM')
+}
 
 export default function DashboardPage() {
   const router = useRouter()
+  const { mutate: globalMutate } = useSWRConfig()
   const [showNewBooking, setShowNewBooking] = useState(false)
   const [checkinBooking, setCheckinBooking] = useState<any>(null)
-  const { data, error, isLoading, mutate } = useSWR('/api/dashboard', fetcher, { refreshInterval: 5000 })
+  const { data, error, isLoading, mutate } = useSWR('/api/dashboard', fetcher, {
+    refreshInterval: 3000,
+    revalidateOnFocus: true,
+    revalidateOnMount: true,
+    revalidateOnReconnect: true,
+    dedupingInterval: 1000,
+  })
+
+  const refreshAll = async () => {
+    await Promise.all([
+      mutate(),
+      globalMutate(
+        (key) => typeof key === 'string' && key.startsWith('/api/'),
+        undefined,
+        { revalidate: true }
+      ),
+    ])
+  }
 
   const kpis = data?.kpis || {}
 
@@ -129,7 +167,7 @@ export default function DashboardPage() {
       {showNewBooking && (
         <NewBookingDrawer
           onClose={() => setShowNewBooking(false)}
-          onSuccess={() => { mutate(); setShowNewBooking(false) }}
+          onSuccess={() => { refreshAll(); setShowNewBooking(false) }}
         />
       )}
 
@@ -137,7 +175,7 @@ export default function DashboardPage() {
         <CheckInModal
           booking={checkinBooking}
           onClose={() => setCheckinBooking(null)}
-          onSuccess={() => { mutate(); setCheckinBooking(null) }}
+          onSuccess={() => { refreshAll(); setCheckinBooking(null) }}
         />
       )}
     </AppShell>

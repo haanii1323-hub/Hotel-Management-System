@@ -1,18 +1,23 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Minus, Plus } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
+import { format, addDays } from 'date-fns'
+import useSWR from 'swr'
 
+const fetcher = (url: string) => fetch(url).then(r => r.json())
 const SOURCES = ['Walk inn', 'GOMMT', 'B.COM', 'AIRBNB', 'BREWISTAY', 'B2B', 'CLEARTRIP', 'YATRA', 'EXPEDIA', 'AGODA', 'Fab', 'Corporate']
-const CATEGORIES = ['Deluxe', 'Classic', 'Suite']
+const DEFAULT_CATEGORIES = ['Deluxe', 'Classic', 'Suite']
 const DEFAULT_RATES: Record<string, number> = { Deluxe: 800, Classic: 1896, Suite: 3900 }
 
-interface Props { onClose: () => void; onSuccess: () => void }
+interface Props { onClose: () => void; onSuccess: (createdBooking?: any) => void }
 
 export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
   const { showToast } = useToast()
-  const today = new Date().toISOString().split('T')[0]
-  const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0]
+  const { data: categories } = useSWR('/api/categories', fetcher)
+
+  const today = format(new Date(), 'yyyy-MM-dd')
+  const tomorrow = format(addDays(new Date(), 1), 'yyyy-MM-dd')
 
   const [form, setForm] = useState({
     guestName: '', phone: '', email: '', source: 'Walk inn',
@@ -23,6 +28,16 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
+
+  // Sync category rates if categories are loaded from API
+  useEffect(() => {
+    if (categories && categories.length > 0) {
+      const currentCat = categories.find((c: any) => c.name === form.roomCategory)
+      if (currentCat && currentCat.nightlyRate) {
+        setForm(f => ({ ...f, nightlyRate: currentCat.nightlyRate }))
+      }
+    }
+  }, [categories, form.roomCategory])
 
   const upd = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }))
 
@@ -39,9 +54,9 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
     setForm(f => {
       let nextCheckOut = f.checkOut
       if (!f.checkOut || f.checkOut <= newCheckIn) {
-        const d = new Date(newCheckIn)
-        d.setDate(d.getDate() + 1)
-        nextCheckOut = d.toISOString().split('T')[0]
+        const parts = newCheckIn.split('-').map(Number)
+        const d = new Date(parts[0], parts[1] - 1, parts[2])
+        nextCheckOut = format(addDays(d, 1), 'yyyy-MM-dd')
       }
       return { ...f, checkIn: newCheckIn, checkOut: nextCheckOut }
     })
@@ -53,7 +68,7 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
     if (!form.phone.trim()) e.phone = 'Phone number is required'
     if (!form.checkIn) e.checkIn = 'Check-in date is required'
     if (!form.checkOut) e.checkOut = 'Check-out date is required'
-    if (new Date(form.checkOut) <= new Date(form.checkIn)) e.checkOut = 'Check-out must be after check-in'
+    if (form.checkOut <= form.checkIn) e.checkOut = 'Check-out must be after check-in'
     if (form.numRooms < 1) e.numRooms = 'At least 1 room required'
     if (form.adults < 1) e.adults = 'At least 1 adult required'
     if (form.nightlyRate <= 0) e.nightlyRate = 'Rate must be positive'
@@ -74,8 +89,8 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
       if (!res.ok) {
         showToast(data.error || 'Failed to create booking', 'error')
       } else {
-        showToast('Booking created successfully!', 'success')
-        onSuccess()
+        showToast(`Booking ${data.bookingRef || ''} for ${form.guestName} created!`, 'success')
+        onSuccess(data)
       }
     } catch {
       showToast('Network error. Please try again.', 'error')
@@ -151,10 +166,15 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
             <div className="form-group">
               <label className="form-label">Room type</label>
               <select className="form-control" value={form.roomCategory} onChange={e => {
-                upd('roomCategory', e.target.value)
-                upd('nightlyRate', DEFAULT_RATES[e.target.value] || 800)
+                const selectedCatName = e.target.value
+                const catObj = categories?.find((c: any) => c.name === selectedCatName)
+                const rate = catObj?.nightlyRate || DEFAULT_RATES[selectedCatName] || 800
+                upd('roomCategory', selectedCatName)
+                upd('nightlyRate', rate)
               }}>
-                {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                {(categories && categories.length > 0 ? categories.map((c: any) => c.name) : DEFAULT_CATEGORIES).map((c: string) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
               </select>
             </div>
 

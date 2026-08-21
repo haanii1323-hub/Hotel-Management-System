@@ -6,13 +6,36 @@ import { useToast } from '@/components/ui/Toast'
 
 interface Props { booking: any; onClose: () => void; onSuccess: () => void }
 
+function parseBookingDate(d: string | Date | null | undefined): Date | null {
+  if (!d) return null
+  if (typeof d === 'string') {
+    const match = d.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (match) {
+      const year = parseInt(match[1], 10)
+      const month = parseInt(match[2], 10) - 1
+      const day = parseInt(match[3], 10)
+      return new Date(year, month, day, 12, 0, 0)
+    }
+  }
+  const dt = new Date(d)
+  return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), 12, 0, 0)
+}
+
+function fmtDate(d: string | Date | null | undefined) {
+  const parsed = parseBookingDate(d)
+  if (!parsed) return '—'
+  return format(parsed, 'dd MMM yyyy')
+}
+
 export default function CheckInModal({ booking, onClose, onSuccess }: Props) {
   const { showToast } = useToast()
   const [loading, setLoading] = useState(false)
 
   const collected = booking.payments?.reduce((s: number, p: any) => s + (p.status !== 'Pending' ? p.amount : 0), 0) || 0
   const balance = booking.totalAmount - collected
-  const nights = Math.ceil((new Date(booking.checkOut).getTime() - new Date(booking.checkIn).getTime()) / 86400000)
+  const d1 = parseBookingDate(booking.checkIn)
+  const d2 = parseBookingDate(booking.checkOut)
+  const nights = d1 && d2 ? Math.max(1, Math.round((d2.getTime() - d1.getTime()) / 86400000)) : 1
 
   async function handleCheckIn() {
     setLoading(true)
@@ -47,8 +70,8 @@ export default function CheckInModal({ booking, onClose, onSuccess }: Props) {
           <div style={{ background: 'var(--card-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '16px', marginBottom: '16px' }}>
             <div className="bill-row"><span style={{ color: 'var(--text-2)' }}>Guest</span><span>{booking.guest.name}</span></div>
             <div className="bill-row"><span style={{ color: 'var(--text-2)' }}>Booking ID</span><span>{booking.bookingRef}</span></div>
-            <div className="bill-row"><span style={{ color: 'var(--text-2)' }}>Check-in</span><span>{format(new Date(booking.checkIn), 'dd MMM yyyy')}</span></div>
-            <div className="bill-row"><span style={{ color: 'var(--text-2)' }}>Check-out</span><span>{format(new Date(booking.checkOut), 'dd MMM yyyy')}</span></div>
+            <div className="bill-row"><span style={{ color: 'var(--text-2)' }}>Check-in</span><span>{fmtDate(booking.checkIn)}</span></div>
+            <div className="bill-row"><span style={{ color: 'var(--text-2)' }}>Check-out</span><span>{fmtDate(booking.checkOut)}</span></div>
             <div className="bill-row"><span style={{ color: 'var(--text-2)' }}>Nights</span><span>{nights}</span></div>
             <div className="bill-row"><span style={{ color: 'var(--text-2)' }}>Room type</span><span>{booking.roomCategory}</span></div>
             <div className="bill-row"><span style={{ color: 'var(--text-2)' }}>Number of rooms</span><span>{booking.numRooms}</span></div>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import useSWR from 'swr'
+import useSWR, { useSWRConfig } from 'swr'
 import AppShell from '@/components/layout/AppShell'
 import { useRouter } from 'next/navigation'
 import { Phone, ArrowRight, DollarSign, Wallet, CreditCard, ChevronRight } from 'lucide-react'
@@ -17,18 +17,52 @@ function fmt(n: number) {
   return `₹${Number(n || 0).toLocaleString('en-IN')}`
 }
 
+function parseBookingDate(d: string | Date | null | undefined): Date | null {
+  if (!d) return null
+  if (typeof d === 'string') {
+    const match = d.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (match) {
+      const year = parseInt(match[1], 10)
+      const month = parseInt(match[2], 10) - 1
+      const day = parseInt(match[3], 10)
+      return new Date(year, month, day, 12, 0, 0)
+    }
+  }
+  const dt = new Date(d)
+  return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), 12, 0, 0)
+}
+
 function fmtDate(d: string | Date | null | undefined) {
-  if (!d) return '—'
-  return format(new Date(d), 'dd MMM')
+  const parsed = parseBookingDate(d)
+  if (!parsed) return '—'
+  return format(parsed, 'dd MMM')
 }
 
 export default function EarningsPage() {
   const router = useRouter()
-  const { data, isLoading, mutate } = useSWR('/api/earnings', fetcher, { refreshInterval: 5000 })
+  const { mutate: globalMutate } = useSWRConfig()
+  const { data, isLoading, mutate } = useSWR('/api/earnings', fetcher, {
+    refreshInterval: 3000,
+    revalidateOnFocus: true,
+    revalidateOnMount: true,
+    revalidateOnReconnect: true,
+    dedupingInterval: 1000,
+  })
   const [selectedBooking, setSelectedBooking] = useState<any>(null)
   const [collectBooking, setCollectBooking] = useState<any>(null)
   const [checkinBooking, setCheckinBooking] = useState<any>(null)
   const [checkoutBooking, setCheckoutBooking] = useState<any>(null)
+
+  const mutateAll = async () => {
+    await Promise.all([
+      mutate(),
+      globalMutate(
+        (key) => typeof key === 'string' && key.startsWith('/api/'),
+        undefined,
+        { revalidate: true }
+      ),
+    ])
+  }
 
   const bookedValue = data?.bookedValue || 0
   const collected = data?.collected || 0
@@ -199,7 +233,7 @@ export default function EarningsPage() {
             setSelectedBooking(null)
             setCollectBooking(b)
           }}
-          onSuccess={mutate}
+          onSuccess={mutateAll}
         />
       )}
 
@@ -208,7 +242,7 @@ export default function EarningsPage() {
           booking={collectBooking}
           onClose={() => setCollectBooking(null)}
           onSuccess={() => {
-            mutate()
+            mutateAll()
             setCollectBooking(null)
           }}
         />
@@ -219,7 +253,7 @@ export default function EarningsPage() {
           booking={checkinBooking}
           onClose={() => setCheckinBooking(null)}
           onSuccess={() => {
-            mutate()
+            mutateAll()
             setCheckinBooking(null)
           }}
         />
@@ -230,7 +264,7 @@ export default function EarningsPage() {
           booking={checkoutBooking}
           onClose={() => setCheckoutBooking(null)}
           onSuccess={() => {
-            mutate()
+            mutateAll()
             setCheckoutBooking(null)
           }}
         />

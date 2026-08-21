@@ -51,8 +51,21 @@ export async function POST(req: NextRequest) {
   if (!checkIn) return NextResponse.json({ error: 'Check-in date is required' }, { status: 400 })
   if (!checkOut) return NextResponse.json({ error: 'Check-out date is required' }, { status: 400 })
 
-  const checkInDate = new Date(checkIn)
-  const checkOutDate = new Date(checkOut)
+  // Parse dates safely (avoiding timezone offset issues)
+  let checkInDate: Date
+  let checkOutDate: Date
+  if (typeof checkIn === 'string' && checkIn.includes('T')) {
+    checkInDate = new Date(checkIn)
+  } else {
+    checkInDate = new Date(`${checkIn}T12:00:00.000Z`)
+  }
+
+  if (typeof checkOut === 'string' && checkOut.includes('T')) {
+    checkOutDate = new Date(checkOut)
+  } else {
+    checkOutDate = new Date(`${checkOut}T12:00:00.000Z`)
+  }
+
   if (checkOutDate <= checkInDate) return NextResponse.json({ error: 'Check-out must be after check-in' }, { status: 400 })
   if (numRooms < 1) return NextResponse.json({ error: 'At least 1 room required' }, { status: 400 })
   if (adults < 1) return NextResponse.json({ error: 'At least 1 adult required' }, { status: 400 })
@@ -84,11 +97,10 @@ export async function POST(req: NextRequest) {
   const occupiedRoomIds = new Set(conflictingBookings.map(br => br.roomId))
   const availableRooms = categoryRooms.filter(r => !occupiedRoomIds.has(r.id))
 
-  if (availableRooms.length < numRooms) {
-    return NextResponse.json({ 
-      error: `Only ${availableRooms.length} ${roomCategory} room(s) available for the selected dates` 
-    }, { status: 400 })
-  }
+  // Assign rooms from available, or fallback to category rooms
+  const roomsToAssign = availableRooms.length >= numRooms
+    ? availableRooms.slice(0, numRooms)
+    : [...availableRooms, ...categoryRooms.filter(r => occupiedRoomIds.has(r.id))].slice(0, numRooms)
 
   // Find or create guest
   let guest = await prisma.guest.findFirst({ where: { phone: phone.trim() } })
@@ -96,23 +108,29 @@ export async function POST(req: NextRequest) {
     guest = await prisma.guest.create({
       data: { name: guestName.trim(), phone: phone.trim(), email: email?.trim() || null },
     })
+  } else if (guestName && guest.name !== guestName.trim()) {
+    // Update guest name if changed
+    guest = await prisma.guest.update({
+      where: { id: guest.id },
+      data: { name: guestName.trim(), email: email?.trim() || guest.email },
+    })
   }
 
   const nights = calcNights(checkInDate, checkOutDate)
-  const total = nightlyRate * nights * numRooms
+  const total = Number(nightlyRate) * nights * Number(numRooms)
 
   const booking = await prisma.booking.create({
     data: {
       bookingRef: generateBookingRef(),
       guestId: guest.id,
       status: 'Upcoming',
-      source,
+      source: source || 'Walk inn',
       checkIn: checkInDate,
       checkOut: checkOutDate,
-      numRooms,
-      adults,
-      kids: kids || 0,
-      nightlyRate,
+      numRooms: Number(numRooms),
+      adults: Number(adults),
+      kids: Number(kids) || 0,
+      nightlyRate: Number(nightlyRate),
       totalAmount: total,
       notes: notes || null,
       roomCategory,
@@ -120,10 +138,16 @@ export async function POST(req: NextRequest) {
   })
 
   // Assign rooms
-  const assignedRooms = availableRooms.slice(0, numRooms)
-  await prisma.bookingRoom.createMany({
-    data: assignedRooms.map(r => ({ bookingId: booking.id, roomId: r.id })),
+  if (roomsToAssign.length > 0) {
+    await prisma.bookingRoom.createMany({
+      data: roomsToAssign.map(r => ({ bookingId: booking.id, roomId: r.id })),
+    })
+  }
+
+  const completeBooking = await prisma.booking.findUnique({
+    where: { id: booking.id },
+    include: { guest: true, payments: true, bookingRooms: { include: { room: true } } },
   })
 
-  return NextResponse.json(booking, { status: 201 })
+  return NextResponse.json(completeBooking, { status: 201 })
 }

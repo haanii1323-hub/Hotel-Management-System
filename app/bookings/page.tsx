@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import useSWR from 'swr'
+import useSWR, { useSWRConfig } from 'swr'
 import AppShell from '@/components/layout/AppShell'
 import { format } from 'date-fns'
 import { Phone, Search, ArrowRight } from 'lucide-react'
@@ -17,14 +17,43 @@ function fmt(n: number) {
   return `₹${Number(n || 0).toLocaleString('en-IN')}`
 }
 
+function parseBookingDate(d: string | Date | null | undefined): Date | null {
+  if (!d) return null
+  if (typeof d === 'string') {
+    const match = d.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (match) {
+      const year = parseInt(match[1], 10)
+      const month = parseInt(match[2], 10) - 1
+      const day = parseInt(match[3], 10)
+      return new Date(year, month, day, 12, 0, 0)
+    }
+  }
+  const dt = new Date(d)
+  return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), 12, 0, 0)
+}
+
 function fmtDate(d: string | Date | null | undefined) {
-  if (!d) return '—'
-  return format(new Date(d), 'dd MMM')
+  const parsed = parseBookingDate(d)
+  if (!parsed) return '—'
+  return format(parsed, 'dd MMM')
+}
+
+function getDateString(d: string | Date | null | undefined): string {
+  if (!d) return ''
+  if (typeof d === 'string') {
+    const match = d.match(/^(\d{4}-\d{2}-\d{2})/)
+    if (match) return match[1]
+  }
+  const dt = new Date(d)
+  return format(dt, 'yyyy-MM-dd')
 }
 
 function nights(checkIn: string, checkOut: string) {
   if (!checkIn || !checkOut) return 1
-  return Math.max(1, Math.ceil((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / 86400000))
+  const d1 = parseBookingDate(checkIn)
+  const d2 = parseBookingDate(checkOut)
+  if (!d1 || !d2) return 1
+  return Math.max(1, Math.round((d2.getTime() - d1.getTime()) / 86400000))
 }
 
 function BookingCard({
@@ -253,57 +282,67 @@ export default function BookingsPage() {
   const [checkoutBooking, setCheckoutBooking] = useState<any>(null)
   const [collectBooking, setCollectBooking] = useState<any>(null)
 
+  const { mutate: globalMutate } = useSWRConfig()
+
   const q = search ? `&search=${encodeURIComponent(search)}` : ''
+  const swrConfig = {
+    refreshInterval: 3000,
+    revalidateOnFocus: true,
+    revalidateOnMount: true,
+    revalidateOnReconnect: true,
+    dedupingInterval: 1000,
+  }
+
   const { data: upcoming, mutate: mutateUpcoming } = useSWR(
     `/api/bookings?status=Upcoming${q}`,
     fetcher,
-    { refreshInterval: 5000 }
+    swrConfig
   )
   const { data: inhouse, mutate: mutateInhouse } = useSWR(
     `/api/bookings?status=InHouse${q}`,
     fetcher,
-    { refreshInterval: 5000 }
+    swrConfig
   )
   const { data: completed, mutate: mutateCompleted } = useSWR(
     `/api/bookings?status=Completed${q}`,
     fetcher,
-    { refreshInterval: 5000 }
+    swrConfig
   )
 
-  const mutateAll = () => {
-    mutateUpcoming()
-    mutateInhouse()
-    mutateCompleted()
+  const mutateAll = async () => {
+    await Promise.all([
+      mutateUpcoming(),
+      mutateInhouse(),
+      mutateCompleted(),
+      globalMutate(
+        (key) => typeof key === 'string' && (key.startsWith('/api/bookings') || key.startsWith('/api/dashboard') || key.startsWith('/api/earnings') || key.startsWith('/api/guests') || key.startsWith('/api/rooms')),
+        undefined,
+        { revalidate: true }
+      ),
+    ])
   }
 
   const now = new Date()
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-  const todayEnd = todayStart + 24 * 60 * 60 * 1000
-
-  function getDayTimestamp(d: string | Date) {
-    if (!d) return 0
-    const dt = new Date(d)
-    return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime()
-  }
+  const todayDateStr = format(now, 'yyyy-MM-dd')
 
   // Upcoming: arriving today or overdue vs arriving later
   const arrivingToday = (upcoming || []).filter((b: any) => {
-    const ci = getDayTimestamp(b.checkIn)
-    return ci < todayEnd
+    const ciStr = getDateString(b.checkIn)
+    return ciStr <= todayDateStr
   })
   const arrivingLater = (upcoming || []).filter((b: any) => {
-    const ci = getDayTimestamp(b.checkIn)
-    return ci >= todayEnd
+    const ciStr = getDateString(b.checkIn)
+    return ciStr > todayDateStr
   })
 
   // Inhouse: departing today or earlier vs staying on
   const departingTodayEarlier = (inhouse || []).filter((b: any) => {
-    const co = getDayTimestamp(b.checkOut)
-    return co < todayEnd
+    const coStr = getDateString(b.checkOut)
+    return coStr <= todayDateStr
   })
   const stayingOn = (inhouse || []).filter((b: any) => {
-    const co = getDayTimestamp(b.checkOut)
-    return co >= todayEnd
+    const coStr = getDateString(b.checkOut)
+    return coStr > todayDateStr
   })
 
 
@@ -541,9 +580,11 @@ export default function BookingsPage() {
       {showNewBooking && (
         <NewBookingDrawer
           onClose={() => setShowNewBooking(false)}
-          onSuccess={() => {
+          onSuccess={(newB) => {
+            setTab('Upcoming')
             mutateAll()
             setShowNewBooking(false)
+            if (newB) setSelectedBooking(newB)
           }}
         />
       )}
