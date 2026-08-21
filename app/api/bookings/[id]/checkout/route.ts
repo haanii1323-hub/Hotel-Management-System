@@ -7,11 +7,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (error) return error
 
   const body = await req.json()
-  const { amount, mode, status: paymentStatus, utrRef, notes } = body
+  const { amount = 0, mode = 'Cash', status: paymentStatus = 'Paid', utrRef, notes } = body
 
-  if (!amount || amount < 0) return NextResponse.json({ error: 'Invalid payment amount' }, { status: 400 })
-  if (!mode) return NextResponse.json({ error: 'Payment mode is required' }, { status: 400 })
-  if (mode === 'UPI' && paymentStatus === 'Paid' && !utrRef?.trim()) {
+  const numAmount = Number(amount || 0)
+  if (numAmount < 0) return NextResponse.json({ error: 'Invalid payment amount' }, { status: 400 })
+  if (numAmount > 0 && !mode) return NextResponse.json({ error: 'Payment mode is required' }, { status: 400 })
+  if (numAmount > 0 && mode === 'UPI' && paymentStatus === 'Paid' && !utrRef?.trim()) {
     return NextResponse.json({ error: 'UTR/UPI reference number is required for UPI payments marked as paid' }, { status: 400 })
   }
 
@@ -22,14 +23,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   if (!booking) return NextResponse.json({ error: 'Booking not found' }, { status: 404 })
 
-  // Save payment
-  if (amount > 0) {
+  // Save payment if collected now
+  if (numAmount > 0) {
     await prisma.payment.create({
       data: {
         bookingId: params.id,
-        amount: Number(amount),
-        mode,
-        status: paymentStatus,
+        amount: numAmount,
+        mode: mode || 'Cash',
+        status: paymentStatus || 'Paid',
         utrRef: utrRef?.trim() || null,
         notes: notes || null,
         collectedBy: session?.user?.id,

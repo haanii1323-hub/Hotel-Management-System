@@ -594,6 +594,7 @@ export default function BookingsPage() {
           booking={checkinBooking}
           onClose={() => setCheckinBooking(null)}
           onSuccess={() => {
+            setTab('InHouse')
             mutateAll()
             setCheckinBooking(null)
           }}
@@ -605,6 +606,7 @@ export default function BookingsPage() {
           booking={checkoutBooking}
           onClose={() => setCheckoutBooking(null)}
           onSuccess={() => {
+            setTab('Completed')
             mutateAll()
             setCheckoutBooking(null)
           }}
