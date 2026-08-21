@@ -10,6 +10,7 @@ export async function GET(req: NextRequest) {
   const bookings = await prisma.booking.findMany({
     where: { status: { not: 'Cancelled' } },
     include: { payments: true, guest: true },
+    orderBy: { createdAt: 'desc' },
   })
 
   // Total booked value
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest) {
     return s + b.payments.reduce((ps, p) => ps + (p.status !== 'Pending' ? p.amount : 0), 0)
   }, 0)
 
-  const balance = bookedValue - collected
+  const balance = Math.max(0, bookedValue - collected)
 
   // Revenue by channel
   const channelMap: Record<string, number> = {}
@@ -39,12 +40,28 @@ export async function GET(req: NextRequest) {
 
   // Outstanding balances (per booking)
   const outstanding = bookings
-    .map(b => {
+    .map((b) => {
       const c = b.payments.reduce((s, p) => s + (p.status !== 'Pending' ? p.amount : 0), 0)
-      const bal = b.totalAmount - c
-      return { bookingId: b.id, bookingRef: b.bookingRef, guestName: b.guest.name, guestId: b.guestId, date: b.checkIn, amount: bal }
+      const bal = Math.max(0, b.totalAmount - c)
+      return {
+        bookingId: b.id,
+        bookingRef: b.bookingRef,
+        guestName: b.guest.name,
+        guestPhone: b.guest.phone,
+        guestEmail: b.guest.email,
+        guestId: b.guestId,
+        roomCategory: b.roomCategory,
+        numRooms: b.numRooms,
+        checkIn: b.checkIn,
+        checkOut: b.checkOut,
+        status: b.status,
+        totalAmount: b.totalAmount,
+        collected: c,
+        amount: bal,
+        booking: b,
+      }
     })
-    .filter(o => o.amount > 0)
+    .filter((o) => o.amount > 0)
     .sort((a, b) => b.amount - a.amount)
 
   return NextResponse.json({ bookedValue, collected, balance, channels, outstanding })
