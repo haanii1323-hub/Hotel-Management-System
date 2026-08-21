@@ -276,32 +276,36 @@ export default function BookingsPage() {
     mutateCompleted()
   }
 
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  const now = new Date()
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  const todayEnd = todayStart + 24 * 60 * 60 * 1000
 
-  // Upcoming: arriving today vs later
+  function getDayTimestamp(d: string | Date) {
+    if (!d) return 0
+    const dt = new Date(d)
+    return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime()
+  }
+
+  // Upcoming: arriving today or overdue vs arriving later
   const arrivingToday = (upcoming || []).filter((b: any) => {
-    const ci = new Date(b.checkIn)
-    ci.setHours(0, 0, 0, 0)
-    return ci.getTime() === today.getTime()
+    const ci = getDayTimestamp(b.checkIn)
+    return ci < todayEnd
   })
   const arrivingLater = (upcoming || []).filter((b: any) => {
-    const ci = new Date(b.checkIn)
-    ci.setHours(0, 0, 0, 0)
-    return ci.getTime() > today.getTime()
+    const ci = getDayTimestamp(b.checkIn)
+    return ci >= todayEnd
   })
 
-  // Inhouse: departing today/earlier vs staying on
+  // Inhouse: departing today or earlier vs staying on
   const departingTodayEarlier = (inhouse || []).filter((b: any) => {
-    const co = new Date(b.checkOut)
-    co.setHours(0, 0, 0, 0)
-    return co.getTime() <= today.getTime()
+    const co = getDayTimestamp(b.checkOut)
+    return co < todayEnd
   })
   const stayingOn = (inhouse || []).filter((b: any) => {
-    const co = new Date(b.checkOut)
-    co.setHours(0, 0, 0, 0)
-    return co.getTime() > today.getTime()
+    const co = getDayTimestamp(b.checkOut)
+    return co >= todayEnd
   })
+
 
   // Completed sub-sections
   const checkedOut = (completed || []).filter((b: any) => b.status === 'CheckedOut')

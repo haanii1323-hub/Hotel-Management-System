@@ -10,26 +10,31 @@ export async function GET() {
   const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate())
   const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000)
 
-  // KPIs
+  // Arriving today or overdue (all upcoming due today or earlier)
   const arrivingToday = await prisma.booking.findMany({
     where: {
       status: 'Upcoming',
-      checkIn: { gte: todayStart, lt: todayEnd },
+      checkIn: { lt: todayEnd },
     },
-    include: { guest: true, payments: true },
+    include: { guest: true, payments: true, bookingRooms: { include: { room: true } } },
+    orderBy: { checkIn: 'asc' },
   })
 
+  // In-house guests currently checked in
   const inHouse = await prisma.booking.findMany({
     where: { status: 'CheckedIn' },
-    include: { guest: true, payments: true },
+    include: { guest: true, payments: true, bookingRooms: { include: { room: true } } },
+    orderBy: { checkOut: 'asc' },
   })
 
+  // Departing today or overdue (checked in with checkout due today or earlier)
   const departingToday = await prisma.booking.findMany({
     where: {
       status: 'CheckedIn',
-      checkOut: { gte: todayStart, lt: todayEnd },
+      checkOut: { lt: todayEnd },
     },
-    include: { guest: true, payments: true },
+    include: { guest: true, payments: true, bookingRooms: { include: { room: true } } },
+    orderBy: { checkOut: 'asc' },
   })
 
   // Occupancy
@@ -40,13 +45,13 @@ export async function GET() {
     ? Math.round((occupiedRooms.length / sellableRooms.length) * 100)
     : 0
 
-  // Balance to collect (all bookings with outstanding)
+  // Balance to collect (all non-cancelled bookings with outstanding balance)
   const allBookings = await prisma.booking.findMany({
+    where: { status: { not: 'Cancelled' } },
     include: { payments: true },
   })
   let totalBalance = 0
   for (const b of allBookings) {
-    if (b.status === 'Cancelled') continue
     const collected = b.payments.reduce((s, p) => s + (p.status !== 'Pending' ? p.amount : 0), 0)
     const balance = b.totalAmount - collected
     if (balance > 0) totalBalance += balance
