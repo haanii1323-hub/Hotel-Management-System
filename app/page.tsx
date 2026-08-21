@@ -1,0 +1,67 @@
+import Link from 'next/link'
+import { ArrowRight, BarChart3, CreditCard, Hotel } from 'lucide-react'
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = {
+  title: 'APEX INN — Every room, every rupee, in real time',
+  description: 'APEX INN is the admin console for your property — bookings, room inventory, nightly pricing, guest history and revenue trends, live on every screen at once.',
+}
+
+export default function LandingPage() {
+  return (
+    <div className="landing">
+      {/* Nav */}
+      <nav className="landing-nav">
+        <div className="landing-logo">
+          <div className="landing-logo-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+              <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+              <polyline points="9,22 9,12 15,12 15,22"/>
+            </svg>
+          </div>
+          <span>APEX INN</span>
+        </div>
+        <Link href="/auth" className="btn btn-red btn-sm">Staff sign in</Link>
+      </nav>
+
+      {/* Hero */}
+      <div className="landing-hero">
+        <div className="landing-tag">
+          <span>●</span> Hotel Operating System
+        </div>
+        <h1 className="landing-h1">Every room, every rupee,<br />in real time.</h1>
+        <p className="landing-desc">
+          APEX INN is the admin console for your property — bookings, room inventory, nightly pricing, guest history and revenue trends, live on every screen at once.
+        </p>
+        <Link href="/auth" className="btn btn-red" style={{ fontSize: '15px', padding: '12px 28px' }}>
+          Open the console <ArrowRight size={16} />
+        </Link>
+      </div>
+
+      {/* Feature Cards */}
+      <div className="landing-cards">
+        <div className="landing-card">
+          <div className="landing-card-icon">
+            <Hotel size={18} />
+          </div>
+          <h3>Front desk that keeps up</h3>
+          <p>Upcoming, in-house and completed bookings with one-tap check-in and checkout.</p>
+        </div>
+        <div className="landing-card">
+          <div className="landing-card-icon">
+            <CreditCard size={18} />
+          </div>
+          <h3>Money, settled</h3>
+          <p>Bill summary, collected amount and balance to collect on every booking.</p>
+        </div>
+        <div className="landing-card">
+          <div className="landing-card-icon">
+            <BarChart3 size={18} />
+          </div>
+          <h3>Revenue you can read</h3>
+          <p>Room revenue, occupancy and ARR trends across any date range.</p>
+        </div>
+      </div>
+    </div>
+  )
+}

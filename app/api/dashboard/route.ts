@@ -1,0 +1,78 @@
+import { NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { requireAuth } from '@/lib/utils'
+
+export async function GET() {
+  const { error } = await requireAuth()
+  if (error) return error
+
+  const today = new Date()
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000)
+
+  // KPIs
+  const arrivingToday = await prisma.booking.findMany({
+    where: {
+      status: 'Upcoming',
+      checkIn: { gte: todayStart, lt: todayEnd },
+    },
+    include: { guest: true, payments: true },
+  })
+
+  const inHouse = await prisma.booking.findMany({
+    where: { status: 'CheckedIn' },
+    include: { guest: true, payments: true },
+  })
+
+  const departingToday = await prisma.booking.findMany({
+    where: {
+      status: 'CheckedIn',
+      checkOut: { gte: todayStart, lt: todayEnd },
+    },
+    include: { guest: true, payments: true },
+  })
+
+  // Occupancy
+  const allRooms = await prisma.room.findMany({ include: { category: true } })
+  const sellableRooms = allRooms.filter(r => !['Maintenance', 'Out of Service'].includes(r.status))
+  const occupiedRooms = allRooms.filter(r => r.status === 'Occupied')
+  const occupancy = sellableRooms.length > 0
+    ? Math.round((occupiedRooms.length / sellableRooms.length) * 100)
+    : 0
+
+  // Balance to collect (all bookings with outstanding)
+  const allBookings = await prisma.booking.findMany({
+    include: { payments: true },
+  })
+  let totalBalance = 0
+  for (const b of allBookings) {
+    if (b.status === 'Cancelled') continue
+    const collected = b.payments.reduce((s, p) => s + (p.status !== 'Pending' ? p.amount : 0), 0)
+    const balance = b.totalAmount - collected
+    if (balance > 0) totalBalance += balance
+  }
+
+  // Collected today
+  const todayPayments = await prisma.payment.findMany({
+    where: {
+      createdAt: { gte: todayStart, lt: todayEnd },
+      status: { not: 'Pending' },
+    },
+  })
+  const collectedToday = todayPayments.reduce((s, p) => s + p.amount, 0)
+
+  return NextResponse.json({
+    arrivingToday,
+    inHouse,
+    departingToday,
+    kpis: {
+      arrivingTodayCount: arrivingToday.length,
+      inHouseCount: inHouse.length,
+      occupancy,
+      balanceToCollect: totalBalance,
+      collectedToday,
+      sellableRooms: sellableRooms.length,
+      occupiedRooms: occupiedRooms.length,
+    },
+  })
+}
