@@ -9,19 +9,46 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const status = searchParams.get('status')
   const search = searchParams.get('search')
+  const roomCategory = searchParams.get('category')
+  const source = searchParams.get('source')
+  const from = searchParams.get('from')
+  const to = searchParams.get('to')
 
   const where: Record<string, unknown> = {}
   if (status) {
     if (status === 'Upcoming') where.status = 'Upcoming'
     else if (status === 'InHouse') where.status = 'CheckedIn'
     else if (status === 'Completed') where.status = { in: ['CheckedOut', 'NoShow', 'Cancelled'] }
+    else where.status = status
+  }
+
+  if (roomCategory && roomCategory !== 'All') {
+    where.roomCategory = roomCategory
+  }
+
+  if (source && source !== 'All') {
+    where.source = source
+  }
+
+  if (from || to) {
+    where.checkIn = {}
+    if (from) (where.checkIn as any).gte = new Date(`${from}T00:00:00.000Z`)
+    if (to) (where.checkIn as any).lte = new Date(`${to}T23:59:59.999Z`)
   }
 
   if (search) {
+    const s = search.trim()
+    const withHash = s.startsWith('#') ? s : `#${s}`
+    const withoutHash = s.startsWith('#') ? s.slice(1) : s
     where.OR = [
-      { guest: { name: { contains: search } } },
-      { bookingRef: { contains: search } },
-      { guest: { phone: { contains: search } } },
+      { guest: { name: { contains: s } } },
+      { bookingRef: { contains: s } },
+      { bookingRef: { contains: withHash } },
+      { bookingRef: { contains: withoutHash } },
+      { guest: { phone: { contains: s } } },
+      { roomCategory: { contains: s } },
+      { source: { contains: s } },
+      { bookingRooms: { some: { room: { number: { contains: s } } } } },
     ]
   }
 

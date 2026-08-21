@@ -3,13 +3,24 @@
 import { useState } from 'react'
 import useSWR, { useSWRConfig } from 'swr'
 import AppShell from '@/components/layout/AppShell'
+import {
+  Phone,
+  Search,
+  CheckCircle2,
+  Clock,
+  Calendar,
+  Filter,
+  Plus,
+  RefreshCw,
+  X,
+} from 'lucide-react'
 import { format } from 'date-fns'
-import { Phone, Search, ArrowRight } from 'lucide-react'
 import NewBookingDrawer from '@/components/bookings/NewBookingDrawer'
+import BookingDetailsModal from '@/components/bookings/BookingDetailsModal'
 import CheckInModal from '@/components/bookings/CheckInModal'
 import CheckoutModal from '@/components/bookings/CheckoutModal'
-import BookingDetailsModal from '@/components/bookings/BookingDetailsModal'
 import CollectPaymentModal from '@/components/bookings/CollectPaymentModal'
+import { useToast } from '@/components/ui/Toast'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -39,13 +50,9 @@ function fmtDate(d: string | Date | null | undefined) {
 }
 
 function getDateString(d: string | Date | null | undefined): string {
-  if (!d) return ''
-  if (typeof d === 'string') {
-    const match = d.match(/^(\d{4}-\d{2}-\d{2})/)
-    if (match) return match[1]
-  }
-  const dt = new Date(d)
-  return format(dt, 'yyyy-MM-dd')
+  const parsed = parseBookingDate(d)
+  if (!parsed) return ''
+  return format(parsed, 'yyyy-MM-dd')
 }
 
 function nights(checkIn: string, checkOut: string) {
@@ -55,6 +62,9 @@ function nights(checkIn: string, checkOut: string) {
   if (!d1 || !d2) return 1
   return Math.max(1, Math.round((d2.getTime() - d1.getTime()) / 86400000))
 }
+
+const CATEGORIES = ['All', 'Deluxe', 'Classic', 'Suite']
+const SOURCES = ['All', 'Walk inn', 'Direct Web', 'Booking.com', 'Agoda', 'Expedia', 'Corporate', 'Phone', 'OTA', 'Others']
 
 function BookingCard({
   b,
@@ -251,21 +261,6 @@ function BookingCard({
                 Checkout
               </button>
             )}
-            {b.status === 'CheckedOut' && (
-              <span className="badge badge-green" style={{ padding: '6px 12px' }}>
-                Checked out
-              </span>
-            )}
-            {b.status === 'NoShow' && (
-              <span className="badge badge-gray" style={{ padding: '6px 12px' }}>
-                No show
-              </span>
-            )}
-            {b.status === 'Cancelled' && (
-              <span className="badge badge-red" style={{ padding: '6px 12px' }}>
-                Cancelled
-              </span>
-            )}
           </div>
         </div>
       </div>
@@ -274,8 +269,11 @@ function BookingCard({
 }
 
 export default function BookingsPage() {
+  const { showToast } = useToast()
   const [tab, setTab] = useState<'Upcoming' | 'InHouse' | 'Completed'>('Upcoming')
   const [search, setSearch] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('All')
+  const [sourceFilter, setSourceFilter] = useState('All')
   const [showNewBooking, setShowNewBooking] = useState(false)
   const [selectedBooking, setSelectedBooking] = useState<any>(null)
   const [checkinBooking, setCheckinBooking] = useState<any>(null)
@@ -284,7 +282,11 @@ export default function BookingsPage() {
 
   const { mutate: globalMutate } = useSWRConfig()
 
-  const q = search ? `&search=${encodeURIComponent(search)}` : ''
+  let q = ''
+  if (search.trim()) q += `&search=${encodeURIComponent(search.trim())}`
+  if (categoryFilter !== 'All') q += `&category=${encodeURIComponent(categoryFilter)}`
+  if (sourceFilter !== 'All') q += `&source=${encodeURIComponent(sourceFilter)}`
+
   const swrConfig = {
     refreshInterval: 3000,
     revalidateOnFocus: true,
@@ -293,17 +295,17 @@ export default function BookingsPage() {
     dedupingInterval: 1000,
   }
 
-  const { data: upcoming, mutate: mutateUpcoming } = useSWR(
+  const { data: upcoming, mutate: mutateUpcoming, isLoading: loadingUpcoming } = useSWR(
     `/api/bookings?status=Upcoming${q}`,
     fetcher,
     swrConfig
   )
-  const { data: inhouse, mutate: mutateInhouse } = useSWR(
+  const { data: inhouse, mutate: mutateInhouse, isLoading: loadingInhouse } = useSWR(
     `/api/bookings?status=InHouse${q}`,
     fetcher,
     swrConfig
   )
-  const { data: completed, mutate: mutateCompleted } = useSWR(
+  const { data: completed, mutate: mutateCompleted, isLoading: loadingCompleted } = useSWR(
     `/api/bookings?status=Completed${q}`,
     fetcher,
     swrConfig
@@ -315,7 +317,13 @@ export default function BookingsPage() {
       mutateInhouse(),
       mutateCompleted(),
       globalMutate(
-        (key) => typeof key === 'string' && (key.startsWith('/api/bookings') || key.startsWith('/api/dashboard') || key.startsWith('/api/earnings') || key.startsWith('/api/guests') || key.startsWith('/api/rooms')),
+        (key) =>
+          typeof key === 'string' &&
+          (key.startsWith('/api/bookings') ||
+            key.startsWith('/api/dashboard') ||
+            key.startsWith('/api/earnings') ||
+            key.startsWith('/api/guests') ||
+            key.startsWith('/api/rooms')),
         undefined,
         { revalidate: true }
       ),
@@ -345,7 +353,6 @@ export default function BookingsPage() {
     return coStr > todayDateStr
   })
 
-
   // Completed sub-sections
   const checkedOut = (completed || []).filter((b: any) => b.status === 'CheckedOut')
   const noShow = (completed || []).filter((b: any) => b.status === 'NoShow')
@@ -358,6 +365,10 @@ export default function BookingsPage() {
     )
   }
 
+  const isLoading =
+    tab === 'Upcoming' ? loadingUpcoming : tab === 'InHouse' ? loadingInhouse : loadingCompleted
+  const hasActiveFilters = Boolean(search.trim() || categoryFilter !== 'All' || sourceFilter !== 'All')
+
   return (
     <AppShell>
       <div className="bookings-container">
@@ -369,8 +380,8 @@ export default function BookingsPage() {
           </button>
         </div>
 
-        {/* Tabs + Search Toolbar */}
-        <div className="bookings-toolbar">
+        {/* Tabs + Search & Filters Toolbar */}
+        <div className="bookings-toolbar" style={{ flexWrap: 'wrap', gap: '12px' }}>
           <div className="tabs">
             {(
               [
@@ -390,23 +401,86 @@ export default function BookingsPage() {
             ))}
           </div>
 
-          <div className="bookings-search-box">
-            <Search
-              size={14}
-              style={{
-                position: 'absolute',
-                left: 10,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: 'var(--text-3)',
-              }}
-            />
-            <input
-              className="bookings-search-input"
-              placeholder="Search name, ID or phone"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            {/* Search Input */}
+            <div className="bookings-search-box" style={{ minWidth: '220px' }}>
+              <Search
+                size={14}
+                style={{
+                  position: 'absolute',
+                  left: 10,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: 'var(--text-3)',
+                }}
+              />
+              <input
+                className="bookings-search-input"
+                placeholder="Search name, ID or phone"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch('')}
+                  style={{
+                    position: 'absolute',
+                    right: 8,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-3)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+
+            {/* Category Filter */}
+            <select
+              className="form-control"
+              style={{ padding: '6px 10px', fontSize: '12px', width: 'auto', background: 'var(--card)' }}
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+            >
+              {CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c === 'All' ? 'All Types' : c}
+                </option>
+              ))}
+            </select>
+
+            {/* Source Filter */}
+            <select
+              className="form-control"
+              style={{ padding: '6px 10px', fontSize: '12px', width: 'auto', background: 'var(--card)' }}
+              value={sourceFilter}
+              onChange={(e) => setSourceFilter(e.target.value)}
+            >
+              {SOURCES.map((s) => (
+                <option key={s} value={s}>
+                  {s === 'All' ? 'All Sources' : s}
+                </option>
+              ))}
+            </select>
+
+            {/* Reset Filters */}
+            {hasActiveFilters && (
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => {
+                  setSearch('')
+                  setCategoryFilter('All')
+                  setSourceFilter('All')
+                }}
+                style={{ fontSize: '11px', padding: '6px 10px' }}
+              >
+                Reset
+              </button>
+            )}
           </div>
         </div>
 
@@ -419,8 +493,12 @@ export default function BookingsPage() {
               <div className="section-title">Arriving today ({arrivingToday.length})</div>
               <div className="section-meta">Booked room nights: {roomNights(arrivingToday)}</div>
             </div>
-            {arrivingToday.length === 0 ? (
-              <div className="empty-state">No arrivals left for today.</div>
+            {isLoading && !upcoming ? (
+              <div className="skeleton" style={{ height: 60, marginBottom: 8 }} />
+            ) : arrivingToday.length === 0 ? (
+              <div className="empty-state">
+                {hasActiveFilters ? 'No arrivals matching current search filter.' : 'No arrivals left for today.'}
+              </div>
             ) : (
               arrivingToday.map((b: any) => (
                 <BookingCard
@@ -433,12 +511,16 @@ export default function BookingsPage() {
               ))
             )}
 
-            <div className="section-header">
+            <div className="section-header" style={{ marginTop: '24px' }}>
               <div className="section-title">Arriving later ({arrivingLater.length})</div>
               <div className="section-meta">Booked room nights: {roomNights(arrivingLater)}</div>
             </div>
-            {arrivingLater.length === 0 ? (
-              <div className="empty-state">No bookings here.</div>
+            {isLoading && !upcoming ? (
+              <div className="skeleton" style={{ height: 60, marginBottom: 8 }} />
+            ) : arrivingLater.length === 0 ? (
+              <div className="empty-state">
+                {hasActiveFilters ? 'No upcoming bookings matching filter.' : 'No future bookings scheduled.'}
+              </div>
             ) : (
               arrivingLater.map((b: any) => (
                 <BookingCard
@@ -464,8 +546,12 @@ export default function BookingsPage() {
                 Booked room nights: {roomNights(departingTodayEarlier)}
               </div>
             </div>
-            {departingTodayEarlier.length === 0 ? (
-              <div className="empty-state">No bookings here.</div>
+            {isLoading && !inhouse ? (
+              <div className="skeleton" style={{ height: 60, marginBottom: 8 }} />
+            ) : departingTodayEarlier.length === 0 ? (
+              <div className="empty-state">
+                {hasActiveFilters ? 'No departures matching filter.' : 'No departures due today.'}
+              </div>
             ) : (
               departingTodayEarlier.map((b: any) => (
                 <BookingCard
@@ -478,12 +564,16 @@ export default function BookingsPage() {
               ))
             )}
 
-            <div className="section-header">
+            <div className="section-header" style={{ marginTop: '24px' }}>
               <div className="section-title">Staying on ({stayingOn.length})</div>
               <div className="section-meta">Booked room nights: {roomNights(stayingOn)}</div>
             </div>
-            {stayingOn.length === 0 ? (
-              <div className="empty-state">No bookings here.</div>
+            {isLoading && !inhouse ? (
+              <div className="skeleton" style={{ height: 60, marginBottom: 8 }} />
+            ) : stayingOn.length === 0 ? (
+              <div className="empty-state">
+                {hasActiveFilters ? 'No guests matching filter.' : 'No in-house guests currently staying on.'}
+              </div>
             ) : (
               stayingOn.map((b: any) => (
                 <BookingCard
@@ -505,8 +595,12 @@ export default function BookingsPage() {
               <div className="section-title">Checked out ({checkedOut.length})</div>
               <div className="section-meta">Booked room nights: {roomNights(checkedOut)}</div>
             </div>
-            {checkedOut.length === 0 ? (
-              <div className="empty-state">No bookings here.</div>
+            {isLoading && !completed ? (
+              <div className="skeleton" style={{ height: 60, marginBottom: 8 }} />
+            ) : checkedOut.length === 0 ? (
+              <div className="empty-state">
+                {hasActiveFilters ? 'No checked-out records matching filter.' : 'No checked out stays recorded.'}
+              </div>
             ) : (
               checkedOut.map((b: any) => (
                 <BookingCard
@@ -519,44 +613,44 @@ export default function BookingsPage() {
               ))
             )}
 
-            <div className="section-header">
-              <div className="section-title">No show ({noShow.length})</div>
-            </div>
-            {noShow.length === 0 ? (
-              <div className="empty-state">No bookings here.</div>
-            ) : (
-              noShow.map((b: any) => (
-                <BookingCard
-                  key={b.id}
-                  b={b}
-                  onSelect={setSelectedBooking}
-                  onCheckin={setCheckinBooking}
-                  onCheckout={setCheckoutBooking}
-                />
-              ))
+            {noShow.length > 0 && (
+              <>
+                <div className="section-header" style={{ marginTop: '24px' }}>
+                  <div className="section-title">No show ({noShow.length})</div>
+                </div>
+                {noShow.map((b: any) => (
+                  <BookingCard
+                    key={b.id}
+                    b={b}
+                    onSelect={setSelectedBooking}
+                    onCheckin={setCheckinBooking}
+                    onCheckout={setCheckoutBooking}
+                  />
+                ))}
+              </>
             )}
 
-            <div className="section-header">
-              <div className="section-title">Cancelled ({cancelled.length})</div>
-            </div>
-            {cancelled.length === 0 ? (
-              <div className="empty-state">No bookings here.</div>
-            ) : (
-              cancelled.map((b: any) => (
-                <BookingCard
-                  key={b.id}
-                  b={b}
-                  onSelect={setSelectedBooking}
-                  onCheckin={setCheckinBooking}
-                  onCheckout={setCheckoutBooking}
-                />
-              ))
+            {cancelled.length > 0 && (
+              <>
+                <div className="section-header" style={{ marginTop: '24px' }}>
+                  <div className="section-title">Cancelled ({cancelled.length})</div>
+                </div>
+                {cancelled.map((b: any) => (
+                  <BookingCard
+                    key={b.id}
+                    b={b}
+                    onSelect={setSelectedBooking}
+                    onCheckin={setCheckinBooking}
+                    onCheckout={setCheckoutBooking}
+                  />
+                ))}
+              </>
             )}
           </>
         )}
       </div>
 
-      {/* Modals & Drawers */}
+      {/* MODALS */}
       {selectedBooking && (
         <BookingDetailsModal
           booking={selectedBooking}
