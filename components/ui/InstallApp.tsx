@@ -1,7 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { Download, Smartphone, Laptop, Check, X, Share, PlusSquare, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react'
+import { Download, Smartphone, Laptop, Check, X, Share, PlusSquare, ArrowRight, ShieldCheck, Sparkles, MonitorCheck } from 'lucide-react'
 
 type InstallContextType = {
   canInstall: boolean
@@ -41,26 +41,26 @@ export function InstallAppProvider({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     // Check if running as standalone PWA
-    const isStandalone =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as any).standalone === true ||
-      document.referrer.includes('android-app://')
+    if (typeof window !== 'undefined') {
+      const isStandalone =
+        window.matchMedia('(display-mode: standalone)').matches ||
+        (window.navigator as any).standalone === true ||
+        document.referrer.includes('android-app://')
 
-    if (isStandalone) {
-      setIsInstalled(true)
+      setIsInstalled(Boolean(isStandalone))
+
+      // Platform detection
+      const userAgent = window.navigator.userAgent.toLowerCase()
+      const iosDevice = /iphone|ipad|ipod/.test(userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+      const androidDevice = /android/.test(userAgent)
+      const macDevice = /macintosh|mac os x/.test(userAgent) && !iosDevice
+      const winDevice = /windows/.test(userAgent)
+
+      setIsIOS(iosDevice)
+      setIsAndroid(androidDevice)
+      setIsMac(macDevice)
+      setIsWindows(winDevice)
     }
-
-    // Platform detection
-    const userAgent = window.navigator.userAgent.toLowerCase()
-    const iosDevice = /iphone|ipad|ipod/.test(userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-    const androidDevice = /android/.test(userAgent)
-    const macDevice = /macintosh|mac os x/.test(userAgent) && !iosDevice
-    const winDevice = /windows/.test(userAgent)
-
-    setIsIOS(iosDevice)
-    setIsAndroid(androidDevice)
-    setIsMac(macDevice)
-    setIsWindows(winDevice)
 
     // Capture beforeinstallprompt event (Chrome, Edge, Android)
     const handleBeforeInstallPrompt = (e: Event) => {
@@ -80,7 +80,7 @@ export function InstallAppProvider({ children }: { children: React.ReactNode }) 
     window.addEventListener('appinstalled', handleAppInstalled)
 
     // Register Service Worker
-    if ('serviceWorker' in navigator) {
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch((err) => {
         console.log('Service Worker registration skipped:', err)
       })
@@ -132,7 +132,7 @@ export function InstallAppProvider({ children }: { children: React.ReactNode }) 
 }
 
 export function InstallAppModal({ onClose }: { onClose: () => void }) {
-  const { isIOS, isAndroid, canInstall, promptInstall, isInstalled } = useInstallApp()
+  const { isIOS, isAndroid, isMac, isWindows, canInstall, promptInstall, isInstalled } = useInstallApp()
 
   return (
     <div className="modal-overlay" onClick={onClose} style={{ zIndex: 9999 }}>
@@ -169,6 +169,8 @@ export function InstallAppModal({ onClose }: { onClose: () => void }) {
               padding: '6px',
               borderRadius: '6px',
               background: 'var(--card-2)',
+              border: 'none',
+              cursor: 'pointer',
             }}
           >
             <X size={16} />
@@ -239,7 +241,7 @@ export function InstallAppModal({ onClose }: { onClose: () => void }) {
               </div>
               <h4 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text)' }}>App Already Installed!</h4>
               <p style={{ fontSize: '13px', color: 'var(--text-2)', marginTop: '6px' }}>
-                APEX INN is installed on your device. You can launch it directly from your Home Screen or Applications list.
+                APEX INN is installed on your device. You can launch it directly from your Dock, Applications, or Home Screen.
               </p>
               <button
                 className="btn btn-red"
@@ -372,11 +374,12 @@ export function InstallAppModal({ onClose }: { onClose: () => void }) {
                   ) : (
                     <div>
                       <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', marginBottom: '8px' }}>
-                        How to install on Desktop / Mobile:
+                        How to install on Chrome / Edge / Desktop:
                       </div>
                       <div style={{ fontSize: '13px', color: 'var(--text-2)', lineHeight: '1.6' }}>
                         • On <strong style={{ color: 'var(--text)' }}>Chrome / Edge</strong>: Click the <strong>Install</strong> icon (computer/arrow) in the address bar at the top right.<br />
-                        • On <strong style={{ color: 'var(--text)' }}>Android</strong>: Tap the menu (⋮) in Chrome and choose <strong>&quot;Install app&quot;</strong> or <strong>&quot;Add to Home screen&quot;</strong>.
+                        • On <strong style={{ color: 'var(--text)' }}>Android</strong>: Tap the menu (⋮) in Chrome and choose <strong>&quot;Install app&quot;</strong> or <strong>&quot;Add to Home screen&quot;</strong>.<br />
+                        • On <strong style={{ color: 'var(--text)' }}>Safari (Mac)</strong>: Go to <strong>File &gt; Add to Dock...</strong> to install as a standalone app.
                       </div>
                     </div>
                   )}
@@ -399,7 +402,7 @@ export function InstallAppModal({ onClose }: { onClose: () => void }) {
 }
 
 /**
- * Reusable Install App Icon Button
+ * Reusable Install App Button (Always permanently visible & consistent)
  */
 export function InstallAppButton({
   variant = 'button',
@@ -408,21 +411,23 @@ export function InstallAppButton({
   variant?: 'button' | 'icon-only' | 'sidebar-card' | 'landing-badge' | 'mobile-item'
   className?: string
 }) {
-  const { promptInstall, isInstalled, canInstall } = useInstallApp()
+  const { promptInstall, isInstalled, setShowModal } = useInstallApp()
 
-  if (isInstalled && variant !== 'landing-badge') {
-    return null
+  const handleClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    promptInstall()
   }
 
   if (variant === 'icon-only') {
     return (
       <button
-        onClick={promptInstall}
+        onClick={handleClick}
         className={`install-icon-btn ${className}`}
-        title="Install APEX INN App"
+        title={isInstalled ? "APEX INN App (Installed)" : "Install APEX INN App"}
         aria-label="Install App"
       >
-        <Download size={16} />
+        {isInstalled ? <Check size={16} color="var(--green)" /> : <Download size={16} />}
       </button>
     )
   }
@@ -430,25 +435,30 @@ export function InstallAppButton({
   if (variant === 'landing-badge') {
     return (
       <button
-        onClick={promptInstall}
+        onClick={handleClick}
         className={`landing-install-pill ${className}`}
         title="Install APEX INN App"
       >
-        <Download size={14} />
-        <span>Install App</span>
+        {isInstalled ? <Check size={14} color="var(--green)" /> : <Download size={14} />}
+        <span>{isInstalled ? 'App Active' : 'Install App'}</span>
       </button>
     )
   }
 
   if (variant === 'sidebar-card') {
     return (
-      <div className={`sidebar-install-widget ${className}`} onClick={promptInstall}>
-        <div className="sidebar-install-icon">
-          <Download size={15} />
+      <div className={`sidebar-install-widget ${className}`} onClick={handleClick}>
+        <div
+          className="sidebar-install-icon"
+          style={isInstalled ? { background: 'var(--green-dim)', color: 'var(--green)' } : undefined}
+        >
+          {isInstalled ? <MonitorCheck size={16} /> : <Download size={15} />}
         </div>
         <div className="sidebar-install-text">
-          <div className="install-title">Install App</div>
-          <div className="install-sub">Standalone PMS</div>
+          <div className="install-title">{isInstalled ? 'APEX INN App' : 'Install App'}</div>
+          <div className="install-sub" style={isInstalled ? { color: 'var(--green)' } : undefined}>
+            {isInstalled ? 'Running PMS App' : 'Standalone PMS'}
+          </div>
         </div>
         <ArrowRight size={13} color="var(--text-2)" />
       </div>
@@ -457,21 +467,21 @@ export function InstallAppButton({
 
   if (variant === 'mobile-item') {
     return (
-      <button onClick={promptInstall} className={`mobile-nav-item install-mobile-btn ${className}`}>
-        <Download size={18} color="var(--red)" />
-        <span>Install</span>
+      <button onClick={handleClick} className={`mobile-nav-item install-mobile-btn ${className}`}>
+        {isInstalled ? <Check size={18} color="var(--green)" /> : <Download size={18} color="var(--red)" />}
+        <span>{isInstalled ? 'App' : 'Install'}</span>
       </button>
     )
   }
 
   return (
     <button
-      onClick={promptInstall}
+      onClick={handleClick}
       className={`btn btn-install ${className}`}
       title="Install APEX INN App on your device"
     >
-      <Download size={14} />
-      <span>Install App</span>
+      {isInstalled ? <Check size={14} color="var(--green)" /> : <Download size={14} />}
+      <span>{isInstalled ? 'App Installed' : 'Install App'}</span>
     </button>
   )
 }
