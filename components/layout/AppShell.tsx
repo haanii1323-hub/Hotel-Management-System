@@ -45,7 +45,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="app-shell">
-      {/* Sidebar */}
+      {/* Desktop Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-logo">
           <div className="sidebar-logo-icon">
@@ -80,7 +80,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </svg>
             <input
               type="text"
-              placeholder="Search bookings from the Bookings page"
+              placeholder="Search bookings..."
               value={search}
               onChange={e => { setSearch(e.target.value); setShowResults(true) }}
               onFocus={() => setShowResults(true)}
@@ -119,7 +119,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <div className="topbar-user">
             <div className="user-info">
               <div className="user-code">APX3630</div>
-              <div className="user-sub">Apex Inn · {session?.user?.name || 'Staff'}</div>
+              <div className="user-sub">Apex Inn · {session?.user?.name || 'Sahasra'}</div>
             </div>
             <button className="logout-btn" onClick={() => signOut({ callbackUrl: '/auth' })} title="Logout">
               <LogOut size={16} />
@@ -131,6 +131,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <main className="page-content">
           {children}
         </main>
+
+        {/* Mobile Bottom Navigation Bar */}
+        <nav className="mobile-nav">
+          {NAV.map(({ href, label, icon: Icon }) => (
+            <Link key={href} href={href} className={`mobile-nav-item${pathname.startsWith(href) ? ' active' : ''}`}>
+              <Icon size={18} />
+              <span>{label.split(' ')[0]}</span>
+            </Link>
+          ))}
+        </nav>
       </div>
     </div>
   )
