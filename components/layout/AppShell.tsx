@@ -29,7 +29,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const inputRef = useRef<HTMLInputElement>(null)
 
   const { data: searchResults } = useSWR(
-    search.length >= 2 ? `/api/search?q=${encodeURIComponent(search)}` : null,
+    search.trim().length >= 1 ? `/api/search?q=${encodeURIComponent(search.trim())}` : null,
     fetcher
   )
 
@@ -98,23 +98,27 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <input
               ref={inputRef}
               type="text"
-              placeholder="Search guests, reference IDs..."
+              placeholder="Search guests, reference IDs, rooms..."
               value={search}
               onChange={e => { setSearch(e.target.value); setShowResults(true) }}
               onFocus={() => setShowResults(true)}
             />
             <span className="search-shortcut-badge">⌘K</span>
-            {showResults && search.length >= 2 && searchResults && searchResults.length > 0 && (
+            {showResults && search.trim().length >= 1 && searchResults && searchResults.length > 0 && (
               <div className="search-results">
                 {searchResults.map((b: any) => {
                   const collected = b.payments?.reduce((s: number, p: any) => s + (p.status !== 'Pending' ? p.amount : 0), 0) || 0
-                  const balance = b.totalAmount - collected
+                  const balance = Math.max(0, b.totalAmount - collected)
                   return (
-                    <div key={b.id} className="search-result-item" onClick={() => {
-                      router.push('/bookings')
-                      setSearch('')
-                      setShowResults(false)
-                    }}>
+                    <div
+                      key={b.id}
+                      className="search-result-item"
+                      onClick={() => {
+                        router.push(`/bookings?selected=${b.id}`)
+                        setSearch('')
+                        setShowResults(false)
+                      }}
+                    >
                       <div>
                         <div className="search-result-name">{b.guest?.name}</div>
                         <div className="search-result-meta">{b.bookingRef} · {b.source} · {b.roomCategory}</div>
@@ -128,7 +132,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 })}
               </div>
             )}
-            {showResults && search.length >= 2 && searchResults?.length === 0 && (
+            {showResults && search.trim().length >= 1 && searchResults?.length === 0 && (
               <div className="search-results">
                 <div style={{ padding: '12px 14px', color: 'var(--text-2)', fontSize: '13px' }}>No bookings found</div>
               </div>
@@ -168,4 +172,3 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     </div>
   )
 }
-

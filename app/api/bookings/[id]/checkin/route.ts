@@ -10,6 +10,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: 'Missing booking ID' }, { status: 400 })
   }
 
+  const body = await req.json().catch(() => ({}))
+  const { selectedRoomIds } = body
+
   // Find booking by ID or bookingRef
   const booking = await prisma.booking.findFirst({
     where: {
@@ -42,8 +45,21 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: 'Cannot check in a cancelled booking.' }, { status: 400 })
   }
 
-  // If no rooms are assigned yet, assign available rooms now
-  if (booking.bookingRooms.length === 0) {
+  // Handle explicit room selection or auto-assignment
+  if (Array.isArray(selectedRoomIds) && selectedRoomIds.length > 0) {
+    // Delete existing assignments if any
+    await prisma.bookingRoom.deleteMany({ where: { bookingId: booking.id } })
+
+    for (const rId of selectedRoomIds) {
+      await prisma.bookingRoom.create({
+        data: {
+          bookingId: booking.id,
+          roomId: rId,
+        },
+      })
+    }
+  } else if (booking.bookingRooms.length === 0) {
+    // Auto-assign available rooms of this category
     const category = await prisma.roomCategory.findFirst({
       where: { name: booking.roomCategory },
       include: { rooms: true },
@@ -70,8 +86,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     data: { status: 'CheckedIn' },
     include: {
       guest: true,
-      bookingRooms: { include: { room: true } },
+      bookingRooms: { include: { room: { include: { category: true } } } },
       payments: true,
+      invoices: true,
+      statusLogs: true,
     },
   })
 

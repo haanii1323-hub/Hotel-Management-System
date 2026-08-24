@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/utils'
-import { format, eachDayOfInterval, parseISO, startOfDay, endOfDay } from 'date-fns'
+import { format, eachDayOfInterval, parseISO, startOfDay, endOfDay, isValid } from 'date-fns'
 
 export async function GET(req: NextRequest) {
   const { error } = await requireAuth()
@@ -15,8 +15,18 @@ export async function GET(req: NextRequest) {
   const defaultFrom = new Date(now.getFullYear(), now.getMonth(), 1)
   const defaultTo = new Date(now.getFullYear(), now.getMonth() + 1, 0)
 
-  const from = fromStr ? parseISO(fromStr) : defaultFrom
-  const to = toStr ? parseISO(toStr) : defaultTo
+  let from = fromStr ? parseISO(fromStr) : defaultFrom
+  let to = toStr ? parseISO(toStr) : defaultTo
+
+  if (!isValid(from)) from = defaultFrom
+  if (!isValid(to)) to = defaultTo
+
+  // Protect against inverted date ranges
+  if (from > to) {
+    const temp = from
+    from = to
+    to = temp
+  }
 
   const fromStart = startOfDay(from)
   const toEnd = endOfDay(to)
@@ -73,7 +83,6 @@ export async function GET(req: NextRequest) {
 
   const dailyReport = days.map(day => {
     const dayStart = startOfDay(day)
-    const dayEnd = endOfDay(day)
     const dateFormatted = format(day, 'MMM d')
     const dateFull = format(day, 'yyyy-MM-dd')
 
@@ -159,7 +168,6 @@ export async function GET(req: NextRequest) {
     dailyRevenue,
     dailyReport,
     categoryPerformance,
-    // Keep categoryArr for backwards compatibility if needed
     categoryArr: categoryPerformance,
   })
 }

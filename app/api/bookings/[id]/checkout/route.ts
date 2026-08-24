@@ -33,6 +33,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       guest: true,
       bookingRooms: { include: { room: true } },
       payments: true,
+      invoices: true,
     },
   })
 
@@ -73,8 +74,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     data: { status: 'CheckedOut' },
     include: {
       guest: true,
-      bookingRooms: { include: { room: true } },
+      bookingRooms: { include: { room: { include: { category: true } } } },
       payments: true,
+      invoices: true,
+      statusLogs: true,
     },
   })
 
@@ -90,9 +93,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     data: { bookingId: booking.id, oldStatus: booking.status, newStatus: 'CheckedOut', changedBy: session?.user?.id },
   })
 
-  // Generate invoice
-  const invoiceNo = generateInvoiceNo()
-  await prisma.invoice.create({ data: { invoiceNo, bookingId: booking.id } })
+  // Generate and persist invoice if none exists yet
+  let invoiceNo = booking.invoices?.[0]?.invoiceNo
+  if (!invoiceNo) {
+    invoiceNo = generateInvoiceNo()
+    await prisma.invoice.create({ data: { invoiceNo, bookingId: booking.id } })
+  }
 
   return NextResponse.json({
     success: true,

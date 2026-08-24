@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import useSWR, { useSWRConfig } from 'swr'
+import { useSearchParams } from 'next/navigation'
 import AppShell from '@/components/layout/AppShell'
 import {
   Phone,
@@ -268,7 +269,10 @@ function BookingCard({
   )
 }
 
-export default function BookingsPage() {
+function BookingsContent() {
+  const searchParams = useSearchParams()
+  const selectedParam = searchParams.get('selected')
+
   const { showToast } = useToast()
   const [tab, setTab] = useState<'Upcoming' | 'InHouse' | 'Completed'>('Upcoming')
   const [search, setSearch] = useState('')
@@ -329,6 +333,23 @@ export default function BookingsPage() {
       ),
     ])
   }
+
+  // Handle URL param selection
+  useEffect(() => {
+    if (selectedParam) {
+      fetch(`/api/bookings/${selectedParam}`)
+        .then((r) => r.json())
+        .then((b) => {
+          if (b && !b.error) {
+            setSelectedBooking(b)
+            if (b.status === 'Upcoming') setTab('Upcoming')
+            else if (b.status === 'CheckedIn') setTab('InHouse')
+            else if (b.status === 'CheckedOut' || b.status === 'Cancelled') setTab('Completed')
+          }
+        })
+        .catch(() => {})
+    }
+  }, [selectedParam])
 
   const now = new Date()
   const todayDateStr = format(now, 'yyyy-MM-dd')
@@ -416,7 +437,7 @@ export default function BookingsPage() {
               />
               <input
                 className="bookings-search-input"
-                placeholder="Search name, ID or phone"
+                placeholder="Search name, ID, phone, room"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -718,5 +739,13 @@ export default function BookingsPage() {
         />
       )}
     </AppShell>
+  )
+}
+
+export default function BookingsPage() {
+  return (
+    <Suspense fallback={<div className="skeleton" style={{ height: 200, margin: 20 }} />}>
+      <BookingsContent />
+    </Suspense>
   )
 }

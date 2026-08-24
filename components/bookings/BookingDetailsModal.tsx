@@ -16,10 +16,14 @@ import {
   ArrowRight,
   ShieldCheck,
   Tag,
-  AlertCircle
+  AlertCircle,
+  Pencil,
+  Ban,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import InvoiceModal from './InvoiceModal'
+import EditBookingModal from './EditBookingModal'
+import { useToast } from '@/components/ui/Toast'
 
 function fmt(n: number) {
   return `₹${Number(n || 0).toLocaleString('en-IN')}`
@@ -64,14 +68,18 @@ interface Props {
 }
 
 export default function BookingDetailsModal({
-  booking,
+  booking: initialBooking,
   onClose,
   onCheckin,
   onCheckout,
   onCollectPayment,
   onSuccess,
 }: Props) {
+  const { showToast } = useToast()
+  const [booking, setBooking] = useState(initialBooking)
   const [showInvoice, setShowInvoice] = useState(false)
+  const [showEdit, setShowEdit] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
 
   if (!booking) return null
 
@@ -82,9 +90,10 @@ export default function BookingDetailsModal({
     ) || 0
   const balance = Math.max(0, (booking.totalAmount || 0) - collected)
   const numNights = nights(booking.checkIn, booking.checkOut)
+
   const assignedRooms =
     booking.bookingRooms && booking.bookingRooms.length > 0
-      ? booking.bookingRooms.map((br: any) => br.room?.roomNumber).filter(Boolean).join(', ')
+      ? booking.bookingRooms.map((br: any) => br.room?.number || br.room?.roomNumber).filter(Boolean).join(', ')
       : 'Auto-assigned upon check-in'
 
   const statusConfig: Record<string, { label: string; className: string }> = {
@@ -98,6 +107,33 @@ export default function BookingDetailsModal({
   const currentStatus = statusConfig[booking.status] || {
     label: booking.status,
     className: 'badge-gray',
+  }
+
+  async function handleCancelBooking() {
+    if (!confirm(`Are you sure you want to cancel booking ${booking.bookingRef} for ${booking.guest?.name}? Assigned rooms will be released back to inventory.`)) {
+      return
+    }
+
+    setCancelling(true)
+    try {
+      const res = await fetch(`/api/bookings/${booking.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'Cancelled' }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        showToast(data.error || 'Failed to cancel booking', 'error')
+      } else {
+        showToast(`Booking ${booking.bookingRef} cancelled. Rooms released.`, 'success')
+        setBooking(data)
+        if (onSuccess) onSuccess()
+      }
+    } catch {
+      showToast('Network error. Please try again.', 'error')
+    } finally {
+      setCancelling(false)
+    }
   }
 
   return (
@@ -144,13 +180,37 @@ export default function BookingDetailsModal({
                 Created on {fmtDate(booking.createdAt)} · Source: <strong>{booking.source}</strong>
               </div>
             </div>
-            <button
-              onClick={onClose}
-              className="btn-icon"
-              style={{ padding: '6px', borderRadius: '6px', color: 'var(--text-2)' }}
-            >
-              <X size={18} />
-            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {booking.status !== 'Cancelled' && booking.status !== 'CheckedOut' && (
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setShowEdit(true)}
+                  style={{ gap: '5px', fontSize: '12px', padding: '6px 10px' }}
+                  title="Edit booking"
+                >
+                  <Pencil size={13} /> Edit
+                </button>
+              )}
+              {booking.status !== 'Cancelled' && booking.status !== 'CheckedOut' && (
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={handleCancelBooking}
+                  disabled={cancelling}
+                  style={{ gap: '5px', fontSize: '12px', padding: '6px 10px', color: 'var(--red)' }}
+                  title="Cancel booking"
+                >
+                  <Ban size={13} /> {cancelling ? 'Cancelling...' : 'Cancel'}
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                className="btn-icon"
+                style={{ padding: '6px', borderRadius: '6px', color: 'var(--text-2)' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
           </div>
 
           {/* Scrollable Content Body */}
@@ -249,7 +309,7 @@ export default function BookingDetailsModal({
                   gap: '6px',
                 }}
               >
-                <BedDouble size={13} /> Stay & Inventory
+                <BedDouble size={13} /> Stay &amp; Inventory
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
                 <div>
@@ -271,7 +331,7 @@ export default function BookingDetailsModal({
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-2)' }}>Rooms & Category</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-2)' }}>Rooms &amp; Category</div>
                   <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', marginTop: '2px' }}>
                     {booking.numRooms} × {booking.roomCategory}
                   </div>
@@ -285,7 +345,7 @@ export default function BookingDetailsModal({
                 </div>
                 <div>
                   <div style={{ fontSize: '11px', color: 'var(--text-2)' }}>Assigned Rooms</div>
-                  <div style={{ fontSize: '13px', color: 'var(--text)', marginTop: '2px', fontWeight: 500 }}>
+                  <div style={{ fontSize: '13px', color: 'var(--text)', marginTop: '2px', fontWeight: 600 }}>
                     {assignedRooms}
                   </div>
                 </div>
@@ -504,6 +564,18 @@ export default function BookingDetailsModal({
           </div>
         </div>
       </div>
+
+      {showEdit && (
+        <EditBookingModal
+          booking={booking}
+          onClose={() => setShowEdit(false)}
+          onSuccess={(updated) => {
+            setShowEdit(false)
+            if (updated) setBooking(updated)
+            if (onSuccess) onSuccess()
+          }}
+        />
+      )}
 
       {showInvoice && (
         <InvoiceModal
