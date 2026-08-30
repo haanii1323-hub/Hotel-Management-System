@@ -22,12 +22,10 @@ import CheckInModal from '@/components/bookings/CheckInModal'
 import CheckoutModal from '@/components/bookings/CheckoutModal'
 import CollectPaymentModal from '@/components/bookings/CollectPaymentModal'
 import { useToast } from '@/components/ui/Toast'
+import { useProperty } from '@/context/PropertyContext'
+import { useRealtimeSync } from '@/lib/realtime-sync'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
-
-function fmt(n: number) {
-  return `₹${Number(n || 0).toLocaleString('en-IN')}`
-}
 
 function parseBookingDate(d: string | Date | null | undefined): Date | null {
   if (!d) return null
@@ -64,20 +62,22 @@ function nights(checkIn: string, checkOut: string) {
   return Math.max(1, Math.round((d2.getTime() - d1.getTime()) / 86400000))
 }
 
-const CATEGORIES = ['All', 'Deluxe', 'Classic', 'Suite']
 const SOURCES = ['All', 'Walk inn', 'Direct Web', 'Booking.com', 'Agoda', 'Expedia', 'Corporate', 'Phone', 'OTA', 'Others']
 
 function BookingCard({
   b,
+  currencySymbol = '₹',
   onSelect,
   onCheckin,
   onCheckout,
 }: {
   b: any
+  currencySymbol?: string
   onSelect: (b: any) => void
   onCheckin: (b: any) => void
   onCheckout: (b: any) => void
 }) {
+  const formatMoney = (n: number) => `${currencySymbol}${Number(n || 0).toLocaleString('en-IN')}`
   const collected =
     b.payments?.reduce(
       (s: number, p: any) => s + (p.status !== 'Pending' ? p.amount : 0),
@@ -126,13 +126,13 @@ function BookingCard({
           <div className="sub">{b.roomCategory}</div>
         </div>
         <div className="booking-amount">
-          <div className="total">{fmt(b.totalAmount)}</div>
+          <div className="total">{formatMoney(b.totalAmount)}</div>
           <div
             className={`balance ${
               balance > 0 ? (collected > 0 ? 'partial' : 'pending') : 'paid'
             }`}
           >
-            {balance > 0 ? `Collect at hotel: ${fmt(balance)}` : 'Paid'}
+            {balance > 0 ? `Collect: ${formatMoney(balance)}` : 'Paid'}
           </div>
         </div>
         <div className="booking-actions">
@@ -180,7 +180,7 @@ function BookingCard({
         </div>
       </div>
 
-      {/* Mobile Vertical Card View */}
+      {/* Mobile View */}
       <div className="booking-mobile-view">
         <div className="booking-card-top">
           <div>
@@ -211,14 +211,14 @@ function BookingCard({
 
         <div className="booking-card-amount-row">
           <div>
-            <div className="booking-card-total">{fmt(b.totalAmount)}</div>
+            <div className="booking-card-total">{formatMoney(b.totalAmount)}</div>
           </div>
           <div
             className={`booking-card-balance ${
               balance > 0 ? (collected > 0 ? 'partial' : 'pending') : 'paid'
             }`}
           >
-            {balance > 0 ? `Collect at hotel: ${fmt(balance)}` : 'Paid'}
+            {balance > 0 ? `Collect: ${formatMoney(balance)}` : 'Paid'}
           </div>
         </div>
 
@@ -273,7 +273,16 @@ function BookingsContent() {
   const searchParams = useSearchParams()
   const selectedParam = searchParams.get('selected')
 
-  const { showToast } = useToast()
+  const { currentProperty } = useProperty()
+  const propertyId = currentProperty?.id || ''
+  const currencySymbol = currentProperty?.currencySymbol || '₹'
+
+  const { data: categoriesData } = useSWR(
+    propertyId ? `/api/categories?propertyId=${propertyId}` : '/api/categories',
+    fetcher
+  )
+  const categoryOptions = ['All', ...(categoriesData || []).map((c: any) => c.name)]
+
   const [tab, setTab] = useState<'Upcoming' | 'InHouse' | 'Completed'>('Upcoming')
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('All')
@@ -286,7 +295,7 @@ function BookingsContent() {
 
   const { mutate: globalMutate } = useSWRConfig()
 
-  let q = ''
+  let q = propertyId ? `&propertyId=${propertyId}` : ''
   if (search.trim()) q += `&search=${encodeURIComponent(search.trim())}`
   if (categoryFilter !== 'All') q += `&category=${encodeURIComponent(categoryFilter)}`
   if (sourceFilter !== 'All') q += `&source=${encodeURIComponent(sourceFilter)}`
@@ -334,6 +343,8 @@ function BookingsContent() {
     ])
   }
 
+  useRealtimeSync(mutateAll)
+
   // Handle URL param selection
   useEffect(() => {
     if (selectedParam) {
@@ -354,7 +365,6 @@ function BookingsContent() {
   const now = new Date()
   const todayDateStr = format(now, 'yyyy-MM-dd')
 
-  // Upcoming: arriving today or overdue vs arriving later
   const arrivingToday = (upcoming || []).filter((b: any) => {
     const ciStr = getDateString(b.checkIn)
     return ciStr <= todayDateStr
@@ -364,7 +374,6 @@ function BookingsContent() {
     return ciStr > todayDateStr
   })
 
-  // Inhouse: departing today or earlier vs staying on
   const departingTodayEarlier = (inhouse || []).filter((b: any) => {
     const coStr = getDateString(b.checkOut)
     return coStr <= todayDateStr
@@ -374,7 +383,6 @@ function BookingsContent() {
     return coStr > todayDateStr
   })
 
-  // Completed sub-sections
   const checkedOut = (completed || []).filter((b: any) => b.status === 'CheckedOut')
   const noShow = (completed || []).filter((b: any) => b.status === 'NoShow')
   const cancelled = (completed || []).filter((b: any) => b.status === 'Cancelled')
@@ -395,7 +403,12 @@ function BookingsContent() {
       <div className="bookings-container">
         {/* Page Header */}
         <div className="page-header">
-          <h1 className="page-title">Bookings</h1>
+          <div>
+            <h1 className="page-title">Bookings · {currentProperty?.name}</h1>
+            <div style={{ fontSize: '12px', color: 'var(--text-2)', marginTop: '2px' }}>
+              {currentProperty?.code} · {currentProperty?.city}
+            </div>
+          </div>
           <button className="btn btn-red" onClick={() => setShowNewBooking(true)}>
             + New Booking
           </button>
@@ -467,7 +480,7 @@ function BookingsContent() {
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
             >
-              {CATEGORIES.map((c) => (
+              {categoryOptions.map((c) => (
                 <option key={c} value={c}>
                   {c === 'All' ? 'All Types' : c}
                 </option>
@@ -525,6 +538,7 @@ function BookingsContent() {
                 <BookingCard
                   key={b.id}
                   b={b}
+                  currencySymbol={currencySymbol}
                   onSelect={setSelectedBooking}
                   onCheckin={setCheckinBooking}
                   onCheckout={setCheckoutBooking}
@@ -547,6 +561,7 @@ function BookingsContent() {
                 <BookingCard
                   key={b.id}
                   b={b}
+                  currencySymbol={currencySymbol}
                   onSelect={setSelectedBooking}
                   onCheckin={setCheckinBooking}
                   onCheckout={setCheckoutBooking}
@@ -578,6 +593,7 @@ function BookingsContent() {
                 <BookingCard
                   key={b.id}
                   b={b}
+                  currencySymbol={currencySymbol}
                   onSelect={setSelectedBooking}
                   onCheckin={setCheckinBooking}
                   onCheckout={setCheckoutBooking}
@@ -600,6 +616,7 @@ function BookingsContent() {
                 <BookingCard
                   key={b.id}
                   b={b}
+                  currencySymbol={currencySymbol}
                   onSelect={setSelectedBooking}
                   onCheckin={setCheckinBooking}
                   onCheckout={setCheckoutBooking}
@@ -627,6 +644,7 @@ function BookingsContent() {
                 <BookingCard
                   key={b.id}
                   b={b}
+                  currencySymbol={currencySymbol}
                   onSelect={setSelectedBooking}
                   onCheckin={setCheckinBooking}
                   onCheckout={setCheckoutBooking}
@@ -643,6 +661,7 @@ function BookingsContent() {
                   <BookingCard
                     key={b.id}
                     b={b}
+                    currencySymbol={currencySymbol}
                     onSelect={setSelectedBooking}
                     onCheckin={setCheckinBooking}
                     onCheckout={setCheckoutBooking}
@@ -660,6 +679,7 @@ function BookingsContent() {
                   <BookingCard
                     key={b.id}
                     b={b}
+                    currencySymbol={currencySymbol}
                     onSelect={setSelectedBooking}
                     onCheckin={setCheckinBooking}
                     onCheckout={setCheckoutBooking}
@@ -671,7 +691,7 @@ function BookingsContent() {
         )}
       </div>
 
-      {/* MODALS */}
+      {/* Modals */}
       {selectedBooking && (
         <BookingDetailsModal
           booking={selectedBooking}

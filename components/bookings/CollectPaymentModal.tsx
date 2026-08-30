@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { X, Copy, ExternalLink, Check } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useToast } from '@/components/ui/Toast'
+import { broadcastChange } from '@/lib/realtime-sync'
 
 const PAYMENT_MODES = ['UPI', 'Cash', 'Bank Transfer', 'Pending Payments', 'Others']
 const PAYMENT_STATUSES = ['Paid', 'Pending', 'Partially Paid']
@@ -69,6 +70,7 @@ export default function CollectPaymentModal({ booking, onClose, onSuccess }: Pro
         showToast(data.error || 'Payment recording failed', 'error')
       } else {
         showToast(`Payment of ${fmt(amount)} recorded successfully!`, 'success')
+        broadcastChange('PAYMENT_COLLECTED', { bookingId: booking.id, amount })
         onSuccess()
       }
     } catch {

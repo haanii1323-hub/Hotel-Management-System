@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireAuth, generateInvoiceNo } from '@/lib/utils'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { generateInvoiceNo } from '@/lib/utils'
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const { session, error } = await requireAuth()
-  if (error) return error
+  const session = await getServerSession(authOptions)
 
   if (!params.id) {
     return NextResponse.json({ error: 'Missing booking ID' }, { status: 400 })
@@ -53,7 +54,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         status: paymentStatus || 'Paid',
         utrRef: utrRef?.trim() || null,
         notes: notes || null,
-        collectedBy: session?.user?.id,
+        collectedBy: session?.user?.id || null,
       },
     })
   }
@@ -85,12 +86,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   for (const br of updated.bookingRooms) {
     await prisma.room.update({ where: { id: br.roomId }, data: { status: 'Cleaning' } })
     await prisma.roomStatusLog.create({
-      data: { roomId: br.roomId, oldStatus: br.room.status, newStatus: 'Cleaning', changedBy: session?.user?.id },
+      data: { roomId: br.roomId, oldStatus: br.room.status, newStatus: 'Cleaning', changedBy: session?.user?.id || 'Staff' },
     })
   }
 
   await prisma.bookingStatusLog.create({
-    data: { bookingId: booking.id, oldStatus: booking.status, newStatus: 'CheckedOut', changedBy: session?.user?.id },
+    data: { bookingId: booking.id, oldStatus: booking.status, newStatus: 'CheckedOut', changedBy: session?.user?.id || 'Staff' },
   })
 
   // Generate and persist invoice if none exists yet

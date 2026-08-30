@@ -1,41 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireAuth } from '@/lib/utils'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { getTargetPropertyId } from '@/lib/property-helper'
 
 export async function GET(req: NextRequest) {
-  const { error } = await requireAuth()
-  if (error) return error
+  try {
+    const session = await getServerSession(authOptions)
+    const propertyId = await getTargetPropertyId(req, (session?.user as any)?.propertyId)
 
-  const { searchParams } = new URL(req.url)
-  const q = (searchParams.get('q') || '').trim()
+    const { searchParams } = new URL(req.url)
+    const q = searchParams.get('q') || ''
 
-  if (!q) return NextResponse.json([])
+    if (!q.trim()) {
+      return NextResponse.json([])
+    }
 
-  const withHash = q.startsWith('#') ? q : `#${q}`
-  const withoutHash = q.startsWith('#') ? q.slice(1) : q
+    const search = q.trim().replace(/^#/, '')
 
-  const bookings = await prisma.booking.findMany({
-    where: {
-      OR: [
-        { guest: { name: { contains: q } } },
-        { guest: { phone: { contains: q } } },
-        { guest: { email: { contains: q } } },
-        { bookingRef: { contains: q } },
-        { bookingRef: { contains: withHash } },
-        { bookingRef: { contains: withoutHash } },
-        { roomCategory: { contains: q } },
-        { source: { contains: q } },
-        { bookingRooms: { some: { room: { number: { contains: q } } } } },
-      ],
-    },
-    include: {
-      guest: true,
-      payments: true,
-      bookingRooms: { include: { room: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 12,
-  })
+    const bookings = await prisma.booking.findMany({
+      where: {
+        propertyId,
+        OR: [
+          { guest: { name: { contains: search, mode: 'insensitive' } } },
+          { guest: { phone: { contains: search } } },
+          { guest: { email: { contains: search, mode: 'insensitive' } } },
+          { bookingRef: { contains: search, mode: 'insensitive' } },
+          { bookingRef: { contains: `#${search}`, mode: 'insensitive' } },
+          { roomCategory: { contains: search, mode: 'insensitive' } },
+          { source: { contains: search, mode: 'insensitive' } },
+          { bookingRooms: { some: { room: { number: { contains: search, mode: 'insensitive' } } } } },
+        ],
+      },
+      include: {
+        guest: true,
+        payments: true,
+        bookingRooms: {
+          include: {
+            room: true,
+          },
+        },
+      },
+      take: 12,
+      orderBy: { createdAt: 'desc' },
+    })
 
-  return NextResponse.json(bookings)
+    return NextResponse.json(bookings)
+  } catch (error: any) {
+    console.error('Error in search:', error)
+    return NextResponse.json({ error: 'Search failed' }, { status: 500 })
+  }
 }

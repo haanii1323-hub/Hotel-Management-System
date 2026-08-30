@@ -13,44 +13,19 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts'
-import { Calendar, TrendingUp, BarChart3, Layers, DollarSign, Percent } from 'lucide-react'
+import { Calendar, TrendingUp, DollarSign, Layers, Percent } from 'lucide-react'
+import { useProperty } from '@/context/PropertyContext'
+import { useRealtimeSync } from '@/lib/realtime-sync'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
-function fmt(n: number) {
-  return `₹${Number(n || 0).toLocaleString('en-IN')}`
-}
-
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (active && payload && payload.length) {
-    return (
-      <div
-        style={{
-          background: 'var(--card-2)',
-          border: '1px solid var(--border-2)',
-          borderRadius: 'var(--radius-sm)',
-          padding: '10px 14px',
-          fontSize: '13px',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-        }}
-      >
-        <div style={{ color: 'var(--text-2)', marginBottom: '4px', fontWeight: 600 }}>{label}</div>
-        {payload.map((p: any) => (
-          <div key={p.name} style={{ color: p.color || '#fff', fontWeight: 600, marginTop: '2px' }}>
-            {p.name === 'revenue'
-              ? `Revenue: ${fmt(p.value)}`
-              : p.name === 'urn'
-              ? `URN: ${p.value} nights`
-              : `${p.name}: ${p.value}`}
-          </div>
-        ))}
-      </div>
-    )
-  }
-  return null
-}
-
 export default function ReportsPage() {
+  const { currentProperty } = useProperty()
+  const propertyId = currentProperty?.id || ''
+  const currencySymbol = currentProperty?.currencySymbol || '₹'
+
+  const formatMoney = (n: number) => `${currencySymbol}${Number(n || 0).toLocaleString('en-IN')}`
+
   const today = new Date()
   const todayStr = format(today, 'yyyy-MM-dd')
   const thirtyAgo = format(subDays(today, 29), 'yyyy-MM-dd')
@@ -58,11 +33,14 @@ export default function ReportsPage() {
   const [from, setFrom] = useState(thirtyAgo)
   const [to, setTo] = useState(todayStr)
 
-  const { data, isLoading } = useSWR(
-    `/api/reports?from=${from}&to=${to}`,
-    fetcher,
-    { refreshInterval: 5000 }
-  )
+  let q = `from=${from}&to=${to}`
+  if (propertyId) q += `&propertyId=${propertyId}`
+
+  const { data, isLoading, mutate } = useSWR(`/api/reports?${q}`, fetcher, { refreshInterval: 4000 })
+
+  useRealtimeSync(() => {
+    mutate()
+  })
 
   const urnUsed = data?.urnUsed ?? 0
   const srn = data?.srn ?? 0
@@ -86,15 +64,44 @@ export default function ReportsPage() {
     }
   }
 
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div
+          style={{
+            background: 'var(--card-2)',
+            border: '1px solid var(--border-2)',
+            borderRadius: 'var(--radius-sm)',
+            padding: '10px 14px',
+            fontSize: '13px',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+          }}
+        >
+          <div style={{ color: 'var(--text-2)', marginBottom: '4px', fontWeight: 600 }}>{label}</div>
+          {payload.map((p: any) => (
+            <div key={p.name} style={{ color: p.color || '#fff', fontWeight: 600, marginTop: '2px' }}>
+              {p.name === 'revenue'
+                ? `Revenue: ${formatMoney(p.value)}`
+                : p.name === 'urn'
+                ? `URN: ${p.value} nights`
+                : `${p.name}: ${p.value}`}
+            </div>
+          ))}
+        </div>
+      )
+    }
+    return null
+  }
+
   return (
     <AppShell>
       <div className="reports-container">
         {/* Page Header */}
         <div className="page-header">
           <div>
-            <h1 className="page-title">Trends &amp; Performance Reports</h1>
+            <h1 className="page-title">Performance Reports · {currentProperty?.name}</h1>
             <div style={{ fontSize: '12px', color: 'var(--text-2)', marginTop: '2px' }}>
-              Real-time room revenue, URN, SRN, occupancy rate, and ARR analytics
+              {currentProperty?.code} · {currentProperty?.city} · Real-time room revenue, URN, SRN, occupancy, and ARR
             </div>
           </div>
         </div>
@@ -104,21 +111,11 @@ export default function ReportsPage() {
           <div className="reports-date-inputs">
             <div className="date-input-group">
               <label>From</label>
-              <input
-                type="date"
-                value={from}
-                onChange={(e) => setFrom(e.target.value)}
-                max={to}
-              />
+              <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} max={to} />
             </div>
             <div className="date-input-group">
               <label>To</label>
-              <input
-                type="date"
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-                min={from}
-              />
+              <input type="date" value={to} onChange={(e) => setTo(e.target.value)} min={from} />
             </div>
           </div>
 
@@ -145,7 +142,7 @@ export default function ReportsPage() {
           </div>
 
           <div className="reports-filter-info">
-            {data?.numDays ?? 0} days · {data?.sellableRooms ?? 0} sellable rooms
+            {currentProperty?.name} ({data?.totalRooms ?? 0} Rooms)
           </div>
         </div>
 
@@ -156,7 +153,7 @@ export default function ReportsPage() {
             <div className="metric-label">
               <DollarSign size={13} color="var(--text-2)" /> Room Revenue
             </div>
-            <div className="metric-value">{isLoading ? '—' : fmt(roomRevenue)}</div>
+            <div className="metric-value">{isLoading ? '—' : formatMoney(roomRevenue)}</div>
             <div className="metric-sub">Total room booking charges</div>
           </div>
 
@@ -195,13 +192,13 @@ export default function ReportsPage() {
               <TrendingUp size={13} color="var(--text-2)" /> ARR
             </div>
             <div className="metric-value" style={{ color: 'var(--green)' }}>
-              {isLoading ? '—' : fmt(arr)}
+              {isLoading ? '—' : formatMoney(arr)}
             </div>
             <div className="metric-sub">Average Room Rate</div>
           </div>
         </div>
 
-        {/* Hotel Performance Summary Card */}
+        {/* Performance Summary Card */}
         <div className="card" style={{ marginBottom: '20px' }}>
           <div
             style={{
@@ -215,7 +212,7 @@ export default function ReportsPage() {
           >
             <div>
               <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>
-                Hotel Performance Summary
+                Hotel Performance Summary · {currentProperty?.code}
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-2)', marginTop: '2px' }}>
                 Operational efficiency and room night realization
@@ -242,10 +239,7 @@ export default function ReportsPage() {
             </div>
             <div className="perf-stat-block">
               <div className="perf-stat-label">Occupancy Rate</div>
-              <div
-                className="perf-stat-value"
-                style={{ color: occupancy > 0 ? 'var(--green)' : 'var(--text)' }}
-              >
+              <div className="perf-stat-value" style={{ color: occupancy > 0 ? 'var(--green)' : 'var(--text)' }}>
                 {isLoading ? '—' : `${occupancy}%`}
               </div>
               <div className="perf-stat-desc">Actual room utilization</div>
@@ -253,7 +247,7 @@ export default function ReportsPage() {
             <div className="perf-stat-block">
               <div className="perf-stat-label">Average Room Rate (ARR)</div>
               <div className="perf-stat-value" style={{ color: 'var(--green)' }}>
-                {isLoading ? '—' : fmt(arr)}
+                {isLoading ? '—' : formatMoney(arr)}
               </div>
               <div className="perf-stat-desc">Revenue per sold night</div>
             </div>
@@ -277,9 +271,7 @@ export default function ReportsPage() {
               <span style={{ color: 'var(--text-2)' }}>
                 Available Capacity: <strong style={{ color: 'var(--text)' }}>{Math.max(0, srn - urnUsed)} nights</strong>
               </span>
-              <span style={{ fontWeight: 600, color: 'var(--red)' }}>
-                Occupancy: {occupancy}%
-              </span>
+              <span style={{ fontWeight: 600, color: 'var(--red)' }}>Occupancy: {occupancy}%</span>
             </div>
             <div
               style={{
@@ -303,227 +295,65 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        {/* Daily Revenue Chart & Performance Table */}
-        <div className="card" style={{ marginBottom: '20px', minWidth: 0 }}>
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '16px',
-              flexWrap: 'wrap',
-              gap: '8px',
-            }}
-          >
-            <div>
-              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>
-                Daily Room Revenue
-              </div>
-              <div style={{ fontSize: '12px', color: 'var(--text-2)', marginTop: '2px' }}>
-                Nightly room charges realized across all active reservations
-              </div>
-            </div>
-          </div>
-
-          {/* Chart View */}
-          <div style={{ width: '100%', minWidth: 0, height: 230 }}>
-            {isLoading ? (
-              <div className="skeleton" style={{ height: 230, width: '100%' }} />
-            ) : !data?.dailyRevenue?.length ? (
-              <div style={{ color: 'var(--text-2)', fontSize: '13px', textAlign: 'center', padding: '40px' }}>
-                No revenue recorded for this period.
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={230}>
-                <BarChart data={data.dailyRevenue} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fill: 'var(--text-2)', fontSize: 11 }}
-                    axisLine={false}
-                    tickLine={false}
-                    interval="preserveStartEnd"
-                  />
-                  <YAxis
-                    tick={{ fill: 'var(--text-2)', fontSize: 11 }}
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={(v) => (v >= 1000 ? `₹${(v / 1000).toFixed(0)}k` : `₹${v}`)}
-                  />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="revenue" fill="var(--red)" radius={[4, 4, 0, 0]} maxBarSize={36} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-
-          {/* Daily Breakdown Table */}
-          {data?.dailyReport && data.dailyReport.length > 0 && (
-            <div style={{ marginTop: '20px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  marginBottom: '12px',
-                  flexWrap: 'wrap',
-                  gap: '6px',
-                }}
-              >
-                <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>
-                  Daily Performance Log
-                </div>
-                <div style={{ fontSize: '11px', color: 'var(--text-2)' }}>
-                  Showing latest {Math.min(10, data.dailyReport.length)} days
+        {/* Daily Breakdown Table */}
+        {data?.dailyBreakdown && data.dailyBreakdown.length > 0 && (
+          <div className="card" style={{ marginBottom: '20px', minWidth: 0 }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '16px',
+                flexWrap: 'wrap',
+                gap: '8px',
+              }}
+            >
+              <div>
+                <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>Daily Performance Log</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-2)', marginTop: '2px' }}>
+                  Detailed day-by-day URN, SRN, and realized revenue
                 </div>
               </div>
-
-              <div className="table-responsive">
-                <table className="reports-table">
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th style={{ textAlign: 'right' }}>URN</th>
-                      <th style={{ textAlign: 'right' }}>SRN</th>
-                      <th style={{ textAlign: 'right' }}>Occupancy</th>
-                      <th style={{ textAlign: 'right' }}>Room Revenue</th>
-                      <th style={{ textAlign: 'right' }}>ARR</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.dailyReport.slice(-10).map((d: any) => (
-                      <tr key={d.dateFull}>
-                        <td style={{ fontWeight: 600, color: 'var(--text)' }}>{d.date}</td>
-                        <td style={{ textAlign: 'right', color: 'var(--text)' }}>{d.urn}</td>
-                        <td style={{ textAlign: 'right', color: 'var(--text-2)' }}>{d.srn}</td>
-                        <td
-                          style={{
-                            textAlign: 'right',
-                            fontWeight: 600,
-                            color: d.occupancy > 0 ? 'var(--green)' : 'var(--text-2)',
-                          }}
-                        >
-                          {d.occupancy}%
-                        </td>
-                        <td style={{ textAlign: 'right', fontWeight: 600, color: 'var(--text)' }}>
-                          {fmt(d.revenue)}
-                        </td>
-                        <td style={{ textAlign: 'right', color: 'var(--green)' }}>
-                          {fmt(d.arr)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
             </div>
-          )}
-        </div>
 
-        {/* Room Category Performance Section */}
-        <div className="card">
-          <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>
-            Room Category Performance
-          </div>
-          <div style={{ fontSize: '12px', color: 'var(--text-2)', marginTop: '2px', marginBottom: '16px' }}>
-            Category-wise inventory utilization, URN, ARR, and room revenues
-          </div>
-
-          {isLoading ? (
-            <div className="skeleton" style={{ height: 180 }} />
-          ) : !data?.categoryPerformance?.length ? (
-            <div style={{ color: 'var(--text-2)', fontSize: '13px', textAlign: 'center', padding: '30px' }}>
-              No room category data available.
-            </div>
-          ) : (
-            <div className="category-performance-grid">
-              {data.categoryPerformance.map((c: any) => (
-                <div key={c.name} className="category-stat-card">
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      marginBottom: '12px',
-                    }}
-                  >
-                    <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>
-                      {c.name}
-                    </span>
-                    <span
-                      className={`badge ${c.occupancy > 0 ? 'badge-green' : 'badge-gray'}`}
-                      style={{ fontSize: '11px' }}
-                    >
-                      {c.occupancy}% Occ
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-2)' }}>URN Used</span>
-                      <span style={{ fontWeight: 600, color: 'var(--text)' }}>
-                        {c.urnUsed} nights
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-2)' }}>SRN Capacity</span>
-                      <span style={{ color: 'var(--text-2)' }}>{c.srn} nights</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-2)' }}>Occupancy Rate</span>
-                      <span
+            <div className="table-responsive">
+              <table className="reports-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th style={{ textAlign: 'right' }}>URN</th>
+                    <th style={{ textAlign: 'right' }}>SRN</th>
+                    <th style={{ textAlign: 'right' }}>Occupancy</th>
+                    <th style={{ textAlign: 'right' }}>Room Revenue</th>
+                    <th style={{ textAlign: 'right' }}>ARR</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.dailyBreakdown.map((d: any) => (
+                    <tr key={d.date}>
+                      <td style={{ fontWeight: 600, color: 'var(--text)' }}>{d.displayDate} ({d.dayName})</td>
+                      <td style={{ textAlign: 'right', color: 'var(--text)' }}>{d.urn}</td>
+                      <td style={{ textAlign: 'right', color: 'var(--text-2)' }}>{d.srn}</td>
+                      <td
                         style={{
+                          textAlign: 'right',
                           fontWeight: 600,
-                          color: c.occupancy > 0 ? 'var(--green)' : 'var(--text-2)',
+                          color: d.occupancy > 0 ? 'var(--green)' : 'var(--text-2)',
                         }}
                       >
-                        {c.occupancy}%
-                      </span>
-                    </div>
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        paddingTop: '6px',
-                        borderTop: '1px solid var(--border)',
-                      }}
-                    >
-                      <span style={{ color: 'var(--text-2)' }}>Room Revenue</span>
-                      <span style={{ fontWeight: 600, color: 'var(--text)' }}>{fmt(c.revenue)}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-2)' }}>ARR</span>
-                      <span style={{ fontWeight: 700, color: 'var(--green)' }}>{fmt(c.arr)}</span>
-                    </div>
-                  </div>
-
-                  {/* Progress Bar */}
-                  <div
-                    style={{
-                      width: '100%',
-                      height: '4px',
-                      background: 'var(--border)',
-                      borderRadius: '2px',
-                      overflow: 'hidden',
-                      marginTop: '12px',
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: `${
-                          c.srn > 0 ? Math.min(100, Math.max(0, (c.urnUsed / c.srn) * 100)) : 0
-                        }%`,
-                        height: '100%',
-                        background: 'var(--red)',
-                        borderRadius: '2px',
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
+                        {d.occupancy}%
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 600, color: 'var(--text)' }}>
+                        {formatMoney(d.revenue)}
+                      </td>
+                      <td style={{ textAlign: 'right', color: 'var(--green)' }}>{formatMoney(d.arr)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </AppShell>
   )

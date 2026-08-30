@@ -1,173 +1,125 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireAuth } from '@/lib/utils'
-import { format, eachDayOfInterval, parseISO, startOfDay, endOfDay, isValid } from 'date-fns'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { getTargetPropertyId } from '@/lib/property-helper'
+import { eachDayOfInterval, format, startOfMonth, endOfMonth, isValid } from 'date-fns'
+
+function parseDateParam(d: string | null): Date | null {
+  if (!d) return null
+  const match = d.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (match) {
+    const year = parseInt(match[1], 10)
+    const month = parseInt(match[2], 10) - 1
+    const day = parseInt(match[3], 10)
+    const dt = new Date(year, month, day, 12, 0, 0)
+    return isValid(dt) ? dt : null
+  }
+  const dt = new Date(d)
+  return isValid(dt) ? dt : null
+}
 
 export async function GET(req: NextRequest) {
-  const { error } = await requireAuth()
-  if (error) return error
+  try {
+    const session = await getServerSession(authOptions)
+    const propertyId = await getTargetPropertyId(req, (session?.user as any)?.propertyId)
 
-  const { searchParams } = new URL(req.url)
-  const fromStr = searchParams.get('from')
-  const toStr = searchParams.get('to')
+    const property = await prisma.property.findUnique({ where: { id: propertyId } })
+    const { searchParams } = new URL(req.url)
 
-  const now = new Date()
-  const defaultFrom = new Date(now.getFullYear(), now.getMonth(), 1)
-  const defaultTo = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+    const fromParam = parseDateParam(searchParams.get('from'))
+    const toParam = parseDateParam(searchParams.get('to'))
 
-  let from = fromStr ? parseISO(fromStr) : defaultFrom
-  let to = toStr ? parseISO(toStr) : defaultTo
+    const now = new Date()
+    let from = fromParam || startOfMonth(now)
+    let to = toParam || endOfMonth(now)
 
-  if (!isValid(from)) from = defaultFrom
-  if (!isValid(to)) to = defaultTo
-
-  // Protect against inverted date ranges
-  if (from > to) {
-    const temp = from
-    from = to
-    to = temp
-  }
-
-  const fromStart = startOfDay(from)
-  const toEnd = endOfDay(to)
-
-  // Get all rooms and categories
-  const allCategories = await prisma.roomCategory.findMany({
-    include: { rooms: true },
-    orderBy: { name: 'asc' },
-  })
-  const allRooms = await prisma.room.findMany({ include: { category: true } })
-  const sellableRooms = allRooms.filter(r => !['Maintenance', 'Out of Service'].includes(r.status))
-
-  const days = eachDayOfInterval({ start: fromStart, end: toEnd })
-  const numDays = days.length
-
-  // SRN = sellable rooms × number of days in selected period
-  const totalSRN = sellableRooms.length * numDays
-
-  // Get all valid bookings overlapping the range
-  const bookings = await prisma.booking.findMany({
-    where: {
-      status: { in: ['CheckedIn', 'CheckedOut'] },
-      AND: [
-        { checkIn: { lt: toEnd } },
-        { checkOut: { gt: fromStart } },
-      ],
-    },
-    include: { payments: true },
-  })
-
-  // Category map for performance breakdown
-  const categoryStats: Record<string, {
-    name: string
-    sellableRoomsCount: number
-    srn: number
-    urnUsed: number
-    revenue: number
-  }> = {}
-
-  for (const cat of allCategories) {
-    const catSellable = cat.rooms.filter(r => !['Maintenance', 'Out of Service'].includes(r.status)).length
-    categoryStats[cat.name] = {
-      name: cat.name,
-      sellableRoomsCount: catSellable,
-      srn: catSellable * numDays,
-      urnUsed: 0,
-      revenue: 0,
+    // Bounds safety: Ensure from <= to
+    if (from > to) {
+      const temp = from
+      from = to
+      to = temp
     }
-  }
 
-  // Daily performance breakdown
-  let totalURNUsed = 0
-  let totalRoomRevenue = 0
+    const rooms = await prisma.room.findMany({ where: { propertyId } })
+    const totalRooms = rooms.length
 
-  const dailyReport = days.map(day => {
-    const dayStart = startOfDay(day)
-    const dateFormatted = format(day, 'MMM d')
-    const dateFull = format(day, 'yyyy-MM-dd')
+    // Days in interval
+    let days: Date[] = []
+    try {
+      days = eachDayOfInterval({ start: from, end: to })
+    } catch {
+      days = [from]
+    }
+    const numDays = Math.max(1, days.length)
+    const srn = totalRooms * numDays // Supply Room Nights
 
-    // Find bookings active on this specific night
-    // A booking is active on night of `day` if checkIn <= dayStart and checkOut > dayStart
-    let dayURN = 0
-    let dayRevenue = 0
+    // Fetch bookings in interval for this property
+    const bookings = await prisma.booking.findMany({
+      where: {
+        propertyId,
+        status: { notIn: ['Cancelled', 'NoShow'] },
+        AND: [{ checkIn: { lte: to } }, { checkOut: { gte: from } }],
+      },
+      include: {
+        payments: true,
+      },
+    })
 
-    for (const b of bookings) {
-      const bCheckIn = new Date(b.checkIn)
-      const bCheckOut = new Date(b.checkOut)
+    // Calculate URN (Used Room Nights) and Revenue
+    let urnUsed = 0
+    let roomRevenue = 0
 
-      if (bCheckIn <= dayStart && bCheckOut > dayStart) {
-        const roomsSold = b.numRooms || 1
-        const bookingDayRev = (b.nightlyRate || 0) * roomsSold
+    const dailyBreakdown = days.map((day) => {
+      const dayStr = format(day, 'yyyy-MM-dd')
+      const dayStart = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, 0, 0)
+      const dayEnd = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 23, 59, 59)
 
-        dayURN += roomsSold
-        dayRevenue += bookingDayRev
+      const activeOnDay = bookings.filter((b) => {
+        const ci = new Date(b.checkIn)
+        const co = new Date(b.checkOut)
+        return ci <= dayEnd && co > dayStart
+      })
 
-        // Add to category
-        if (categoryStats[b.roomCategory]) {
-          categoryStats[b.roomCategory].urnUsed += roomsSold
-          categoryStats[b.roomCategory].revenue += bookingDayRev
-        }
+      const dayRooms = activeOnDay.reduce((s, b) => s + (b.numRooms || 1), 0)
+      const dayRev = activeOnDay.reduce((s, b) => s + (b.nightlyRate || 0) * (b.numRooms || 1), 0)
+      const dayOcc = totalRooms > 0 ? Math.min(100, Math.round((dayRooms / totalRooms) * 100)) : 0
+      const dayArr = dayRooms > 0 ? Math.round(dayRev / dayRooms) : 0
+
+      urnUsed += dayRooms
+      roomRevenue += dayRev
+
+      return {
+        date: dayStr,
+        dayName: format(day, 'EEE'),
+        displayDate: format(day, 'dd MMM'),
+        urn: dayRooms,
+        srn: totalRooms,
+        occupancy: dayOcc,
+        revenue: dayRev,
+        arr: dayArr,
       }
-    }
+    })
 
-    totalURNUsed += dayURN
-    totalRoomRevenue += dayRevenue
+    const occupancy = srn > 0 ? Math.min(100, parseFloat(((urnUsed / srn) * 100).toFixed(1))) : 0
+    const arr = urnUsed > 0 ? Math.round(roomRevenue / urnUsed) : 0
 
-    const daySRN = sellableRooms.length
-    const dayOccupancy = daySRN > 0 ? Math.min(100, Math.round((dayURN / daySRN) * 1000) / 10) : 0
-    const dayARR = dayURN > 0 ? Math.round(dayRevenue / dayURN) : 0
-
-    return {
-      date: dateFormatted,
-      dateFull,
-      urn: dayURN,
-      srn: daySRN,
-      occupancy: dayOccupancy,
-      revenue: Math.round(dayRevenue),
-      arr: dayARR,
-    }
-  })
-
-  // Global calculations
-  const occupancy = totalSRN > 0 ? Math.min(100, Math.round((totalURNUsed / totalSRN) * 1000) / 10) : 0
-  const arr = totalURNUsed > 0 ? Math.round(totalRoomRevenue / totalURNUsed) : 0
-
-  // Category performance list
-  const categoryPerformance = Object.values(categoryStats).map(cat => {
-    const catOccupancy = cat.srn > 0 ? Math.min(100, Math.round((cat.urnUsed / cat.srn) * 1000) / 10) : 0
-    const catARR = cat.urnUsed > 0 ? Math.round(cat.revenue / cat.urnUsed) : 0
-
-    return {
-      name: cat.name,
-      sellableRooms: cat.sellableRoomsCount,
-      urnUsed: cat.urnUsed,
-      srn: cat.srn,
-      occupancy: catOccupancy,
-      revenue: Math.round(cat.revenue),
-      arr: catARR,
-    }
-  })
-
-  // Format dailyRevenue for chart compatibility
-  const dailyRevenue = dailyReport.map(d => ({
-    date: d.date,
-    revenue: d.revenue,
-    urn: d.urn,
-    occupancy: d.occupancy,
-    arr: d.arr,
-  }))
-
-  return NextResponse.json({
-    roomRevenue: Math.round(totalRoomRevenue),
-    urnUsed: totalURNUsed,
-    srn: totalSRN,
-    occupancy,
-    arr,
-    sellableRooms: sellableRooms.length,
-    numDays,
-    dailyRevenue,
-    dailyReport,
-    categoryPerformance,
-    categoryArr: categoryPerformance,
-  })
+    return NextResponse.json({
+      property: {
+        name: property?.name,
+        code: property?.code,
+        currencySymbol: property?.currencySymbol || '₹',
+      },
+      roomRevenue,
+      urnUsed,
+      srn,
+      occupancy,
+      arr,
+      totalRooms,
+      dailyBreakdown,
+    })
+  } catch (error: any) {
+    console.error('Error calculating reports:', error)
+    return NextResponse.json({ error: 'Failed to generate reports' }, { status: 500 })
+  }
 }

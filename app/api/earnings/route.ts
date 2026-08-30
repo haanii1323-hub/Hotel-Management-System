@@ -1,68 +1,75 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireAuth } from '@/lib/utils'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { getTargetPropertyId } from '@/lib/property-helper'
 
 export async function GET(req: NextRequest) {
-  const { error } = await requireAuth()
-  if (error) return error
+  try {
+    const session = await getServerSession(authOptions)
+    const propertyId = await getTargetPropertyId(req, (session?.user as any)?.propertyId)
 
-  // All bookings with payments
-  const bookings = await prisma.booking.findMany({
-    where: { status: { not: 'Cancelled' } },
-    include: { payments: true, guest: true },
-    orderBy: { createdAt: 'desc' },
-  })
+    const property = await prisma.property.findUnique({ where: { id: propertyId } })
 
-  // Total booked value
-  const bookedValue = bookings.reduce((s, b) => s + b.totalAmount, 0)
+    const bookings = await prisma.booking.findMany({
+      where: {
+        propertyId,
+        status: { not: 'Cancelled' },
+      },
+      include: {
+        payments: true,
+      },
+    })
 
-  // Total collected
-  const collected = bookings.reduce((s, b) => {
-    return s + b.payments.reduce((ps, p) => ps + (p.status !== 'Pending' ? p.amount : 0), 0)
-  }, 0)
+    const bookedValue = bookings.reduce((s, b) => s + (b.totalAmount || 0), 0)
 
-  const balance = Math.max(0, bookedValue - collected)
+    const allPayments = await prisma.payment.findMany({
+      where: {
+        booking: { propertyId },
+        status: { not: 'Pending' },
+      },
+    })
+    const collected = allPayments.reduce((s, p) => s + p.amount, 0)
+    const balanceToCollect = Math.max(0, bookedValue - collected)
 
-  // Revenue by channel
-  const channelMap: Record<string, number> = {}
-  for (const b of bookings) {
-    const rev = b.payments.reduce((s, p) => s + (p.status !== 'Pending' ? p.amount : 0), 0)
-    channelMap[b.source] = (channelMap[b.source] || 0) + rev
-  }
-  const totalRev = Object.values(channelMap).reduce((s, v) => s + v, 0)
-  const channels = Object.entries(channelMap)
-    .map(([name, amount]) => ({
+    // Channel breakdown
+    const channelMap: Record<string, number> = {}
+    for (const b of bookings) {
+      const src = b.source || 'Others'
+      channelMap[src] = (channelMap[src] || 0) + (b.totalAmount || 0)
+    }
+
+    const channels = Object.entries(channelMap).map(([name, amount]) => ({
       name,
       amount,
-      percentage: totalRev > 0 ? Math.round((amount / totalRev) * 100) : 0,
+      percentage: bookedValue > 0 ? Math.round((amount / bookedValue) * 100) : 0,
     }))
-    .sort((a, b) => b.amount - a.amount)
 
-  // Outstanding balances (per booking)
-  const outstanding = bookings
-    .map((b) => {
-      const c = b.payments.reduce((s, p) => s + (p.status !== 'Pending' ? p.amount : 0), 0)
-      const bal = Math.max(0, b.totalAmount - c)
-      return {
-        bookingId: b.id,
-        bookingRef: b.bookingRef,
-        guestName: b.guest.name,
-        guestPhone: b.guest.phone,
-        guestEmail: b.guest.email,
-        guestId: b.guestId,
-        roomCategory: b.roomCategory,
-        numRooms: b.numRooms,
-        checkIn: b.checkIn,
-        checkOut: b.checkOut,
-        status: b.status,
-        totalAmount: b.totalAmount,
-        collected: c,
-        amount: bal,
-        booking: b,
-      }
+    // Payment modes breakdown
+    const modeMap: Record<string, number> = {}
+    for (const p of allPayments) {
+      modeMap[p.mode] = (modeMap[p.mode] || 0) + p.amount
+    }
+    const paymentModes = Object.entries(modeMap).map(([mode, amount]) => ({
+      mode,
+      amount,
+      percentage: collected > 0 ? Math.round((amount / collected) * 100) : 0,
+    }))
+
+    return NextResponse.json({
+      property: {
+        name: property?.name,
+        code: property?.code,
+        currencySymbol: property?.currencySymbol || '₹',
+      },
+      bookedValue,
+      collected,
+      balanceToCollect,
+      channels,
+      paymentModes,
     })
-    .filter((o) => o.amount > 0)
-    .sort((a, b) => b.amount - a.amount)
-
-  return NextResponse.json({ bookedValue, collected, balance, channels, outstanding })
+  } catch (error: any) {
+    console.error('Error fetching earnings:', error)
+    return NextResponse.json({ error: 'Failed to fetch earnings' }, { status: 500 })
+  }
 }

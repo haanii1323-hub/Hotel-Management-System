@@ -1,57 +1,91 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireAuth } from '@/lib/utils'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { getTargetPropertyId } from '@/lib/property-helper'
 
-export async function GET() {
-  const { error } = await requireAuth()
-  if (error) return error
+export async function GET(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    const propertyId = await getTargetPropertyId(req, (session?.user as any)?.propertyId)
 
-  const categories = await prisma.roomCategory.findMany({
-    include: {
-      rooms: true,
-    },
-    orderBy: { name: 'asc' },
-  })
+    const categories = await prisma.roomCategory.findMany({
+      where: { propertyId },
+      include: {
+        rooms: true,
+      },
+      orderBy: { nightlyRate: 'asc' },
+    })
 
-  // Compute room nights sold per category
-  const now = new Date()
-  const result = await Promise.all(categories.map(async (cat) => {
-    // Count room nights sold (CheckedIn or CheckedOut bookings)
-    const bookings = await prisma.booking.findMany({
+    return NextResponse.json(categories)
+  } catch (error: any) {
+    console.error('Error fetching categories:', error)
+    return NextResponse.json({ error: 'Failed to fetch categories' }, { status: 500 })
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    const body = await req.json()
+    const propertyId = body.propertyId || (await getTargetPropertyId(req, (session?.user as any)?.propertyId))
+    const { name, nightlyRate, totalRooms = 0 } = body
+
+    if (!name?.trim() || nightlyRate === undefined) {
+      return NextResponse.json({ error: 'Name and nightly rate are required' }, { status: 400 })
+    }
+
+    const existing = await prisma.roomCategory.findUnique({
       where: {
-        roomCategory: cat.name,
-        status: { in: ['CheckedIn', 'CheckedOut'] },
+        propertyId_name: {
+          propertyId,
+          name: name.trim(),
+        },
       },
     })
-    const roomNightsSold = bookings.reduce((s, b) => {
-      const nights = Math.ceil((b.checkOut.getTime() - b.checkIn.getTime()) / (1000 * 60 * 60 * 24))
-      return s + nights * b.numRooms
-    }, 0)
-
-    return {
-      ...cat,
-      roomNightsSold,
-      activeRooms: cat.rooms.filter(r => !['Maintenance', 'Out of Service'].includes(r.status)).length,
+    if (existing) {
+      return NextResponse.json({ error: `Category "${name}" already exists in this property` }, { status: 400 })
     }
-  }))
 
-  return NextResponse.json(result)
+    const category = await prisma.roomCategory.create({
+      data: {
+        propertyId,
+        name: name.trim(),
+        nightlyRate: Number(nightlyRate),
+        totalRooms: Number(totalRooms),
+      },
+    })
+
+    return NextResponse.json(category, { status: 201 })
+  } catch (error: any) {
+    console.error('Error creating category:', error)
+    return NextResponse.json({ error: error.message || 'Failed to create category' }, { status: 500 })
+  }
 }
 
 export async function PATCH(req: NextRequest) {
-  const { error } = await requireAuth()
-  if (error) return error
+  try {
+    const session = await getServerSession(authOptions)
+    const body = await req.json()
+    const { id, nightlyRate, name, totalRooms } = body
 
-  const body = await req.json()
-  const { id, nightlyRate } = body
+    if (!id) {
+      return NextResponse.json({ error: 'Category ID is required' }, { status: 400 })
+    }
 
-  if (!id) return NextResponse.json({ error: 'Category ID required' }, { status: 400 })
-  if (!nightlyRate || nightlyRate <= 0) return NextResponse.json({ error: 'Invalid nightly rate' }, { status: 400 })
+    const updateData: any = {}
+    if (nightlyRate !== undefined) updateData.nightlyRate = Number(nightlyRate)
+    if (name !== undefined) updateData.name = name.trim()
+    if (totalRooms !== undefined) updateData.totalRooms = Number(totalRooms)
 
-  const updated = await prisma.roomCategory.update({
-    where: { id },
-    data: { nightlyRate: Number(nightlyRate) },
-  })
+    const updated = await prisma.roomCategory.update({
+      where: { id },
+      data: updateData,
+    })
 
-  return NextResponse.json(updated)
+    return NextResponse.json(updated)
+  } catch (error: any) {
+    console.error('Error updating category:', error)
+    return NextResponse.json({ error: error.message || 'Failed to update category' }, { status: 500 })
+  }
 }

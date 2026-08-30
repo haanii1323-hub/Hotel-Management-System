@@ -3,19 +3,16 @@
 import { useState } from 'react'
 import useSWR, { useSWRConfig } from 'swr'
 import AppShell from '@/components/layout/AppShell'
-import { useRouter } from 'next/navigation'
-import { Phone, ArrowRight, DollarSign, Wallet, CreditCard, ChevronRight } from 'lucide-react'
+import { DollarSign, Wallet, CreditCard } from 'lucide-react'
 import { format } from 'date-fns'
 import CollectPaymentModal from '@/components/bookings/CollectPaymentModal'
 import BookingDetailsModal from '@/components/bookings/BookingDetailsModal'
 import CheckInModal from '@/components/bookings/CheckInModal'
 import CheckoutModal from '@/components/bookings/CheckoutModal'
+import { useProperty } from '@/context/PropertyContext'
+import { useRealtimeSync } from '@/lib/realtime-sync'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
-
-function fmt(n: number) {
-  return `₹${Number(n || 0).toLocaleString('en-IN')}`
-}
 
 function parseBookingDate(d: string | Date | null | undefined): Date | null {
   if (!d) return null
@@ -39,15 +36,25 @@ function fmtDate(d: string | Date | null | undefined) {
 }
 
 export default function EarningsPage() {
-  const router = useRouter()
+  const { currentProperty } = useProperty()
+  const propertyId = currentProperty?.id || ''
+  const currencySymbol = currentProperty?.currencySymbol || '₹'
+
+  const formatMoney = (n: number) => `${currencySymbol}${Number(n || 0).toLocaleString('en-IN')}`
+
   const { mutate: globalMutate } = useSWRConfig()
-  const { data, isLoading, mutate } = useSWR('/api/earnings', fetcher, {
-    refreshInterval: 3000,
-    revalidateOnFocus: true,
-    revalidateOnMount: true,
-    revalidateOnReconnect: true,
-    dedupingInterval: 1000,
-  })
+  const { data, isLoading, mutate } = useSWR(
+    propertyId ? `/api/earnings?propertyId=${propertyId}` : '/api/earnings',
+    fetcher,
+    {
+      refreshInterval: 3000,
+      revalidateOnFocus: true,
+      revalidateOnMount: true,
+      revalidateOnReconnect: true,
+      dedupingInterval: 1000,
+    }
+  )
+
   const [selectedBooking, setSelectedBooking] = useState<any>(null)
   const [collectBooking, setCollectBooking] = useState<any>(null)
   const [checkinBooking, setCheckinBooking] = useState<any>(null)
@@ -64,9 +71,11 @@ export default function EarningsPage() {
     ])
   }
 
+  useRealtimeSync(mutateAll)
+
   const bookedValue = data?.bookedValue || 0
   const collected = data?.collected || 0
-  const balance = data?.balance || 0
+  const balanceToCollect = data?.balanceToCollect || 0
   const collectionRate = bookedValue > 0 ? Math.round((collected / bookedValue) * 100) : 0
 
   return (
@@ -74,9 +83,9 @@ export default function EarningsPage() {
       <div className="earnings-container">
         <div className="page-header">
           <div>
-            <h1 className="page-title">Earnings &amp; Financials</h1>
+            <h1 className="page-title">Earnings &amp; Financials · {currentProperty?.name}</h1>
             <div style={{ fontSize: '12px', color: 'var(--text-2)', marginTop: '2px' }}>
-              Real-time revenue, collections, channel breakdown, and pending balances
+              {currentProperty?.code} · {currentProperty?.city} · Currency: {currentProperty?.currency} ({currencySymbol})
             </div>
           </div>
         </div>
@@ -87,7 +96,7 @@ export default function EarningsPage() {
             <div className="kpi-label">
               <Wallet size={14} color="var(--text-2)" /> Total Booked Value
             </div>
-            <div className="kpi-value">{isLoading ? '—' : fmt(bookedValue)}</div>
+            <div className="kpi-value">{isLoading ? '—' : formatMoney(bookedValue)}</div>
             <div className="kpi-sub">Gross reservation charges</div>
           </div>
 
@@ -96,7 +105,7 @@ export default function EarningsPage() {
               <DollarSign size={14} color="var(--green)" /> Total Collected
             </div>
             <div className="kpi-value" style={{ color: 'var(--green)' }}>
-              {isLoading ? '—' : fmt(collected)}
+              {isLoading ? '—' : formatMoney(collected)}
             </div>
             <div className="kpi-sub" style={{ color: 'var(--text-2)' }}>
               {isLoading ? '—' : `${collectionRate}% of booked value settled`}
@@ -108,27 +117,34 @@ export default function EarningsPage() {
               <CreditCard size={14} color="var(--amber)" /> Balance to Collect
             </div>
             <div className="kpi-value" style={{ color: 'var(--amber)' }}>
-              {isLoading ? '—' : fmt(balance)}
+              {isLoading ? '—' : formatMoney(balanceToCollect)}
             </div>
             <div className="kpi-sub" style={{ color: 'var(--amber)' }}>
-              {data?.outstanding?.length || 0} pending reservations
+              Outstanding customer dues
             </div>
           </div>
         </div>
 
-        {/* Main Grid: Revenue by Channel & Outstanding Balances */}
+        {/* Channels & Payment Modes Grid */}
         <div className="earnings-grid">
           {/* Revenue by Channel */}
           <div className="card">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '16px',
+              }}
+            >
               <div>
                 <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>Revenue by Channel</div>
                 <div style={{ fontSize: '12px', color: 'var(--text-2)', marginTop: '2px' }}>
-                  Distribution of collected revenue across booking sources
+                  Distribution of booked revenue across booking sources
                 </div>
               </div>
               <span className="badge badge-gray" style={{ fontSize: '11px' }}>
-                {data?.channels?.length || 0} Sources
+                {data?.channels?.length || 0} Channels
               </span>
             </div>
 
@@ -141,14 +157,14 @@ export default function EarningsPage() {
                 No channel revenue collected yet.
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 {data.channels.map((ch: any) => (
                   <div key={ch.name} className="channel-row">
                     <div className="channel-name">{ch.name}</div>
                     <div className="channel-bar-wrap">
                       <div className="channel-bar" style={{ width: `${Math.max(2, ch.percentage)}%` }} />
                     </div>
-                    <div className="channel-amount">{fmt(ch.amount)}</div>
+                    <div className="channel-amount">{formatMoney(ch.amount)}</div>
                     <div className="channel-pct">{ch.percentage}%</div>
                   </div>
                 ))}
@@ -156,58 +172,45 @@ export default function EarningsPage() {
             )}
           </div>
 
-          {/* Outstanding Balances List */}
+          {/* Payment Methods */}
           <div className="card">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '16px',
+              }}
+            >
               <div>
-                <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>Outstanding Balances</div>
+                <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>Collections by Payment Mode</div>
                 <div style={{ fontSize: '12px', color: 'var(--text-2)', marginTop: '2px' }}>
-                  Click any booking to collect payment or inspect details
+                  Distribution of settled payments
                 </div>
               </div>
-              <span className="badge badge-amber" style={{ fontSize: '11px' }}>
-                {fmt(balance)} Due
+              <span className="badge badge-green" style={{ fontSize: '11px' }}>
+                {formatMoney(collected)}
               </span>
             </div>
 
             {isLoading ? (
               Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="skeleton" style={{ height: 56, marginBottom: 8 }} />
+                <div key={i} className="skeleton" style={{ height: 36, marginBottom: 8 }} />
               ))
-            ) : !data?.outstanding || data.outstanding.length === 0 ? (
-              <div style={{ color: 'var(--text-2)', fontSize: '13px', padding: '32px 0', textAlign: 'center' }}>
-                🎉 All bookings are fully paid! No outstanding balances.
+            ) : !data?.paymentModes || data.paymentModes.length === 0 ? (
+              <div style={{ color: 'var(--text-2)', fontSize: '13px', padding: '24px 0', textAlign: 'center' }}>
+                No payments collected yet.
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {data.outstanding.map((o: any) => (
-                  <div
-                    key={o.bookingId}
-                    className="outstanding-card"
-                    onClick={() => setSelectedBooking(o.booking)}
-                    role="button"
-                    tabIndex={0}
-                    title="Click to view booking & collect payment"
-                  >
-                    <div className="outstanding-card-main">
-                      <div className="outstanding-guest-name">{o.guestName}</div>
-                      <div className="outstanding-meta-text">
-                        {o.bookingRef} · {o.roomCategory} ({fmtDate(o.checkIn)} – {fmtDate(o.checkOut)})
-                      </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {data.paymentModes.map((pm: any) => (
+                  <div key={pm.mode} className="channel-row">
+                    <div className="channel-name">{pm.mode}</div>
+                    <div className="channel-bar-wrap">
+                      <div className="channel-bar" style={{ width: `${Math.max(2, pm.percentage)}%`, background: 'var(--green)' }} />
                     </div>
-
-                    <div className="outstanding-card-right">
-                      <div className="outstanding-amount-text">{fmt(o.amount)}</div>
-                      <button
-                        className="btn btn-red btn-sm outstanding-collect-btn"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setCollectBooking(o.booking)
-                        }}
-                      >
-                        Collect →
-                      </button>
-                    </div>
+                    <div className="channel-amount">{formatMoney(pm.amount)}</div>
+                    <div className="channel-pct">{pm.percentage}%</div>
                   </div>
                 ))}
               </div>
@@ -216,7 +219,7 @@ export default function EarningsPage() {
         </div>
       </div>
 
-      {/* Modals for Direct Actions from Earnings */}
+      {/* Modals */}
       {selectedBooking && (
         <BookingDetailsModal
           booking={selectedBooking}

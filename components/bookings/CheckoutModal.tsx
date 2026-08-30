@@ -5,8 +5,9 @@ import { X, Copy, ExternalLink, FileText } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useToast } from '@/components/ui/Toast'
 import InvoiceModal from './InvoiceModal'
+import { broadcastChange } from '@/lib/realtime-sync'
 
-const PAYMENT_MODES = ['UPI', 'Cash', 'Bank Transfer', 'Pending Payments', 'Others']
+const PAYMENT_MODES = ['UPI', 'Cash', 'Card', 'Bank Transfer', 'Others']
 const PAYMENT_STATUSES = ['Paid', 'Pending', 'Partially Paid']
 const UPI_ID = 'apexinn@upi'
 
@@ -40,9 +41,8 @@ export default function CheckoutModal({ booking, onClose, onSuccess }: Props) {
   const upiString = `upi://pay?pa=${UPI_ID}&pn=APEX+INN&am=${amount}&cu=INR&tn=Booking+${booking.bookingRef}`
 
   function validate() {
-    // Only require UTR if amount > 0, mode is UPI, and payStatus is Paid
     if (amount > 0 && mode === 'UPI' && payStatus === 'Paid' && !utrRef.trim()) {
-      setUtrError('Reference number is required for UPI payments marked as paid.')
+      setUtrError('Reference number / UTR is required for UPI payments marked as paid.')
       return false
     }
     setUtrError('')
@@ -63,6 +63,7 @@ export default function CheckoutModal({ booking, onClose, onSuccess }: Props) {
         showToast(data.error || 'Checkout failed', 'error')
       } else {
         showToast(`${booking.guest?.name || 'Guest'} checked out. Invoice ${data.invoiceNo} generated.`, 'success')
+        broadcastChange('CHECK_OUT', { bookingId: booking.id })
         onSuccess()
       }
     } catch {
@@ -90,7 +91,7 @@ export default function CheckoutModal({ booking, onClose, onSuccess }: Props) {
               </button>
             </div>
             <div className="modal-subtitle">
-              {booking.bookingRef} · Settle pending balance, confirm receipt, and complete the stay.
+              {booking.bookingRef} · Settle pending balance, generate invoice, and complete the stay.
             </div>
           </div>
 
@@ -266,8 +267,8 @@ export default function CheckoutModal({ booking, onClose, onSuccess }: Props) {
       {showInvoice && (
         <InvoiceModal
           booking={booking}
-          collected={collected}
-          balance={balance}
+          collected={collected + (payStatus === 'Paid' ? amount : 0)}
+          balance={Math.max(0, balance - (payStatus === 'Paid' ? amount : 0))}
           onClose={() => setShowInvoice(false)}
         />
       )}

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireAuth } from '@/lib/utils'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const { session, error } = await requireAuth()
-  if (error) return error
+  const session = await getServerSession(authOptions)
 
   if (!params.id) {
     return NextResponse.json({ error: 'Missing booking ID' }, { status: 400 })
@@ -59,9 +59,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       })
     }
   } else if (booking.bookingRooms.length === 0) {
-    // Auto-assign available rooms of this category
+    // Auto-assign available rooms of this category within this property
     const category = await prisma.roomCategory.findFirst({
-      where: { name: booking.roomCategory },
+      where: {
+        propertyId: booking.propertyId,
+        name: booking.roomCategory,
+      },
       include: { rooms: true },
     })
 
@@ -104,7 +107,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         roomId: br.roomId,
         oldStatus: br.room.status,
         newStatus: 'Occupied',
-        changedBy: session?.user?.id,
+        changedBy: session?.user?.id || 'Staff',
       },
     })
   }
@@ -114,7 +117,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       bookingId: booking.id,
       oldStatus: booking.status,
       newStatus: 'CheckedIn',
-      changedBy: session?.user?.id,
+      changedBy: session?.user?.id || 'Staff',
     },
   })
 

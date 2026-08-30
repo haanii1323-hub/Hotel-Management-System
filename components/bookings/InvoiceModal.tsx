@@ -58,12 +58,11 @@ export default function InvoiceModal({ booking, collected, balance, onClose }: P
         {/* Invoice Header */}
         <div className="invoice-header">
           <div className="invoice-logo">
-            <div className="invoice-logo-icon">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-                <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-                <polyline points="9,22 9,12 15,12 15,22" />
-              </svg>
-            </div>
+            <img
+              src="/logo.png"
+              alt="APEX INN"
+              style={{ width: 34, height: 34, borderRadius: 6, objectFit: 'cover' }}
+            />
             <div>
               <div className="invoice-brand">APEX INN</div>
               <div style={{ fontSize: '11px', color: 'var(--text-2)' }}>Hotel Operations Console</div>

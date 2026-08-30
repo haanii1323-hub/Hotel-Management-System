@@ -1,6 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth, calcNights } from '@/lib/utils'
+import { format } from 'date-fns'
+
+function parseBookingDate(d: string | Date | null | undefined): Date {
+  if (!d) return new Date()
+  if (typeof d === 'string') {
+    const match = d.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (match) {
+      const year = parseInt(match[1], 10)
+      const month = parseInt(match[2], 10) - 1
+      const day = parseInt(match[3], 10)
+      return new Date(year, month, day, 12, 0, 0)
+    }
+  }
+  const dt = new Date(d)
+  return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), 12, 0, 0)
+}
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const { error } = await requireAuth()
@@ -44,6 +60,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       guest: true,
       bookingRooms: { include: { room: true } },
       payments: true,
+      property: true,
     },
   })
 
@@ -53,11 +70,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     guestName,
     phone,
     email,
+    address,
     source,
     checkIn,
     checkOut,
     roomCategory,
     nightlyRate,
+    taxAmount: customTax,
+    discountAmount: customDiscount,
     numRooms,
     adults,
     kids,
@@ -65,42 +85,31 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     status,
   } = body
 
-  // 1. Update Guest if name, phone, or email was changed
-  if (guestName !== undefined || phone !== undefined || email !== undefined) {
+  // 1. Update Guest if fields provided
+  if (guestName !== undefined || phone !== undefined || email !== undefined || address !== undefined) {
     await prisma.guest.update({
       where: { id: booking.guestId },
       data: {
         ...(guestName !== undefined ? { name: String(guestName).trim() } : {}),
         ...(phone !== undefined ? { phone: String(phone).trim() } : {}),
         ...(email !== undefined ? { email: email ? String(email).trim() : null } : {}),
+        ...(address !== undefined ? { address: address ? String(address).trim() : null } : {}),
       },
     })
   }
 
-  // 2. Prepare Booking Update Data
-  const bookingUpdateData: Record<string, unknown> = {}
-
-  if (source !== undefined) bookingUpdateData.source = String(source)
-  if (notes !== undefined) bookingUpdateData.notes = notes ? String(notes).trim() : null
-  if (adults !== undefined) bookingUpdateData.adults = Math.max(1, Number(adults))
-  if (kids !== undefined) bookingUpdateData.kids = Math.max(0, Number(kids))
-
-  // Handle Date changes
+  // 2. Dates and category verification
   let newCheckIn = booking.checkIn
   let newCheckOut = booking.checkOut
+  let datesChanged = false
 
   if (checkIn) {
-    newCheckIn = typeof checkIn === 'string' && checkIn.includes('T')
-      ? new Date(checkIn)
-      : new Date(`${checkIn}T12:00:00.000Z`)
-    bookingUpdateData.checkIn = newCheckIn
+    newCheckIn = parseBookingDate(checkIn)
+    datesChanged = true
   }
-
   if (checkOut) {
-    newCheckOut = typeof checkOut === 'string' && checkOut.includes('T')
-      ? new Date(checkOut)
-      : new Date(`${checkOut}T12:00:00.000Z`)
-    bookingUpdateData.checkOut = newCheckOut
+    newCheckOut = parseBookingDate(checkOut)
+    datesChanged = true
   }
 
   if (newCheckOut <= newCheckIn) {
@@ -111,17 +120,89 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const newCategory = roomCategory !== undefined ? String(roomCategory) : booking.roomCategory
   const newNightlyRate = nightlyRate !== undefined ? Math.max(1, Number(nightlyRate)) : booking.nightlyRate
 
-  if (numRooms !== undefined) bookingUpdateData.numRooms = newNumRooms
-  if (roomCategory !== undefined) bookingUpdateData.roomCategory = newCategory
-  if (nightlyRate !== undefined) bookingUpdateData.nightlyRate = newNightlyRate
-
-  // Recalculate total amount if dates, rate or rooms changed
-  if (checkIn || checkOut || nightlyRate !== undefined || numRooms !== undefined) {
-    const nights = calcNights(newCheckIn, newCheckOut)
-    bookingUpdateData.totalAmount = newNightlyRate * nights * newNumRooms
+  const bookingUpdateData: Record<string, unknown> = {
+    checkIn: newCheckIn,
+    checkOut: newCheckOut,
+    numRooms: newNumRooms,
+    roomCategory: newCategory,
+    nightlyRate: newNightlyRate,
   }
 
-  // 3. Handle Status Change (e.g. Cancelled)
+  if (source !== undefined) bookingUpdateData.source = String(source)
+  if (notes !== undefined) bookingUpdateData.notes = notes ? String(notes).trim() : null
+  if (adults !== undefined) bookingUpdateData.adults = Math.max(1, Number(adults))
+  if (kids !== undefined) bookingUpdateData.kids = Math.max(0, Number(kids))
+
+  // Check double-booking conflicts if dates or category/rooms changed and status is Upcoming or CheckedIn
+  const targetStatus = status !== undefined ? status : booking.status
+  if (
+    (datesChanged || roomCategory !== undefined || numRooms !== undefined) &&
+    ['Upcoming', 'CheckedIn'].includes(targetStatus)
+  ) {
+    // Check conflicts excluding this booking
+    const conflictingBookings = await prisma.booking.findMany({
+      where: {
+        propertyId: booking.propertyId,
+        id: { not: booking.id },
+        status: { in: ['Upcoming', 'CheckedIn'] },
+        AND: [
+          { checkIn: { lt: newCheckOut } },
+          { checkOut: { gt: newCheckIn } },
+        ],
+      },
+      include: { bookingRooms: true },
+    })
+
+    const bookedRoomIds = new Set<string>()
+    for (const cb of conflictingBookings) {
+      for (const br of cb.bookingRooms) {
+        bookedRoomIds.add(br.roomId)
+      }
+    }
+
+    const categoryRooms = await prisma.room.findMany({
+      where: {
+        propertyId: booking.propertyId,
+        category: { name: newCategory },
+      },
+    })
+
+    const availableRooms = categoryRooms.filter((r) => !bookedRoomIds.has(r.id))
+
+    if (availableRooms.length < newNumRooms) {
+      return NextResponse.json(
+        {
+          error: `Category '${newCategory}' is unavailable for ${format(newCheckIn, 'dd MMM')} → ${format(newCheckOut, 'dd MMM yyyy')}. Only ${availableRooms.length} available, requested ${newNumRooms}.`,
+        },
+        { status: 409 }
+      )
+    }
+
+    // If upcoming, reassign available rooms
+    if (targetStatus === 'Upcoming') {
+      await prisma.bookingRoom.deleteMany({ where: { bookingId: booking.id } })
+      await prisma.bookingRoom.createMany({
+        data: availableRooms.slice(0, newNumRooms).map((r) => ({
+          bookingId: booking.id,
+          roomId: r.id,
+        })),
+      })
+    }
+  }
+
+  // Recalculate totals
+  const nights = calcNights(newCheckIn, newCheckOut)
+  const subtotal = newNightlyRate * nights * newNumRooms
+  const taxRate = booking.property?.taxRate || 12.0
+  const taxAmount = customTax !== undefined ? Number(customTax) : Math.round((subtotal * taxRate) / 100)
+  const discountAmount = customDiscount !== undefined ? Number(customDiscount) : booking.discountAmount || 0
+  const totalAmount = Math.max(0, subtotal + taxAmount - discountAmount)
+
+  bookingUpdateData.taxAmount = taxAmount
+  bookingUpdateData.discountAmount = discountAmount
+  bookingUpdateData.totalAmount = totalAmount
+
+  // 3. Status changes (e.g. Cancelled)
   if (status !== undefined && status !== booking.status) {
     bookingUpdateData.status = status
 
@@ -130,7 +211,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         bookingId: booking.id,
         oldStatus: booking.status,
         newStatus: status,
-        changedBy: session?.user?.id,
+        changedBy: session?.user?.name || session?.user?.email || 'Staff',
       },
     })
 
@@ -155,35 +236,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
   }
 
-  // 4. Handle Room Category or Room Count changes
-  if ((roomCategory && roomCategory !== booking.roomCategory) || (numRooms && numRooms !== booking.numRooms)) {
-    // If not checked in yet, reassign rooms from the target category
-    if (booking.status === 'Upcoming') {
-      const cat = await prisma.roomCategory.findFirst({
-        where: { name: newCategory },
-        include: { rooms: true },
-      })
-      if (cat) {
-        // Delete old assignments
-        await prisma.bookingRoom.deleteMany({ where: { bookingId: booking.id } })
-
-        // Find available rooms
-        const availableRooms = cat.rooms.filter((r) => r.status === 'Available')
-        const toAssign = (availableRooms.length >= newNumRooms ? availableRooms : cat.rooms).slice(0, newNumRooms)
-
-        if (toAssign.length > 0) {
-          await prisma.bookingRoom.createMany({
-            data: toAssign.map((r) => ({
-              bookingId: booking.id,
-              roomId: r.id,
-            })),
-          })
-        }
-      }
-    }
-  }
-
-  // 5. Update the booking
+  // 4. Update database record
   const updated = await prisma.booking.update({
     where: { id: booking.id },
     data: bookingUpdateData,

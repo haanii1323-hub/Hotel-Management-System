@@ -24,6 +24,7 @@ import { format } from 'date-fns'
 import InvoiceModal from './InvoiceModal'
 import EditBookingModal from './EditBookingModal'
 import { useToast } from '@/components/ui/Toast'
+import { broadcastChange } from '@/lib/realtime-sync'
 
 function fmt(n: number) {
   return `₹${Number(n || 0).toLocaleString('en-IN')}`
@@ -126,6 +127,7 @@ export default function BookingDetailsModal({
         showToast(data.error || 'Failed to cancel booking', 'error')
       } else {
         showToast(`Booking ${booking.bookingRef} cancelled. Rooms released.`, 'success')
+        broadcastChange('BOOKING_UPDATED', { bookingId: booking.id, status: 'Cancelled' })
         setBooking(data)
         if (onSuccess) onSuccess()
       }

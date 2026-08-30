@@ -5,6 +5,7 @@ import { X, BedDouble } from 'lucide-react'
 import { format } from 'date-fns'
 import { useToast } from '@/components/ui/Toast'
 import useSWR from 'swr'
+import { broadcastChange } from '@/lib/realtime-sync'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -39,8 +40,11 @@ export default function CheckInModal({ booking, onClose, onSuccess }: Props) {
   const { showToast } = useToast()
   const [loading, setLoading] = useState(false)
 
-  // Fetch all rooms of this category to allow selection
-  const { data: allRooms } = useSWR('/api/rooms', fetcher)
+  // Fetch all rooms of this property to allow selection
+  const { data: allRooms } = useSWR(
+    booking.propertyId ? `/api/rooms?propertyId=${booking.propertyId}` : '/api/rooms',
+    fetcher
+  )
   const categoryRooms = (allRooms || []).filter(
     (r: any) => r.category?.name === booking.roomCategory
   )
@@ -54,7 +58,7 @@ export default function CheckInModal({ booking, onClose, onSuccess }: Props) {
       (s: number, p: any) => s + (p.status !== 'Pending' ? p.amount : 0),
       0
     ) || 0
-  const balance = Math.max(0, booking.totalAmount - collected)
+  const balance = Math.max(0, (booking.totalAmount || 0) - collected)
   const d1 = parseBookingDate(booking.checkIn)
   const d2 = parseBookingDate(booking.checkOut)
   const nights = d1 && d2 ? Math.max(1, Math.round((d2.getTime() - d1.getTime()) / 86400000)) : 1
@@ -89,6 +93,7 @@ export default function CheckInModal({ booking, onClose, onSuccess }: Props) {
         showToast(data.error || 'Check-in failed', 'error')
       } else {
         showToast(`${booking.guest.name} checked in successfully!`, 'success')
+        broadcastChange('CHECK_IN', { bookingId: booking.id })
         onSuccess()
       }
     } catch {
@@ -109,7 +114,7 @@ export default function CheckInModal({ booking, onClose, onSuccess }: Props) {
       <div className="modal" style={{ maxWidth: '540px', width: '92%' }}>
         <div className="modal-header">
           <div className="modal-title">
-            Check-in · {booking.guest.name}
+            Check-in · {booking.guest?.name}
             <button onClick={onClose} className="btn-icon" style={{ background: 'none', border: 'none' }}>
               <X size={16} />
             </button>
@@ -130,11 +135,11 @@ export default function CheckInModal({ booking, onClose, onSuccess }: Props) {
           >
             <div className="bill-row">
               <span style={{ color: 'var(--text-2)' }}>Guest</span>
-              <span style={{ fontWeight: 600 }}>{booking.guest.name}</span>
+              <span style={{ fontWeight: 600 }}>{booking.guest?.name}</span>
             </div>
             <div className="bill-row">
-              <span style={{ color: 'var(--text-2)' }}>Booking ID</span>
-              <span>{booking.bookingRef}</span>
+              <span style={{ color: 'var(--text-2)' }}>Booking Ref</span>
+              <span style={{ fontWeight: 600 }}>{booking.bookingRef}</span>
             </div>
             <div className="bill-row">
               <span style={{ color: 'var(--text-2)' }}>Stay Dates</span>
@@ -151,7 +156,7 @@ export default function CheckInModal({ booking, onClose, onSuccess }: Props) {
             <div className="bill-divider" />
             <div className="bill-row total">
               <span>Total Amount</span>
-              <span>₹{booking.totalAmount.toLocaleString('en-IN')}</span>
+              <span>₹{(booking.totalAmount || 0).toLocaleString('en-IN')}</span>
             </div>
             {balance > 0 ? (
               <div className="bill-row">
