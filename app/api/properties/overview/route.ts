@@ -6,12 +6,10 @@ import { authOptions } from '@/lib/auth'
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const tenantId = (session?.user as any)?.tenantId || 'demo-tenant'
 
     const properties = await prisma.property.findMany({
-      where: { isActive: true },
+      where: { tenantId, isActive: true },
       include: {
         rooms: true,
         bookings: {

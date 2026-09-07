@@ -19,10 +19,12 @@ import {
   AlertCircle,
   Pencil,
   Ban,
+  Printer,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import InvoiceModal from './InvoiceModal'
 import EditBookingModal from './EditBookingModal'
+import PaymentReceiptModal from './PaymentReceiptModal'
 import { useToast } from '@/components/ui/Toast'
 import { broadcastChange } from '@/lib/realtime-sync'
 
@@ -81,6 +83,7 @@ export default function BookingDetailsModal({
   const [showInvoice, setShowInvoice] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
   const [cancelling, setCancelling] = useState(false)
+  const [receiptPayment, setReceiptPayment] = useState<any>(null)
 
   if (!booking) return null
 
@@ -329,7 +332,9 @@ export default function BookingDetailsModal({
                 <div>
                   <div style={{ fontSize: '11px', color: 'var(--text-2)' }}>Duration</div>
                   <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', marginTop: '2px' }}>
-                    {numNights} Night{numNights !== 1 ? 's' : ''}
+                    {fmtDate(booking.checkIn) === fmtDate(booking.checkOut)
+                      ? 'Same-day (1 Day)'
+                      : `${numNights} Night${numNights !== 1 ? 's' : ''}`}
                   </div>
                 </div>
                 <div>
@@ -475,8 +480,19 @@ export default function BookingDetailsModal({
                           {p.utrRef ? ` · UTR: ${p.utrRef}` : ''}
                         </div>
                       </div>
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>
-                        {fmt(p.amount)}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>
+                          {fmt(p.amount)}
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          style={{ padding: '3px 8px', fontSize: '11px', gap: '4px' }}
+                          onClick={() => setReceiptPayment(p)}
+                          title="View / Print Receipt"
+                        >
+                          <Printer size={12} /> Receipt
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -509,7 +525,7 @@ export default function BookingDetailsModal({
                 onClick={() => setShowInvoice(true)}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
               >
-                <FileText size={14} /> Generate Bill / Invoice
+                <FileText size={14} /> View / Print Receipt
               </button>
             </div>
 
@@ -585,6 +601,14 @@ export default function BookingDetailsModal({
           collected={collected}
           balance={balance}
           onClose={() => setShowInvoice(false)}
+        />
+      )}
+
+      {receiptPayment && (
+        <PaymentReceiptModal
+          payment={receiptPayment}
+          booking={booking}
+          onClose={() => setReceiptPayment(null)}
         />
       )}
     </>

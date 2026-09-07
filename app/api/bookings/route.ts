@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getTargetPropertyId } from '@/lib/property-helper'
+import { getTenantContext } from '@/lib/property-helper'
 import { format } from 'date-fns'
 
 function generateBookingRef(code?: string): string {
@@ -33,7 +33,11 @@ function parseBookingDate(d: string | Date | null | undefined): Date {
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    const propertyId = await getTargetPropertyId(req, (session?.user as any)?.propertyId)
+    const { propertyId } = await getTenantContext(req, session?.user as any)
+
+    if (!propertyId) {
+      return NextResponse.json([])
+    }
 
     const { searchParams } = new URL(req.url)
     const status = searchParams.get('status')
@@ -112,12 +116,17 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
+    const { tenantId, propertyId: defaultPropId } = await getTenantContext(req, session?.user as any)
     const body = await req.json()
-    const propertyId = body.propertyId || (await getTargetPropertyId(req, (session?.user as any)?.propertyId))
+    const propertyId = body.propertyId || defaultPropId
 
-    const property = await prisma.property.findUnique({ where: { id: propertyId } })
+    if (!propertyId) {
+      return NextResponse.json({ error: 'No active property found' }, { status: 400 })
+    }
+
+    const property = await prisma.property.findFirst({ where: { id: propertyId, tenantId } })
     if (!property) {
-      return NextResponse.json({ error: 'Property not found' }, { status: 400 })
+      return NextResponse.json({ error: 'Property not found or unauthorized' }, { status: 400 })
     }
 
     const {
@@ -134,7 +143,12 @@ export async function POST(req: NextRequest) {
       roomCategory,
       roomId,
       nightlyRate,
-      taxAmount: customTax,
+      roomSelections, // Optional Array<{ categoryName: string, count: number, rate: number }>
+      earlyCheckIn = 0,
+      lateCheckOut = 0,
+      extraMattressCount = 0,
+      extraMattressRate = 500,
+      taxAmount: customTax = 0, // GST removed / 0
       discountAmount: customDiscount = 0,
       notes,
       paymentAmount = 0,
@@ -142,31 +156,58 @@ export async function POST(req: NextRequest) {
       paymentUtr,
     } = body
 
-    if (!guestName?.trim() || !phone?.trim() || !checkIn || !checkOut || !roomCategory || !nightlyRate) {
-      return NextResponse.json({ error: 'Missing required booking fields (Guest, Phone, Dates, Category, Rate)' }, { status: 400 })
+    if (!guestName?.trim() || !phone?.trim() || !checkIn || !checkOut) {
+      return NextResponse.json({ error: 'Missing required booking fields (Guest, Phone, Dates)' }, { status: 400 })
     }
 
     const d1 = parseBookingDate(checkIn)
     const d2 = parseBookingDate(checkOut)
 
-    if (d2 <= d1) {
-      return NextResponse.json({ error: 'Check-out date must be after check-in date' }, { status: 400 })
+    if (d2 < d1) {
+      return NextResponse.json({ error: 'Check-out date cannot be earlier than check-in date' }, { status: 400 })
     }
 
     const nights = Math.max(1, Math.round((d2.getTime() - d1.getTime()) / 86400000))
-    const subtotal = Number(nightlyRate) * nights * Number(numRooms)
-    const taxRate = property.taxRate || 12.0
-    const taxAmount = customTax !== undefined ? Number(customTax) : Math.round((subtotal * taxRate) / 100)
+
+    // Multi-room category or single category calculation
+    let calculatedSubtotal = 0
+    let totalRoomsCount = Number(numRooms || 1)
+    let categoryDisplay = roomCategory || 'Classic'
+    let effectiveNightlyRate = Number(nightlyRate || 0)
+
+    if (Array.isArray(roomSelections) && roomSelections.length > 0) {
+      totalRoomsCount = roomSelections.reduce((sum: number, item: any) => sum + Number(item.count || 1), 0)
+      const perNightRoomTotal = roomSelections.reduce(
+        (sum: number, item: any) => sum + Number(item.rate || 0) * Number(item.count || 1),
+        0
+      )
+      calculatedSubtotal = perNightRoomTotal * nights
+      categoryDisplay = roomSelections
+        .map((item: any) => `${item.count}× ${item.categoryName}`)
+        .join(', ')
+      effectiveNightlyRate = totalRoomsCount > 0 ? Math.round(perNightRoomTotal / totalRoomsCount) : perNightRoomTotal
+    } else {
+      calculatedSubtotal = Number(nightlyRate || 0) * nights * totalRoomsCount
+    }
+
+    // Add-ons calculation (Early check-in, late checkout, extra mattress)
+    const extraEarlyCheckIn = Number(earlyCheckIn || 0)
+    const extraLateCheckOut = Number(lateCheckOut || 0)
+    const extraMattressTotal = Number(extraMattressCount || 0) * Number(extraMattressRate || 0) * nights
+    const totalAddons = extraEarlyCheckIn + extraLateCheckOut + extraMattressTotal
+
+    const taxAmount = Number(customTax || 0) // GST removed
     const discountAmount = Number(customDiscount || 0)
-    const totalAmount = Math.max(0, subtotal + taxAmount - discountAmount)
+    const totalAmount = Math.max(0, calculatedSubtotal + totalAddons + taxAmount - discountAmount)
 
     // Check conflicting bookings for these dates in this property
+    const conflictEnd = d1.getTime() === d2.getTime() ? new Date(d2.getTime() + 86400000) : d2
     const conflictingBookings = await prisma.booking.findMany({
       where: {
         propertyId,
         status: { in: ['Upcoming', 'CheckedIn'] },
         AND: [
-          { checkIn: { lt: d2 } },
+          { checkIn: { lt: conflictEnd } },
           { checkOut: { gt: d1 } },
         ],
       },
@@ -184,7 +225,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Check specific roomId if provided
+    // Assign rooms based on roomSelections or single category/roomId
     let assignedRoomIds: string[] = []
     if (roomId) {
       if (bookedRoomIds.has(roomId)) {
@@ -197,32 +238,57 @@ export async function POST(req: NextRequest) {
         )
       }
       assignedRoomIds = [roomId]
+    } else if (Array.isArray(roomSelections) && roomSelections.length > 0) {
+      for (const sel of roomSelections) {
+        const catName = sel.categoryName
+        const reqCount = Number(sel.count || 1)
+        const catRooms = await prisma.room.findMany({
+          where: {
+            propertyId,
+            category: { name: catName },
+          },
+          orderBy: { number: 'asc' },
+        })
+
+        const available = catRooms.filter((r) => !bookedRoomIds.has(r.id) && !assignedRoomIds.includes(r.id))
+        if (available.length < reqCount) {
+          return NextResponse.json(
+            {
+              error: `Not enough available rooms in category '${catName}' (${available.length} available, requested ${reqCount}).`,
+            },
+            { status: 409 }
+          )
+        }
+        for (let i = 0; i < reqCount; i++) {
+          assignedRoomIds.push(available[i].id)
+        }
+      }
     } else {
-      // Find all rooms in this property and category
+      // Single category allocation
       const categoryRooms = await prisma.room.findMany({
         where: {
           propertyId,
-          category: { name: roomCategory },
+          category: { name: categoryDisplay },
         },
         orderBy: { number: 'asc' },
       })
 
       if (categoryRooms.length === 0) {
-        return NextResponse.json({ error: `Category '${roomCategory}' has no configured rooms in this property.` }, { status: 400 })
+        return NextResponse.json({ error: `Category '${categoryDisplay}' has no configured rooms in this property.` }, { status: 400 })
       }
 
       const availableRooms = categoryRooms.filter((r) => !bookedRoomIds.has(r.id))
 
-      if (availableRooms.length < Number(numRooms)) {
+      if (availableRooms.length < totalRoomsCount) {
         return NextResponse.json(
           {
-            error: `No available rooms in '${roomCategory}' for ${format(d1, 'dd MMM')} → ${format(d2, 'dd MMM yyyy')}. Total: ${categoryRooms.length}, Booked: ${categoryRooms.length - availableRooms.length}, Available: ${availableRooms.length}, Requested: ${numRooms}.`,
+            error: `No available rooms in '${categoryDisplay}' for ${format(d1, 'dd MMM')} → ${format(d2, 'dd MMM yyyy')}. Available: ${availableRooms.length}, Requested: ${totalRoomsCount}.`,
           },
           { status: 409 }
         )
       }
 
-      assignedRoomIds = availableRooms.slice(0, Number(numRooms)).map((r) => r.id)
+      assignedRoomIds = availableRooms.slice(0, totalRoomsCount).map((r) => r.id)
     }
 
     // Find or create guest within this property
@@ -271,15 +337,25 @@ export async function POST(req: NextRequest) {
         source,
         checkIn: d1,
         checkOut: d2,
-        numRooms: Number(numRooms),
+        numRooms: totalRoomsCount,
         adults: Number(adults),
         kids: Number(kids),
-        roomCategory,
-        nightlyRate: Number(nightlyRate),
+        roomCategory: categoryDisplay,
+        nightlyRate: effectiveNightlyRate,
         taxAmount,
         discountAmount,
         totalAmount,
-        notes: notes?.trim() || null,
+        notes: [
+          notes?.trim(),
+          extraEarlyCheckIn > 0 ? `Early Check-in: ₹${extraEarlyCheckIn}` : '',
+          extraLateCheckOut > 0 ? `Late Checkout: ₹${extraLateCheckOut}` : '',
+          extraMattressCount > 0 ? `Extra Mattress (${extraMattressCount}× ₹${extraMattressRate}): ₹${extraMattressTotal}` : '',
+          Array.isArray(roomSelections) && roomSelections.length > 1
+            ? `Room Breakdown: ${roomSelections.map((s: any) => `${s.count}× ${s.categoryName} @ ₹${s.rate}/N`).join(', ')}`
+            : '',
+        ]
+          .filter(Boolean)
+          .join(' | ') || null,
         bookingRooms: {
           create: assignedRoomIds.map((rId) => ({ roomId: rId })),
         },

@@ -5,23 +5,33 @@ import { authOptions } from '@/lib/auth'
 
 export async function GET(req: NextRequest) {
   try {
+    const session = await getServerSession(authOptions)
     const { searchParams } = new URL(req.url)
     const q = searchParams.get('search') || searchParams.get('q') || ''
     const includeInactive = searchParams.get('includeInactive') === 'true'
 
-    const where: any = {}
+    const tenantId = (session?.user as any)?.tenantId || 'demo-tenant'
+
+    const where: any = {
+      tenantId,
+    }
+
     if (!includeInactive) {
       where.isActive = true
     }
 
     if (q.trim()) {
       const search = q.trim()
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { code: { contains: search, mode: 'insensitive' } },
-        { city: { contains: search, mode: 'insensitive' } },
-        { state: { contains: search, mode: 'insensitive' } },
-        { address: { contains: search, mode: 'insensitive' } },
+      where.AND = [
+        {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { code: { contains: search, mode: 'insensitive' } },
+            { city: { contains: search, mode: 'insensitive' } },
+            { state: { contains: search, mode: 'insensitive' } },
+            { address: { contains: search, mode: 'insensitive' } },
+          ],
+        },
       ]
     }
 
@@ -49,9 +59,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const tenantId = (session?.user as any)?.tenantId || 'demo-tenant'
 
     const body = await req.json()
     const {
@@ -80,14 +88,17 @@ export async function POST(req: NextRequest) {
 
     const cleanCode = code.trim().toUpperCase()
 
-    // Check unique code
-    const existing = await prisma.property.findUnique({ where: { code: cleanCode } })
+    // Check unique code within this tenant
+    const existing = await prisma.property.findFirst({
+      where: { tenantId, code: cleanCode },
+    })
     if (existing) {
-      return NextResponse.json({ error: `Property with code "${cleanCode}" already exists` }, { status: 400 })
+      return NextResponse.json({ error: `Property with code "${cleanCode}" already exists in your account` }, { status: 400 })
     }
 
     const property = await prisma.property.create({
       data: {
+        tenantId,
         name: name.trim(),
         code: cleanCode,
         city: city.trim(),
@@ -107,36 +118,32 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    // Create default room categories & rooms if supplied or generate sensible defaults
-    const initialCategories = categories && categories.length > 0
-      ? categories
-      : [
-          { name: 'Standard', rate: 2200, roomCount: 5 },
-          { name: 'Deluxe', rate: 3200, roomCount: 5 },
-          { name: 'Suite', rate: 5000, roomCount: 2 },
-        ]
-
-    for (const cat of initialCategories) {
-      const createdCat = await prisma.roomCategory.create({
-        data: {
-          propertyId: property.id,
-          name: cat.name,
-          nightlyRate: Number(cat.rate) || 2500,
-          totalRooms: Number(cat.roomCount) || (cat.rooms ? cat.rooms.length : 4),
-        },
-      })
-
-      const count = Number(cat.roomCount) || (cat.rooms ? cat.rooms.length : 4)
-      for (let i = 1; i <= count; i++) {
-        const roomNo = cat.rooms && cat.rooms[i - 1] ? cat.rooms[i - 1] : `${cat.name.slice(0, 2).toUpperCase()}-${100 + i}`
-        await prisma.room.create({
+    // If initial categories were provided during onboarding, create them
+    if (Array.isArray(categories) && categories.length > 0) {
+      for (const cat of categories) {
+        if (!cat.name?.trim()) continue
+        const createdCat = await prisma.roomCategory.create({
           data: {
             propertyId: property.id,
-            number: roomNo,
-            categoryId: createdCat.id,
-            status: 'Available',
+            name: cat.name.trim(),
+            nightlyRate: Number(cat.rate) || 2500,
+            totalRooms: Number(cat.roomCount) || (cat.rooms ? cat.rooms.length : 0),
           },
         })
+
+        if (Array.isArray(cat.rooms)) {
+          for (const roomNo of cat.rooms) {
+            if (!roomNo?.trim()) continue
+            await prisma.room.create({
+              data: {
+                propertyId: property.id,
+                number: roomNo.trim(),
+                categoryId: createdCat.id,
+                status: 'Available',
+              },
+            })
+          }
+        }
       }
     }
 

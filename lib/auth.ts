@@ -3,27 +3,6 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 import { prisma } from './prisma'
 
-async function ensureAdminUser() {
-  try {
-    const admin = await prisma.user.findUnique({
-      where: { email: 'admin@apexinn.com' },
-    })
-    if (!admin) {
-      const passwordHash = await bcrypt.hash('admin123', 10)
-      await prisma.user.create({
-        data: {
-          email: 'admin@apexinn.com',
-          passwordHash,
-          name: 'SuperAdmin',
-          role: 'admin',
-        },
-      })
-    }
-  } catch (err) {
-    console.error('Error ensuring admin user in auth:', err)
-  }
-}
-
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
@@ -35,28 +14,47 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null
 
-        await ensureAdminUser()
-
+        const emailLower = credentials.email.toLowerCase().trim()
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email.toLowerCase().trim() },
+          where: { email: emailLower },
+          include: { tenant: true },
         })
 
         if (!user) {
-          if (credentials.email.toLowerCase().trim() === 'admin@apexinn.com' && credentials.password === 'admin123') {
+          // Fallback auto-provision for Demo Admin if needed
+          if ((emailLower === 'admin@apexinn.com' || emailLower === 'demo@apexinn.com') && credentials.password === 'admin123') {
+            let demoTenant = await prisma.tenant.findUnique({ where: { slug: 'demo' } })
+            if (!demoTenant) {
+              demoTenant = await prisma.tenant.create({
+                data: {
+                  id: 'demo-tenant',
+                  name: 'Demo Hospitality Group',
+                  slug: 'demo',
+                  isDemo: true,
+                },
+              })
+            }
             const passwordHash = await bcrypt.hash('admin123', 10)
             const newAdmin = await prisma.user.create({
               data: {
-                email: 'admin@apexinn.com',
+                email: emailLower,
                 passwordHash,
-                name: 'SuperAdmin',
-                role: 'admin',
+                name: emailLower.startsWith('demo') ? 'Demo User' : 'Demo Admin',
+                role: 'owner',
+                tenantId: demoTenant.id,
               },
+              include: { tenant: true },
             })
             return {
               id: newAdmin.id,
               email: newAdmin.email,
               name: newAdmin.name,
               role: newAdmin.role,
+              tenantId: newAdmin.tenantId,
+              tenantSlug: newAdmin.tenant.slug,
+              tenantName: newAdmin.tenant.name,
+              isDemo: newAdmin.tenant.isDemo,
+              propertyId: newAdmin.propertyId,
             }
           }
           return null
@@ -70,6 +68,11 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name,
           role: user.role,
+          tenantId: user.tenantId,
+          tenantSlug: user.tenant?.slug || 'demo',
+          tenantName: user.tenant?.name || 'Hotel Group',
+          isDemo: user.tenant?.isDemo ?? false,
+          propertyId: user.propertyId,
         }
       },
     }),
@@ -81,15 +84,25 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.role = (user as { role?: string }).role
         token.id = user.id
+        token.role = user.role
+        token.tenantId = user.tenantId
+        token.tenantSlug = user.tenantSlug
+        token.tenantName = user.tenantName
+        token.isDemo = user.isDemo
+        token.propertyId = user.propertyId
       }
       return token
     },
     async session({ session, token }) {
       if (token) {
-        session.user.role = token.role as string
         session.user.id = token.id as string
+        session.user.role = token.role as string
+        session.user.tenantId = token.tenantId as string
+        session.user.tenantSlug = token.tenantSlug as string
+        session.user.tenantName = token.tenantName as string
+        session.user.isDemo = Boolean(token.isDemo)
+        session.user.propertyId = token.propertyId as string | null
       }
       return session
     },

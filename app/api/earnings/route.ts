@@ -2,14 +2,25 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getTargetPropertyId } from '@/lib/property-helper'
+import { getTenantContext } from '@/lib/property-helper'
 
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    const propertyId = await getTargetPropertyId(req, (session?.user as any)?.propertyId)
+    const { tenantId, propertyId } = await getTenantContext(req, session?.user as any)
 
-    const property = await prisma.property.findUnique({ where: { id: propertyId } })
+    if (!propertyId) {
+      return NextResponse.json({
+        property: null,
+        bookedValue: 0,
+        collected: 0,
+        balanceToCollect: 0,
+        channels: [],
+        paymentModes: [],
+      })
+    }
+
+    const property = await prisma.property.findFirst({ where: { id: propertyId, tenantId } })
 
     const bookings = await prisma.booking.findMany({
       where: {

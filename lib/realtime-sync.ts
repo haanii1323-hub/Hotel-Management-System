@@ -12,6 +12,7 @@ export type RealtimeEventType =
   | 'CHECK_IN'
   | 'CHECK_OUT'
   | 'PAYMENT_COLLECTED'
+  | 'PAYMENT_CONFIG_UPDATED'
   | 'ROOM_UPDATED'
   | 'ROOM_CREATED'
   | 'CATEGORY_UPDATED'
@@ -64,6 +65,7 @@ export async function revalidateAllPmsData() {
         key.startsWith('/api/reports') ||
         key.startsWith('/api/notifications') ||
         key.startsWith('/api/properties') ||
+        key.startsWith('/api/payment-config') ||
         key.startsWith('/api/search')),
     undefined,
     { revalidate: true }

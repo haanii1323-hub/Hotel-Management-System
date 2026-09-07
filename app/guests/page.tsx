@@ -81,15 +81,17 @@ export default function GuestsPage() {
     <AppShell>
       <div className="page-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
         <div>
-          <h1 className="page-title">Guest Directory · {currentProperty?.name}</h1>
+          <h1 className="page-title">{currentProperty ? `Guest Directory · ${currentProperty.name}` : 'Guest Directory'}</h1>
           <div style={{ fontSize: '12px', color: 'var(--text-2)', marginTop: '2px' }}>
-            {currentProperty?.code} · {currentProperty?.city} · Real-time guest profiles and stay history
+            {currentProperty ? `${currentProperty.code} · ${currentProperty.city} · Real-time guest profiles and stay history` : 'Configure your property to start managing guests'}
           </div>
         </div>
 
-        <button className="btn btn-red" onClick={() => setShowAddGuest(true)}>
-          <UserPlus size={15} /> Add Guest
-        </button>
+        {currentProperty && (
+          <button className="btn btn-red" onClick={() => setShowAddGuest(true)}>
+            <UserPlus size={15} /> Add Guest
+          </button>
+        )}
       </div>
 
       {/* Search */}

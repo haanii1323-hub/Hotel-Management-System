@@ -2,12 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getTargetPropertyId } from '@/lib/property-helper'
+import { getTenantContext } from '@/lib/property-helper'
 
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    const propertyId = await getTargetPropertyId(req, (session?.user as any)?.propertyId)
+    const { propertyId } = await getTenantContext(req, session?.user as any)
+
+    if (!propertyId) {
+      return NextResponse.json([])
+    }
 
     const rooms = await prisma.room.findMany({
       where: { propertyId },
@@ -27,12 +31,23 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
+    const { tenantId, propertyId: defaultPropId } = await getTenantContext(req, session?.user as any)
     const body = await req.json()
-    const propertyId = body.propertyId || (await getTargetPropertyId(req, (session?.user as any)?.propertyId))
-    const { number, categoryId, categoryName, status = 'Available' } = body
+    const propertyId = body.propertyId || defaultPropId
+    const { number, categoryId, categoryName, status = 'Available', floor = 1, bedType = 'King' } = body
 
     if (!number?.trim()) {
       return NextResponse.json({ error: 'Room number is required' }, { status: 400 })
+    }
+
+    if (!propertyId) {
+      return NextResponse.json({ error: 'No active property found' }, { status: 400 })
+    }
+
+    // Verify property belongs to tenant
+    const property = await prisma.property.findFirst({ where: { id: propertyId, tenantId } })
+    if (!property) {
+      return NextResponse.json({ error: 'Property not found or unauthorized' }, { status: 404 })
     }
 
     // Find category ID
@@ -47,7 +62,7 @@ export async function POST(req: NextRequest) {
     if (!finalCategoryId) {
       const firstCat = await prisma.roomCategory.findFirst({ where: { propertyId } })
       if (!firstCat) {
-        return NextResponse.json({ error: 'Please create a room category first' }, { status: 400 })
+        return NextResponse.json({ error: 'Please create a room category/type first' }, { status: 400 })
       }
       finalCategoryId = firstCat.id
     }
@@ -71,6 +86,8 @@ export async function POST(req: NextRequest) {
         number: number.trim(),
         categoryId: finalCategoryId,
         status,
+        floor: Number(floor) || 1,
+        bedType: bedType || 'King',
       },
       include: {
         category: true,

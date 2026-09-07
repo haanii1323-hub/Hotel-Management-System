@@ -62,7 +62,21 @@ function nights(checkIn: string, checkOut: string) {
   return Math.max(1, Math.round((d2.getTime() - d1.getTime()) / 86400000))
 }
 
-const SOURCES = ['All', 'Walk inn', 'Direct Web', 'Booking.com', 'Agoda', 'Expedia', 'Corporate', 'Phone', 'OTA', 'Others']
+const SOURCES = [
+  'All',
+  'GOMMT',
+  'B.COM',
+  'AIRBNB',
+  'BREVISTAY',
+  'B2B',
+  'CLEARTRIP',
+  'YATRA',
+  'EXPEDIA',
+  'AGODA',
+  'Fab',
+  'Corporate',
+  'Walk inn',
+]
 
 function BookingCard({
   b,
@@ -113,7 +127,7 @@ function BookingCard({
         </div>
         <div className="booking-meta">
           <div>
-            {n} Night{n !== 1 ? 's' : ''}
+            {fmtDate(b.checkIn) === fmtDate(b.checkOut) ? 'Same-day (1D)' : `${n} Night${n !== 1 ? 's' : ''}`}
           </div>
           <div className="sub">
             {fmtDate(b.checkIn)} – {fmtDate(b.checkOut)}
@@ -195,7 +209,7 @@ function BookingCard({
         <div className="booking-card-body">
           <div className="booking-card-body-item">
             <div>
-              {n} Night{n !== 1 ? 's' : ''}
+              {fmtDate(b.checkIn) === fmtDate(b.checkOut) ? 'Same-day (1D)' : `${n} Night${n !== 1 ? 's' : ''}`}
             </div>
             <div className="sub">
               {fmtDate(b.checkIn)} – {fmtDate(b.checkOut)}

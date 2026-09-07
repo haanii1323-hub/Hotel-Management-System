@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getTargetPropertyId } from '@/lib/property-helper'
+import { getTenantContext } from '@/lib/property-helper'
 import { format } from 'date-fns'
 
 function parseBookingDate(d: string | Date | null | undefined): Date | null {
@@ -29,14 +29,48 @@ function getDateString(d: string | Date | null | undefined): string {
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    const propertyId = await getTargetPropertyId(req, (session?.user as any)?.propertyId)
-
-    const property = await prisma.property.findUnique({
-      where: { id: propertyId },
-    })
+    const { tenantId, propertyId } = await getTenantContext(req, session?.user as any)
 
     const now = new Date()
     const todayStr = format(now, 'yyyy-MM-dd')
+
+    // Count total active properties for this tenant
+    const totalProperties = await prisma.property.count({
+      where: { tenantId, isActive: true },
+    })
+
+    if (!propertyId || totalProperties === 0) {
+      return NextResponse.json({
+        hasProperties: false,
+        totalProperties: 0,
+        property: null,
+        kpis: {
+          totalProperties: 0,
+          totalRooms: 0,
+          availableRooms: 0,
+          occupiedRooms: 0,
+          cleaningRooms: 0,
+          maintenanceRooms: 0,
+          outOfServiceRooms: 0,
+          arrivingTodayCount: 0,
+          inHouseCount: 0,
+          departingTodayCount: 0,
+          totalBookings: 0,
+          occupancy: 0,
+          totalRevenue: 0,
+          collectedToday: 0,
+        },
+        arrivingToday: [],
+        departingToday: [],
+        inHouseBookings: [],
+        upcomingBookings: [],
+        recentBookings: [],
+      })
+    }
+
+    const property = await prisma.property.findFirst({
+      where: { id: propertyId, tenantId },
+    })
 
     // 1. Rooms breakdown
     const rooms = await prisma.room.findMany({ where: { propertyId } })
@@ -92,6 +126,8 @@ export async function GET(req: NextRequest) {
     const occupancy = totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0
 
     return NextResponse.json({
+      hasProperties: true,
+      totalProperties,
       property: {
         id: property?.id,
         name: property?.name,
@@ -101,6 +137,7 @@ export async function GET(req: NextRequest) {
         taxRate: property?.taxRate || 12.0,
       },
       kpis: {
+        totalProperties,
         totalRooms,
         availableRooms,
         occupiedRooms,

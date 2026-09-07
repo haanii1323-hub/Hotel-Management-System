@@ -9,9 +9,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const body = await req.json()
   const { amount, mode = 'Cash', status: paymentStatus = 'Paid', utrRef, notes } = body
 
-  if (mode === 'UPI' && paymentStatus === 'Paid' && !utrRef?.trim()) {
-    return NextResponse.json({ error: 'UTR reference required for UPI payments marked as paid' }, { status: 400 })
-  }
+
 
   await prisma.payment.create({
     data: {

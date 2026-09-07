@@ -2,17 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getTargetPropertyId } from '@/lib/property-helper'
+import { getTenantContext } from '@/lib/property-helper'
 
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    const propertyId = await getTargetPropertyId(req, (session?.user as any)?.propertyId)
+    const { propertyId } = await getTenantContext(req, session?.user as any)
 
     const { searchParams } = new URL(req.url)
     const q = searchParams.get('q') || ''
 
-    if (!q.trim()) {
+    if (!propertyId || !q.trim()) {
       return NextResponse.json([])
     }
 

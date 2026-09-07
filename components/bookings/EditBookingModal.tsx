@@ -8,17 +8,20 @@ import useSWR from 'swr'
 import { broadcastChange } from '@/lib/realtime-sync'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
-const SOURCES = [
-  'Walk inn',
-  'Direct Web',
-  'Booking.com',
-  'Agoda',
-  'Expedia',
-  'MakeMyTrip',
-  'Airbnb',
+
+export const BOOKING_SOURCES = [
+  'GOMMT',
+  'B.COM',
+  'AIRBNB',
+  'BREVISTAY',
+  'B2B',
+  'CLEARTRIP',
+  'YATRA',
+  'EXPEDIA',
+  'AGODA',
+  'Fab',
   'Corporate',
-  'Phone',
-  'Others',
+  'Walk inn',
 ]
 
 function parseDateInput(d: string | Date | null | undefined): string {
@@ -93,23 +96,21 @@ export default function EditBookingModal({ booking, onClose, onSuccess }: Props)
   function calcNights() {
     if (!form.checkIn || !form.checkOut) return 1
     const diff = new Date(form.checkOut).getTime() - new Date(form.checkIn).getTime()
-    return Math.max(1, Math.ceil(diff / 86400000))
+    return Math.max(1, Math.round(diff / 86400000))
   }
 
+  const isSameDay = form.checkIn === form.checkOut
   const nights = calcNights()
   const subtotal = form.nightlyRate * nights * form.numRooms
-  const taxRate = 12.0
-  const calculatedTax = Math.round((subtotal * taxRate) / 100)
   const discountAmount = Number(form.discount || 0)
-  const total = Math.max(0, subtotal + calculatedTax - discountAmount)
+  // GST removed -> Total = subtotal - discount
+  const total = Math.max(0, subtotal - discountAmount)
 
   function handleCheckInChange(newCheckIn: string) {
     setForm((f) => {
       let nextCheckOut = f.checkOut
-      if (!f.checkOut || f.checkOut <= newCheckIn) {
-        const parts = newCheckIn.split('-').map(Number)
-        const d = new Date(parts[0], parts[1] - 1, parts[2])
-        nextCheckOut = format(addDays(d, 1), 'yyyy-MM-dd')
+      if (!f.checkOut || f.checkOut < newCheckIn) {
+        nextCheckOut = newCheckIn
       }
       return { ...f, checkIn: newCheckIn, checkOut: nextCheckOut }
     })
@@ -121,10 +122,10 @@ export default function EditBookingModal({ booking, onClose, onSuccess }: Props)
     if (!form.phone.trim()) e.phone = 'Phone number is required'
     if (!form.checkIn) e.checkIn = 'Check-in date is required'
     if (!form.checkOut) e.checkOut = 'Check-out date is required'
-    if (form.checkOut <= form.checkIn) e.checkOut = 'Check-out must be after check-in'
+    if (form.checkOut < form.checkIn) e.checkOut = 'Check-out cannot be earlier than check-in'
     if (form.numRooms < 1) e.numRooms = 'At least 1 room required'
     if (form.adults < 1) e.adults = 'At least 1 adult required'
-    if (form.nightlyRate <= 0) e.nightlyRate = 'Rate must be positive'
+    if (form.nightlyRate < 0) e.nightlyRate = 'Rate cannot be negative'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -139,7 +140,7 @@ export default function EditBookingModal({ booking, onClose, onSuccess }: Props)
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
-          taxAmount: calculatedTax,
+          taxAmount: 0, // GST removed
           discountAmount,
         }),
       })
@@ -259,7 +260,9 @@ export default function EditBookingModal({ booking, onClose, onSuccess }: Props)
               </div>
 
               <div className="form-group">
-                <label className="form-label">Check-out *</label>
+                <label className="form-label">
+                  Check-out * {isSameDay && <span style={{ color: 'var(--amber)', fontSize: '11px' }}>(Same-day Stay)</span>}
+                </label>
                 <input
                   type="date"
                   className="form-control"
@@ -298,8 +301,8 @@ export default function EditBookingModal({ booking, onClose, onSuccess }: Props)
                   value={form.source}
                   onChange={(e) => upd('source', e.target.value)}
                 >
-                  {SOURCES.map((s) => (
-                    <option key={s}>{s}</option>
+                  {BOOKING_SOURCES.map((s) => (
+                    <option key={s} value={s}>{s}</option>
                   ))}
                 </select>
               </div>
@@ -397,7 +400,7 @@ export default function EditBookingModal({ booking, onClose, onSuccess }: Props)
                   className="form-control"
                   value={form.nightlyRate}
                   onChange={(e) => upd('nightlyRate', Number(e.target.value))}
-                  min={1}
+                  min={0}
                 />
               </div>
               <div className="form-group">
@@ -416,10 +419,6 @@ export default function EditBookingModal({ booking, onClose, onSuccess }: Props)
               <div className="bill-row">
                 <span>Room Charges ({nights}N × {form.numRooms}R @ ₹{form.nightlyRate})</span>
                 <span>₹{subtotal.toLocaleString('en-IN')}</span>
-              </div>
-              <div className="bill-row">
-                <span>Tax ({taxRate}%)</span>
-                <span>+₹{calculatedTax.toLocaleString('en-IN')}</span>
               </div>
               {discountAmount > 0 && (
                 <div className="bill-row">

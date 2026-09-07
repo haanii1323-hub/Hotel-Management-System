@@ -7,12 +7,26 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Tenant {
+  id          String     @id @default(cuid())
+  name        String     @default("Hotel Organization")
+  slug        String     @unique @default("demo")
+  isDemo      Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  properties  Property[]
+  users       User[]
+}
+
 model Property {
   id             String    @id @default(cuid())
-  code           String    @unique // e.g. "BLR3396", "BLR3630"
-  name           String    // e.g. "Metro Inn Rooms", "Super Hotel O Sahasra"
-  logo           String?
+  tenantId       String    @default("demo-tenant")
+  code           String    // e.g. BLR3396, DEL1024
+  name           String
+  description    String?
   coverImage     String?
+  logo           String?
   address        String?
   city           String    @default("Bangalore")
   state          String    @default("Karnataka")
@@ -31,50 +45,67 @@ model Property {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
+  tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   users          User[]
   categories     RoomCategory[]
   rooms          Room[]
   bookings       Booking[]
   guests         Guest[]
+  paymentConfig  PaymentConfig?
+
+  @@unique([tenantId, code])
 }
 
 model User {
   id           String    @id @default(cuid())
+  tenantId     String    @default("demo-tenant")
   email        String    @unique
   passwordHash String
   name         String
-  role         String    @default("superadmin") // superadmin, admin, staff
+  role         String    @default("owner") // owner, superadmin, manager, staff
   propertyId   String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   property     Property? @relation(fields: [propertyId], references: [id])
   payments     Payment[]
 }
 
 model RoomCategory {
-  id          String   @id @default(cuid())
-  propertyId  String
-  name        String
-  nightlyRate Float
-  totalRooms  Int
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  rooms       Room[]
+  id               String   @id @default(cuid())
+  propertyId       String
+  name             String
+  nightlyRate      Float
+  weekendRate      Float?
+  extraGuestCharge Float?   @default(0)
+  baseOccupancy    Int      @default(2)
+  maxOccupancy     Int      @default(3)
+  description      String?
+  totalRooms       Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  property         Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  rooms            Room[]
 
   @@unique([propertyId, name])
 }
 
 model Room {
-  id           String        @id @default(cuid())
+  id           String   @id @default(cuid())
   propertyId   String
   number       String
+  floor        Int      @default(1)
+  bedType      String   @default("King Bed")
+  status       String   @default("Available") // Available, Occupied, Cleaning, Maintenance, Out of Service
   categoryId   String
-  status       String        @default("Available") // Available, Occupied, Cleaning, Maintenance, Out of Service
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  property     Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  category     RoomCategory  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  amenities    String?  // comma-separated list of amenities
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  property     Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  category     RoomCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   bookingRooms BookingRoom[]
   statusLogs   RoomStatusLog[]
 
@@ -82,25 +113,28 @@ model Room {
 }
 
 model Guest {
-  id         String    @id @default(cuid())
-  propertyId String
-  name       String
-  phone      String
-  email      String?
-  address    String?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  property   Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  bookings   Booking[]
+  id          String    @id @default(cuid())
+  propertyId  String
+  name        String
+  phone       String
+  email       String?
+  address     String?
+  idProofType String?
+  idProofNo   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  property    Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  bookings    Booking[]
 }
 
 model Booking {
   id             String             @id @default(cuid())
   propertyId     String
-  bookingRef     String             @unique
   guestId        String
-  status         String             @default("Upcoming") // Upcoming, CheckedIn, CheckedOut, NoShow, Cancelled
-  source         String
+  bookingRef     String             @unique // e.g. #BLR-4821
+  source         String             @default("Walk inn") // Walk inn, Agoda, Booking.com, Direct Website, Phone
+  status         String             @default("Upcoming") // Upcoming, CheckedIn, CheckedOut, Cancelled, NoShow
   checkIn        DateTime
   checkOut       DateTime
   numRooms       Int                @default(1)
@@ -114,6 +148,7 @@ model Booking {
   roomCategory   String
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
+
   property       Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   guest          Guest              @relation(fields: [guestId], references: [id], onDelete: Cascade)
   bookingRooms   BookingRoom[]
@@ -127,6 +162,7 @@ model BookingRoom {
   bookingId String
   roomId    String
   createdAt DateTime @default(now())
+
   booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
 }
@@ -135,13 +171,14 @@ model Payment {
   id          String   @id @default(cuid())
   bookingId   String
   amount      Float
-  mode        String
-  status      String
+  mode        String   // UPI, Cash, Card, Bank Transfer, Cheque, Others
+  status      String   // Paid, Pending, Partially Paid, Failed, Refunded, Cancelled
   utrRef      String?
   collectedBy String?
   notes       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
   booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   user        User?    @relation(fields: [collectedBy], references: [id])
 }
@@ -151,7 +188,50 @@ model Invoice {
   invoiceNo   String   @unique
   bookingId   String
   generatedAt DateTime @default(now())
+
   booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+}
+
+model PaymentConfig {
+  id                  String   @id @default(cuid())
+  propertyId          String   @unique
+  tenantId            String
+
+  // UPI & QR configuration
+  upiEnabled          Boolean  @default(true)
+  upiId               String?
+  upiDisplayName      String?
+  upiMerchantName     String?
+  upiPhone            String?
+  qrCodeUrl           String?  @db.Text
+  qrCodeFileName      String?
+
+  // Accepted Payment Methods
+  cashEnabled         Boolean  @default(true)
+  cardEnabled         Boolean  @default(true)
+  bankTransferEnabled Boolean  @default(false)
+  chequeEnabled       Boolean  @default(false)
+  otherEnabled        Boolean  @default(false)
+
+  // Card Payment Settings
+  cardProvider        String?  // e.g. "Pine Labs", "Razorpay POS", "HDFC POS"
+  cardInstructions    String?
+
+  // Bank Transfer Details
+  bankAccountName     String?
+  bankName            String?
+  bankAccountNumber   String?
+  bankIfsc            String?
+  bankBranch          String?
+  bankAccountType     String?  @default("Current")
+
+  // General Payment Instructions & Notes
+  paymentInstructions String?  @db.Text
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  property            Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 }
 
 model RoomStatusLog {
@@ -161,6 +241,7 @@ model RoomStatusLog {
   newStatus String
   changedBy String?
   createdAt DateTime @default(now())
+
   room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
 }
 
@@ -171,5 +252,6 @@ model BookingStatusLog {
   newStatus String
   changedBy String?
   createdAt DateTime @default(now())
+
   booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 }

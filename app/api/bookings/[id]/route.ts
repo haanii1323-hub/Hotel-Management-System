@@ -112,13 +112,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     datesChanged = true
   }
 
-  if (newCheckOut <= newCheckIn) {
-    return NextResponse.json({ error: 'Check-out date must be after check-in date' }, { status: 400 })
+  if (newCheckOut < newCheckIn) {
+    return NextResponse.json({ error: 'Check-out date cannot be earlier than check-in date' }, { status: 400 })
   }
 
   const newNumRooms = numRooms !== undefined ? Math.max(1, Number(numRooms)) : booking.numRooms
   const newCategory = roomCategory !== undefined ? String(roomCategory) : booking.roomCategory
-  const newNightlyRate = nightlyRate !== undefined ? Math.max(1, Number(nightlyRate)) : booking.nightlyRate
+  const newNightlyRate = nightlyRate !== undefined ? Math.max(0, Number(nightlyRate)) : booking.nightlyRate
 
   const bookingUpdateData: Record<string, unknown> = {
     checkIn: newCheckIn,
@@ -135,6 +135,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   // Check double-booking conflicts if dates or category/rooms changed and status is Upcoming or CheckedIn
   const targetStatus = status !== undefined ? status : booking.status
+  const conflictEnd = newCheckIn.getTime() === newCheckOut.getTime() ? new Date(newCheckOut.getTime() + 86400000) : newCheckOut
+
   if (
     (datesChanged || roomCategory !== undefined || numRooms !== undefined) &&
     ['Upcoming', 'CheckedIn'].includes(targetStatus)
@@ -146,7 +148,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         id: { not: booking.id },
         status: { in: ['Upcoming', 'CheckedIn'] },
         AND: [
-          { checkIn: { lt: newCheckOut } },
+          { checkIn: { lt: conflictEnd } },
           { checkOut: { gt: newCheckIn } },
         ],
       },
@@ -190,11 +192,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
   }
 
-  // Recalculate totals
-  const nights = calcNights(newCheckIn, newCheckOut)
+  // Recalculate totals (GST removed: taxAmount = 0)
+  const nights = Math.max(1, Math.round((newCheckOut.getTime() - newCheckIn.getTime()) / 86400000))
   const subtotal = newNightlyRate * nights * newNumRooms
-  const taxRate = booking.property?.taxRate || 12.0
-  const taxAmount = customTax !== undefined ? Number(customTax) : Math.round((subtotal * taxRate) / 100)
+  const taxAmount = customTax !== undefined ? Number(customTax) : 0
   const discountAmount = customDiscount !== undefined ? Number(customDiscount) : booking.discountAmount || 0
   const totalAmount = Math.max(0, subtotal + taxAmount - discountAmount)
 

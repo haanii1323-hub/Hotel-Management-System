@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getTargetPropertyId } from '@/lib/property-helper'
+import { getTenantContext } from '@/lib/property-helper'
 
 function nights(checkIn: Date, checkOut: Date): number {
   return Math.max(1, Math.round((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / 86400000))
@@ -11,7 +11,11 @@ function nights(checkIn: Date, checkOut: Date): number {
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    const propertyId = await getTargetPropertyId(req, (session?.user as any)?.propertyId)
+    const { propertyId } = await getTenantContext(req, session?.user as any)
+
+    if (!propertyId) {
+      return NextResponse.json([])
+    }
 
     const { searchParams } = new URL(req.url)
     const search = searchParams.get('search') || ''
@@ -80,8 +84,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
+    const { tenantId, propertyId: defaultPropId } = await getTenantContext(req, session?.user as any)
     const body = await req.json()
-    const propertyId = body.propertyId || (await getTargetPropertyId(req, (session?.user as any)?.propertyId))
+    const propertyId = body.propertyId || defaultPropId
 
     const { name, phone, email, address } = body
 
@@ -92,10 +97,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Phone number is required' }, { status: 400 })
     }
 
-    // Verify property exists
-    const property = await prisma.property.findUnique({ where: { id: propertyId } })
+    if (!propertyId) {
+      return NextResponse.json({ error: 'No active property found' }, { status: 400 })
+    }
+
+    // Verify property exists and belongs to tenant
+    const property = await prisma.property.findFirst({ where: { id: propertyId, tenantId } })
     if (!property) {
-      return NextResponse.json({ error: 'Property not found' }, { status: 404 })
+      return NextResponse.json({ error: 'Property not found or unauthorized' }, { status: 404 })
     }
 
     // Check if guest already exists for this property with same phone

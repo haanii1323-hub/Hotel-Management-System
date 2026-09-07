@@ -17,9 +17,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const numAmount = Number(amount || 0)
   if (numAmount < 0) return NextResponse.json({ error: 'Invalid payment amount' }, { status: 400 })
   if (numAmount > 0 && !mode) return NextResponse.json({ error: 'Payment mode is required' }, { status: 400 })
-  if (numAmount > 0 && mode === 'UPI' && paymentStatus === 'Paid' && !utrRef?.trim()) {
-    return NextResponse.json({ error: 'UTR/UPI reference number is required for UPI payments marked as paid' }, { status: 400 })
-  }
 
   // Find booking by ID or bookingRef
   const booking = await prisma.booking.findFirst({

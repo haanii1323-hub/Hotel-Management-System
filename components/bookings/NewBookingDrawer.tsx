@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Minus, Plus, AlertCircle, BedDouble, Check } from 'lucide-react'
+import { X, Minus, Plus, AlertCircle, BedDouble, PlusCircle, Trash2, Clock } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 import { format, addDays } from 'date-fns'
 import useSWR from 'swr'
@@ -9,18 +9,28 @@ import { useProperty } from '@/context/PropertyContext'
 import { broadcastChange } from '@/lib/realtime-sync'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
-const SOURCES = [
-  'Walk inn',
-  'Direct Web',
-  'Booking.com',
-  'Agoda',
-  'Expedia',
-  'MakeMyTrip',
-  'Airbnb',
+
+export const BOOKING_SOURCES = [
+  'GOMMT',
+  'B.COM',
+  'AIRBNB',
+  'BREVISTAY',
+  'B2B',
+  'CLEARTRIP',
+  'YATRA',
+  'EXPEDIA',
+  'AGODA',
+  'Fab',
   'Corporate',
-  'Phone',
-  'Others',
+  'Walk inn',
 ]
+
+interface RoomSelection {
+  id: string
+  categoryName: string
+  count: number
+  rate: number
+}
 
 interface Props {
   onClose: () => void
@@ -32,7 +42,6 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
   const { currentProperty } = useProperty()
   const propertyId = currentProperty?.id || ''
   const currencySymbol = currentProperty?.currencySymbol || '₹'
-  const taxRate = currentProperty?.taxRate ?? 12.0
 
   const { data: categories } = useSWR(
     propertyId ? `/api/categories?propertyId=${propertyId}` : '/api/categories',
@@ -50,65 +59,118 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
     source: 'Walk inn',
     checkIn: today,
     checkOut: tomorrow,
-    roomCategory: '',
-    nightlyRate: 2500,
-    numRooms: 1,
     adults: 1,
     kids: 0,
     notes: '',
     discount: 0,
+    earlyCheckIn: false,
+    earlyCheckInAmount: 500,
+    lateCheckOut: false,
+    lateCheckOutAmount: 500,
+    extraMattressCount: 0,
+    extraMattressRate: 500,
   })
+
+  // Dynamic Room Selections (e.g. 1 Deluxe, 2 Standard)
+  const [roomSelections, setRoomSelections] = useState<RoomSelection[]>([])
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [conflictError, setConflictError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  // Sync initial category and rate when categories load
+  // Initialize room selections when categories load
   useEffect(() => {
-    if (categories && categories.length > 0) {
-      if (!form.roomCategory || !categories.some((c: any) => c.name === form.roomCategory)) {
-        const first = categories[0]
-        setForm((f) => ({
-          ...f,
-          roomCategory: first.name,
-          nightlyRate: first.nightlyRate,
-        }))
-      }
+    if (categories && categories.length > 0 && roomSelections.length === 0) {
+      const first = categories[0]
+      setRoomSelections([
+        {
+          id: 'room-1',
+          categoryName: first.name,
+          count: 1,
+          rate: Number(first.nightlyRate) || 2500,
+        },
+      ])
     }
-  }, [categories])
+  }, [categories, roomSelections.length])
 
   const upd = (k: string, v: unknown) => {
     setConflictError('')
     setForm((f) => ({ ...f, [k]: v }))
   }
 
-  function handleCategoryChange(catName: string) {
-    const match = categories?.find((c: any) => c.name === catName)
-    setForm((f) => ({
-      ...f,
-      roomCategory: catName,
-      nightlyRate: match ? match.nightlyRate : f.nightlyRate,
-    }))
+  function handleAddRoomSelection() {
+    if (!categories || categories.length === 0) return
+    const unusedCat = categories.find(
+      (c: any) => !roomSelections.some((rs) => rs.categoryName === c.name)
+    ) || categories[0]
+
+    setRoomSelections((prev) => [
+      ...prev,
+      {
+        id: `room-${Date.now()}`,
+        categoryName: unusedCat.name,
+        count: 1,
+        rate: Number(unusedCat.nightlyRate) || 2500,
+      },
+    ])
+  }
+
+  function handleRemoveRoomSelection(id: string) {
+    if (roomSelections.length <= 1) return
+    setRoomSelections((prev) => prev.filter((rs) => rs.id !== id))
+  }
+
+  function handleSelectionChange(id: string, field: 'categoryName' | 'count' | 'rate', value: any) {
+    setRoomSelections((prev) =>
+      prev.map((rs) => {
+        if (rs.id !== id) return rs
+        if (field === 'categoryName') {
+          const match = categories?.find((c: any) => c.name === value)
+          return {
+            ...rs,
+            categoryName: value,
+            rate: match ? Number(match.nightlyRate) : rs.rate,
+          }
+        }
+        return { ...rs, [field]: value }
+      })
+    )
   }
 
   function calcNights() {
     if (!form.checkIn || !form.checkOut) return 1
-    const diff = new Date(form.checkOut).getTime() - new Date(form.checkIn).getTime()
-    return Math.max(1, Math.ceil(diff / 86400000))
+    const d1 = new Date(form.checkIn).getTime()
+    const d2 = new Date(form.checkOut).getTime()
+    const diff = d2 - d1
+    // Same day stay = 1 day charge
+    return Math.max(1, Math.round(diff / 86400000))
   }
 
+  const isSameDay = form.checkIn === form.checkOut
   const nights = calcNights()
-  const subtotal = form.nightlyRate * nights * form.numRooms
-  const calculatedTax = Math.round((subtotal * taxRate) / 100)
+
+  // Room Charges Calculation
+  const totalNumRooms = roomSelections.reduce((sum, item) => sum + (Number(item.count) || 1), 0)
+  const roomChargePerNight = roomSelections.reduce(
+    (sum, item) => sum + (Number(item.rate) || 0) * (Number(item.count) || 1),
+    0
+  )
+  const totalRoomCharges = roomChargePerNight * nights
+
+  // Add-ons Calculation
+  const earlyCheckInFee = form.earlyCheckIn ? Number(form.earlyCheckInAmount || 0) : 0
+  const lateCheckOutFee = form.lateCheckOut ? Number(form.lateCheckOutAmount || 0) : 0
+  const extraMattressFee = (Number(form.extraMattressCount) || 0) * (Number(form.extraMattressRate) || 0) * nights
+  const totalAddons = earlyCheckInFee + lateCheckOutFee + extraMattressFee
+
   const discountAmount = Number(form.discount || 0)
-  const total = Math.max(0, subtotal + calculatedTax - discountAmount)
+  // GST removed -> Total = Room Charges + Addons - Discount
+  const total = Math.max(0, totalRoomCharges + totalAddons - discountAmount)
 
   function handleCheckInChange(newCheckIn: string) {
     setForm((f) => {
       let nextCheckOut = f.checkOut
-      if (!f.checkOut || f.checkOut <= newCheckIn) {
-        const parts = newCheckIn.split('-').map(Number)
-        const d = new Date(parts[0], parts[1] - 1, parts[2])
-        nextCheckOut = format(addDays(d, 1), 'yyyy-MM-dd')
+      if (!f.checkOut || f.checkOut < newCheckIn) {
+        nextCheckOut = newCheckIn
       }
       return { ...f, checkIn: newCheckIn, checkOut: nextCheckOut }
     })
@@ -120,11 +182,10 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
     if (!form.phone.trim()) e.phone = 'Phone number is required'
     if (!form.checkIn) e.checkIn = 'Check-in date is required'
     if (!form.checkOut) e.checkOut = 'Check-out date is required'
-    if (form.checkOut <= form.checkIn) e.checkOut = 'Check-out must be after check-in'
-    if (form.numRooms < 1) e.numRooms = 'At least 1 room required'
+    if (form.checkOut < form.checkIn) e.checkOut = 'Check-out cannot be earlier than check-in'
+    if (totalNumRooms < 1) e.rooms = 'At least 1 room required'
     if (form.adults < 1) e.adults = 'At least 1 adult required'
-    if (form.nightlyRate <= 0) e.nightlyRate = 'Rate must be positive'
-    if (!form.roomCategory) e.roomCategory = 'Please select a room category'
+    if (roomSelections.some((rs) => rs.rate < 0)) e.rates = 'Rate cannot be negative'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -133,17 +194,43 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
     if (!validate()) return
     setLoading(true)
     setConflictError('')
+
+    const categorySummary =
+      roomSelections.length === 1
+        ? roomSelections[0].categoryName
+        : roomSelections.map((rs) => `${rs.count}× ${rs.categoryName}`).join(', ')
+
+    const avgNightlyRate = totalNumRooms > 0 ? Math.round(roomChargePerNight / totalNumRooms) : roomChargePerNight
+
     try {
       const res = await fetch('/api/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...form,
-          propertyId,
-          taxAmount: calculatedTax,
+          guestName: form.guestName,
+          phone: form.phone,
+          email: form.email,
+          address: form.address,
+          source: form.source,
+          checkIn: form.checkIn,
+          checkOut: form.checkOut,
+          numRooms: totalNumRooms,
+          adults: form.adults,
+          kids: form.kids,
+          roomCategory: categorySummary,
+          nightlyRate: avgNightlyRate,
+          roomSelections,
+          earlyCheckIn: earlyCheckInFee,
+          lateCheckOut: lateCheckOutFee,
+          extraMattressCount: Number(form.extraMattressCount || 0),
+          extraMattressRate: Number(form.extraMattressRate || 0),
+          taxAmount: 0, // GST removed
           discountAmount,
+          notes: form.notes,
+          propertyId,
         }),
       })
+
       const data = await res.json()
       if (!res.ok) {
         if (res.status === 409) {
@@ -169,7 +256,7 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className="drawer">
+      <div className="drawer" style={{ maxWidth: '640px' }}>
         <div className="drawer-header">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div className="drawer-title">New Reservation</div>
@@ -239,9 +326,9 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
             </div>
           </div>
 
-          {/* Stay & Room Details */}
+          {/* Stay & Date Selection */}
           <div className="drawer-section">
-            <div className="drawer-section-title">Stay &amp; Room Details</div>
+            <div className="drawer-section-title">Stay Duration &amp; Source</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               <div className="form-group">
                 <label className="form-label">Check-in Date *</label>
@@ -254,7 +341,9 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
                 {errors.checkIn && <div className="form-error">{errors.checkIn}</div>}
               </div>
               <div className="form-group">
-                <label className="form-label">Check-out Date *</label>
+                <label className="form-label">
+                  Check-out Date * {isSameDay && <span style={{ color: 'var(--amber)', fontSize: '11px' }}>(Same-day Stay)</span>}
+                </label>
                 <input
                   type="date"
                   className="form-control"
@@ -268,115 +357,329 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               <div className="form-group">
-                <label className="form-label">Room Category *</label>
-                <select
-                  className="form-control"
-                  value={form.roomCategory}
-                  onChange={(e) => handleCategoryChange(e.target.value)}
-                >
-                  {categories && categories.length > 0 ? (
-                    categories.map((c: any) => (
-                      <option key={c.id} value={c.name}>
-                        {c.name} ({currencySymbol}{c.nightlyRate}/night)
-                      </option>
-                    ))
-                  ) : (
-                    <option value="Classic">Classic</option>
-                  )}
-                </select>
-                {errors.roomCategory && <div className="form-error">{errors.roomCategory}</div>}
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Booking Source</label>
+                <label className="form-label">Booking Source *</label>
                 <select
                   className="form-control"
                   value={form.source}
                   onChange={(e) => upd('source', e.target.value)}
                 >
-                  {SOURCES.map((s) => (
+                  {BOOKING_SOURCES.map((s) => (
                     <option key={s} value={s}>
                       {s}
                     </option>
                   ))}
                 </select>
               </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <div className="form-group">
+                  <label className="form-label">Adults</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      style={{ padding: '6px 8px' }}
+                      onClick={() => upd('adults', Math.max(1, form.adults - 1))}
+                    >
+                      <Minus size={12} />
+                    </button>
+                    <span style={{ fontWeight: 600, fontSize: '13px', width: '20px', textAlign: 'center' }}>
+                      {form.adults}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      style={{ padding: '6px 8px' }}
+                      onClick={() => upd('adults', form.adults + 1)}
+                    >
+                      <Plus size={12} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Kids</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      style={{ padding: '6px 8px' }}
+                      onClick={() => upd('kids', Math.max(0, form.kids - 1))}
+                    >
+                      <Minus size={12} />
+                    </button>
+                    <span style={{ fontWeight: 600, fontSize: '13px', width: '20px', textAlign: 'center' }}>
+                      {form.kids}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      style={{ padding: '6px 8px' }}
+                      onClick={() => upd('kids', form.kids + 1)}
+                    >
+                      <Plus size={12} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Multi-Room Category Builder */}
+          <div className="drawer-section">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+              <div className="drawer-section-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <BedDouble size={14} color="var(--red)" /> Room Categories &amp; Allocation ({totalNumRooms} Rooms)
+              </div>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={handleAddRoomSelection}
+                style={{ fontSize: '11px', color: 'var(--red)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+              >
+                <PlusCircle size={13} /> Add Another Room Type
+              </button>
             </div>
 
-            {/* Steppers for Rooms and Guests */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '6px' }}>
-              <div className="form-group">
-                <label className="form-label">Rooms</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm"
-                    style={{ padding: '6px 8px' }}
-                    onClick={() => upd('numRooms', Math.max(1, form.numRooms - 1))}
-                  >
-                    <Minus size={12} />
-                  </button>
-                  <span style={{ fontWeight: 600, fontSize: '13px', width: '20px', textAlign: 'center' }}>
-                    {form.numRooms}
-                  </span>
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm"
-                    style={{ padding: '6px 8px' }}
-                    onClick={() => upd('numRooms', form.numRooms + 1)}
-                  >
-                    <Plus size={12} />
-                  </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {roomSelections.map((sel, idx) => (
+                <div
+                  key={sel.id}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '2fr 1.2fr 1.5fr auto',
+                    gap: '10px',
+                    alignItems: 'center',
+                    background: 'var(--card-2)',
+                    padding: '10px 12px',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--border)',
+                  }}
+                >
+                  {/* Category Selection */}
+                  <div>
+                    <label style={{ fontSize: '10px', color: 'var(--text-3)', display: 'block', marginBottom: '2px' }}>
+                      Room Type #{idx + 1}
+                    </label>
+                    <select
+                      className="form-control"
+                      value={sel.categoryName}
+                      onChange={(e) => handleSelectionChange(sel.id, 'categoryName', e.target.value)}
+                      style={{ fontSize: '12px', padding: '6px 8px' }}
+                    >
+                      {categories && categories.length > 0 ? (
+                        categories.map((c: any) => (
+                          <option key={c.id} value={c.name}>
+                            {c.name} ({currencySymbol}{c.nightlyRate}/N)
+                          </option>
+                        ))
+                      ) : (
+                        <option value="Classic">Classic</option>
+                      )}
+                    </select>
+                  </div>
+
+                  {/* Quantity Stepper */}
+                  <div>
+                    <label style={{ fontSize: '10px', color: 'var(--text-3)', display: 'block', marginBottom: '2px' }}>
+                      Qty (Rooms)
+                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        style={{ padding: '4px 6px', height: '28px' }}
+                        onClick={() => handleSelectionChange(sel.id, 'count', Math.max(1, sel.count - 1))}
+                      >
+                        <Minus size={11} />
+                      </button>
+                      <span style={{ fontWeight: 700, fontSize: '12px', width: '20px', textAlign: 'center' }}>
+                        {sel.count}
+                      </span>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        style={{ padding: '4px 6px', height: '28px' }}
+                        onClick={() => handleSelectionChange(sel.id, 'count', sel.count + 1)}
+                      >
+                        <Plus size={11} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Nightly Rate */}
+                  <div>
+                    <label style={{ fontSize: '10px', color: 'var(--text-3)', display: 'block', marginBottom: '2px' }}>
+                      Rate/Room ({currencySymbol})
+                    </label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      style={{ fontSize: '12px', padding: '6px 8px' }}
+                      value={sel.rate}
+                      onChange={(e) => handleSelectionChange(sel.id, 'rate', Number(e.target.value))}
+                      min={0}
+                    />
+                  </div>
+
+                  {/* Remove action */}
+                  <div>
+                    <label style={{ fontSize: '10px', visibility: 'hidden', display: 'block', marginBottom: '2px' }}>-</label>
+                    <button
+                      type="button"
+                      className="btn-icon"
+                      disabled={roomSelections.length <= 1}
+                      onClick={() => handleRemoveRoomSelection(sel.id)}
+                      style={{
+                        color: roomSelections.length > 1 ? 'var(--red)' : 'var(--text-3)',
+                        opacity: roomSelections.length > 1 ? 1 : 0.4,
+                        padding: '6px',
+                      }}
+                      title="Remove room category"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
+              ))}
+            </div>
+
+            {errors.rooms && <div className="form-error" style={{ marginTop: '6px' }}>{errors.rooms}</div>}
+          </div>
+
+          {/* Add-ons & Extra Charges */}
+          <div className="drawer-section">
+            <div className="drawer-section-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Clock size={14} color="var(--red)" /> Additional Charges &amp; Add-ons
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {/* Early Check-in */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '8px 12px',
+                  background: form.earlyCheckIn ? 'rgba(212, 175, 55, 0.08)' : 'var(--card-2)',
+                  border: form.earlyCheckIn ? '1px solid var(--red)' : '1px solid var(--border)',
+                  borderRadius: '6px',
+                }}
+              >
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}>
+                  <input
+                    type="checkbox"
+                    checked={form.earlyCheckIn}
+                    onChange={(e) => upd('earlyCheckIn', e.target.checked)}
+                    style={{ accentColor: 'var(--red)', width: 15, height: 15 }}
+                  />
+                  <span>Early Check-in Charge</span>
+                </label>
+                {form.earlyCheckIn && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--text-3)' }}>{currencySymbol}</span>
+                    <input
+                      type="number"
+                      className="form-control"
+                      style={{ width: '90px', padding: '4px 8px', fontSize: '12px' }}
+                      value={form.earlyCheckInAmount}
+                      onChange={(e) => upd('earlyCheckInAmount', Number(e.target.value))}
+                      min={0}
+                    />
+                  </div>
+                )}
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Adults</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm"
-                    style={{ padding: '6px 8px' }}
-                    onClick={() => upd('adults', Math.max(1, form.adults - 1))}
-                  >
-                    <Minus size={12} />
-                  </button>
-                  <span style={{ fontWeight: 600, fontSize: '13px', width: '20px', textAlign: 'center' }}>
-                    {form.adults}
-                  </span>
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm"
-                    style={{ padding: '6px 8px' }}
-                    onClick={() => upd('adults', form.adults + 1)}
-                  >
-                    <Plus size={12} />
-                  </button>
-                </div>
+              {/* Late Checkout */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '8px 12px',
+                  background: form.lateCheckOut ? 'rgba(212, 175, 55, 0.08)' : 'var(--card-2)',
+                  border: form.lateCheckOut ? '1px solid var(--red)' : '1px solid var(--border)',
+                  borderRadius: '6px',
+                }}
+              >
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}>
+                  <input
+                    type="checkbox"
+                    checked={form.lateCheckOut}
+                    onChange={(e) => upd('lateCheckOut', e.target.checked)}
+                    style={{ accentColor: 'var(--red)', width: 15, height: 15 }}
+                  />
+                  <span>Late Check-out Charge</span>
+                </label>
+                {form.lateCheckOut && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--text-3)' }}>{currencySymbol}</span>
+                    <input
+                      type="number"
+                      className="form-control"
+                      style={{ width: '90px', padding: '4px 8px', fontSize: '12px' }}
+                      value={form.lateCheckOutAmount}
+                      onChange={(e) => upd('lateCheckOutAmount', Number(e.target.value))}
+                      min={0}
+                    />
+                  </div>
+                )}
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Kids</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm"
-                    style={{ padding: '6px 8px' }}
-                    onClick={() => upd('kids', Math.max(0, form.kids - 1))}
-                  >
-                    <Minus size={12} />
-                  </button>
-                  <span style={{ fontWeight: 600, fontSize: '13px', width: '20px', textAlign: 'center' }}>
-                    {form.kids}
-                  </span>
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm"
-                    style={{ padding: '6px 8px' }}
-                    onClick={() => upd('kids', form.kids + 1)}
-                  >
-                    <Plus size={12} />
-                  </button>
+              {/* Extra Mattress */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '8px 12px',
+                  background: form.extraMattressCount > 0 ? 'rgba(212, 175, 55, 0.08)' : 'var(--card-2)',
+                  border: form.extraMattressCount > 0 ? '1px solid var(--red)' : '1px solid var(--border)',
+                  borderRadius: '6px',
+                }}
+              >
+                <div style={{ fontSize: '12px', fontWeight: 600 }}>
+                  Extra Mattress / Bed
+                  {form.extraMattressCount > 0 && (
+                    <span style={{ fontSize: '11px', color: 'var(--text-2)', marginLeft: '6px', fontWeight: 400 }}>
+                      ({form.extraMattressCount} × {currencySymbol}{form.extraMattressRate} × {nights}N)
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      style={{ padding: '4px 6px', height: '26px' }}
+                      onClick={() => upd('extraMattressCount', Math.max(0, form.extraMattressCount - 1))}
+                    >
+                      <Minus size={11} />
+                    </button>
+                    <span style={{ fontWeight: 700, fontSize: '12px', width: '16px', textAlign: 'center' }}>
+                      {form.extraMattressCount}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      style={{ padding: '4px 6px', height: '26px' }}
+                      onClick={() => upd('extraMattressCount', form.extraMattressCount + 1)}
+                    >
+                      <Plus size={11} />
+                    </button>
+                  </div>
+                  {form.extraMattressCount > 0 && (
+                    <input
+                      type="number"
+                      title="Rate per mattress per night"
+                      placeholder="Rate"
+                      className="form-control"
+                      style={{ width: '75px', padding: '4px 6px', fontSize: '11px' }}
+                      value={form.extraMattressRate}
+                      onChange={(e) => upd('extraMattressRate', Number(e.target.value))}
+                      min={0}
+                    />
+                  )}
                 </div>
               </div>
             </div>
@@ -385,47 +688,59 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
           {/* Pricing & Billing Breakdown */}
           <div className="drawer-section">
             <div className="drawer-section-title">Pricing &amp; Bill Breakdown</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              <div className="form-group">
-                <label className="form-label">Nightly Rate ({currencySymbol}) *</label>
-                <input
-                  type="number"
-                  className="form-control"
-                  value={form.nightlyRate}
-                  onChange={(e) => upd('nightlyRate', Number(e.target.value))}
-                  min={1}
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Discount ({currencySymbol})</label>
-                <input
-                  type="number"
-                  className="form-control"
-                  value={form.discount}
-                  onChange={(e) => upd('discount', Number(e.target.value))}
-                  min={0}
-                />
-              </div>
+            <div className="form-group" style={{ marginBottom: '10px' }}>
+              <label className="form-label">Discount ({currencySymbol})</label>
+              <input
+                type="number"
+                className="form-control"
+                value={form.discount}
+                onChange={(e) => upd('discount', Number(e.target.value))}
+                min={0}
+                placeholder="0"
+              />
             </div>
 
             <div className="bill-summary" style={{ marginTop: '10px' }}>
-              <div className="bill-row">
-                <span>Room Charges ({nights}N × {form.numRooms}R @ {currencySymbol}{form.nightlyRate})</span>
-                <span>{currencySymbol}{subtotal.toLocaleString('en-IN')}</span>
-              </div>
-              <div className="bill-row">
-                <span>Tax ({taxRate}%)</span>
-                <span>+{currencySymbol}{calculatedTax.toLocaleString('en-IN')}</span>
-              </div>
+              {/* Itemized Room Categories */}
+              {roomSelections.map((sel) => (
+                <div key={sel.id} className="bill-row">
+                  <span>
+                    {sel.count}× {sel.categoryName} ({nights} {nights > 1 ? 'Nights' : isSameDay ? 'Day-use' : 'Night'} @ {currencySymbol}{sel.rate})
+                  </span>
+                  <span>{currencySymbol}{(sel.count * sel.rate * nights).toLocaleString('en-IN')}</span>
+                </div>
+              ))}
+
+              {/* Add-ons */}
+              {earlyCheckInFee > 0 && (
+                <div className="bill-row">
+                  <span>Early Check-in Fee</span>
+                  <span>+{currencySymbol}{earlyCheckInFee.toLocaleString('en-IN')}</span>
+                </div>
+              )}
+              {lateCheckOutFee > 0 && (
+                <div className="bill-row">
+                  <span>Late Check-out Fee</span>
+                  <span>+{currencySymbol}{lateCheckOutFee.toLocaleString('en-IN')}</span>
+                </div>
+              )}
+              {extraMattressFee > 0 && (
+                <div className="bill-row">
+                  <span>Extra Mattress ({form.extraMattressCount}× @ {currencySymbol}{form.extraMattressRate} × {nights}N)</span>
+                  <span>+{currencySymbol}{extraMattressFee.toLocaleString('en-IN')}</span>
+                </div>
+              )}
+
               {discountAmount > 0 && (
                 <div className="bill-row">
                   <span style={{ color: 'var(--green)' }}>Discount</span>
                   <span style={{ color: 'var(--green)' }}>-{currencySymbol}{discountAmount.toLocaleString('en-IN')}</span>
                 </div>
               )}
+
               <div className="bill-divider" />
               <div className="bill-row total">
-                <span>Total Amount</span>
+                <span>Total Bill Amount</span>
                 <span>{currencySymbol}{total.toLocaleString('en-IN')}</span>
               </div>
             </div>
@@ -435,7 +750,7 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
               <textarea
                 className="form-control"
                 rows={2}
-                placeholder="Special requests, early check-in notes, etc."
+                placeholder="Special requests, guest preferences, etc."
                 value={form.notes}
                 onChange={(e) => upd('notes', e.target.value)}
               />
@@ -448,7 +763,11 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
             Cancel
           </button>
           <button className="btn btn-red" onClick={handleSubmit} disabled={loading}>
-            {loading ? <span className="spinner" style={{ width: 14, height: 14 }} /> : `Confirm Booking (${currencySymbol}${total.toLocaleString('en-IN')})`}
+            {loading ? (
+              <span className="spinner" style={{ width: 14, height: 14 }} />
+            ) : (
+              `Confirm Booking (${currencySymbol}${total.toLocaleString('en-IN')})`
+            )}
           </button>
         </div>
       </div>

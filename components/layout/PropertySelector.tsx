@@ -199,87 +199,98 @@ export default function PropertySelector() {
 
         {/* Property Selector Dropdown */}
         <div ref={dropdownRef} style={{ position: 'relative' }}>
-          <button
-            type="button"
-            onClick={() => setOpen(!open)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              textAlign: 'left',
-              padding: '4px 8px',
-              borderRadius: '6px',
-              transition: 'background 0.15s ease',
-            }}
-            className="property-trigger-btn"
-          >
-            {/* Property Image Thumbnail */}
-            <div
+          {!currentProperty ? (
+            <button
+              type="button"
+              className="btn btn-red btn-sm"
+              onClick={() => setShowAddModal(true)}
+              style={{ gap: '6px' }}
+            >
+              <Plus size={14} /> Add Property
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setOpen(!open)}
               style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '6px',
-                overflow: 'hidden',
-                background: 'var(--card-2)',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                border: '1px solid var(--border)',
+                gap: '10px',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                textAlign: 'left',
+                padding: '4px 8px',
+                borderRadius: '6px',
+                transition: 'background 0.15s ease',
               }}
+              className="property-trigger-btn"
             >
-              {current.coverImage ? (
-                <img
-                  src={current.coverImage}
-                  alt={current.name}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-              ) : (
-                <Building2 size={16} color="var(--text-2)" />
-              )}
-            </div>
-
-            {/* Code + Chevron & Name */}
-            <div>
+              {/* Property Image Thumbnail */}
               <div
                 style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '6px',
+                  overflow: 'hidden',
+                  background: 'var(--card-2)',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '4px',
-                  fontSize: '14px',
-                  fontWeight: 700,
-                  color: 'var(--text)',
-                  lineHeight: 1.2,
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  border: '1px solid var(--border)',
                 }}
               >
-                <span>{current.code}</span>
-                <ChevronDown
-                  size={14}
-                  color="var(--text-2)"
+                {currentProperty.coverImage ? (
+                  <img
+                    src={currentProperty.coverImage}
+                    alt={currentProperty.name}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                ) : (
+                  <Building2 size={16} color="var(--text-2)" />
+                )}
+              </div>
+
+              {/* Code + Chevron & Name */}
+              <div>
+                <div
                   style={{
-                    transform: open ? 'rotate(180deg)' : 'none',
-                    transition: 'transform 0.15s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    fontSize: '14px',
+                    fontWeight: 700,
+                    color: 'var(--text)',
+                    lineHeight: 1.2,
                   }}
-                />
+                >
+                  <span>{currentProperty.code}</span>
+                  <ChevronDown
+                    size={14}
+                    color="var(--text-2)"
+                    style={{
+                      transform: open ? 'rotate(180deg)' : 'none',
+                      transition: 'transform 0.15s ease',
+                    }}
+                  />
+                </div>
+                <div
+                  style={{
+                    fontSize: '11px',
+                    color: 'var(--text-2)',
+                    maxWidth: '160px',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    marginTop: '1px',
+                  }}
+                >
+                  {currentProperty.name}
+                </div>
               </div>
-              <div
-                style={{
-                  fontSize: '11px',
-                  color: 'var(--text-2)',
-                  maxWidth: '160px',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  marginTop: '1px',
-                }}
-              >
-                {current.name}
-              </div>
-            </div>
-          </button>
+            </button>
+          )}
 
           {/* Dropdown Menu */}
           {open && (

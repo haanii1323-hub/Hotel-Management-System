@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
-import { BarChart3, BookOpen, DollarSign, Home, LogOut, TrendingUp, Users } from 'lucide-react'
+import { BarChart3, BookOpen, DollarSign, Home, LogOut, TrendingUp, Users, Settings } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
@@ -20,6 +20,7 @@ const NAV = [
   { href: '/guests', label: 'Guest Directory', icon: Users },
   { href: '/earnings', label: 'Earnings', icon: TrendingUp },
   { href: '/reports', label: 'Reports', icon: BarChart3 },
+  { href: '/settings', label: 'Settings', icon: Settings },
 ]
 
 export default function AppShell({ children }: { children: React.ReactNode }) {

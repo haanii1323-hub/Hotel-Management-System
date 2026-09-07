@@ -8,8 +8,11 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const property = await prisma.property.findUnique({
-      where: { id: params.id },
+    const session = await getServerSession(authOptions)
+    const tenantId = (session?.user as any)?.tenantId || 'demo-tenant'
+
+    const property = await prisma.property.findFirst({
+      where: { id: params.id, tenantId },
       include: {
         categories: {
           include: {
@@ -43,8 +46,14 @@ export async function PATCH(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const tenantId = (session?.user as any)?.tenantId || 'demo-tenant'
+
+    const existing = await prisma.property.findFirst({
+      where: { id: params.id, tenantId },
+    })
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Property not found or unauthorized' }, { status: 404 })
     }
 
     const body = await req.json()
@@ -70,7 +79,17 @@ export async function PATCH(
 
     const updateData: any = {}
     if (name !== undefined) updateData.name = name.trim()
-    if (code !== undefined) updateData.code = code.trim().toUpperCase()
+    if (code !== undefined) {
+      const cleanCode = code.trim().toUpperCase()
+      // Check collision within tenant
+      const codeCollision = await prisma.property.findFirst({
+        where: { tenantId, code: cleanCode, NOT: { id: params.id } },
+      })
+      if (codeCollision) {
+        return NextResponse.json({ error: `Property code "${cleanCode}" is already in use` }, { status: 400 })
+      }
+      updateData.code = cleanCode
+    }
     if (city !== undefined) updateData.city = city.trim()
     if (state !== undefined) updateData.state = state.trim()
     if (country !== undefined) updateData.country = country.trim()
@@ -105,11 +124,16 @@ export async function DELETE(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const tenantId = (session?.user as any)?.tenantId || 'demo-tenant'
+
+    const existing = await prisma.property.findFirst({
+      where: { id: params.id, tenantId },
+    })
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Property not found or unauthorized' }, { status: 404 })
     }
 
-    // Soft delete / deactivate property
     const property = await prisma.property.update({
       where: { id: params.id },
       data: { isActive: false },

@@ -1,14 +1,15 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { X, Copy, ExternalLink, Check } from 'lucide-react'
+import { X, Copy, ExternalLink, QrCode, Building2, Banknote, CreditCard, AlertCircle, Settings } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useToast } from '@/components/ui/Toast'
 import { broadcastChange } from '@/lib/realtime-sync'
+import useSWR from 'swr'
+import Link from 'next/link'
 
-const PAYMENT_MODES = ['UPI', 'Cash', 'Bank Transfer', 'Pending Payments', 'Others']
+const fetcher = (url: string) => fetch(url).then((r) => r.json())
 const PAYMENT_STATUSES = ['Paid', 'Pending', 'Partially Paid']
-const UPI_ID = 'apexinn@upi'
 
 function fmt(n: number) {
   return `₹${Number(n || 0).toLocaleString('en-IN')}`
@@ -22,11 +23,35 @@ interface Props {
 
 export default function CollectPaymentModal({ booking, onClose, onSuccess }: Props) {
   const { showToast } = useToast()
-  const [mode, setMode] = useState('UPI')
+  const propertyId = booking.propertyId || ''
+
+  const { data: config } = useSWR(
+    propertyId ? `/api/payment-config?propertyId=${propertyId}` : null,
+    fetcher,
+    { revalidateOnFocus: true }
+  )
+
+  // Build available payment modes list strictly from enabled configuration
+  const availableModes: string[] = []
+  if (config?.cashEnabled !== false) availableModes.push('Cash')
+  if (config?.upiEnabled !== false) availableModes.push('UPI')
+  if (config?.cardEnabled !== false) availableModes.push('Card')
+  if (config?.bankTransferEnabled) availableModes.push('Bank Transfer')
+  if (config?.chequeEnabled) availableModes.push('Cheque')
+  if (config?.otherEnabled) availableModes.push('Others')
+  if (availableModes.length === 0) availableModes.push('Cash', 'UPI')
+
+  const [mode, setMode] = useState(availableModes[0] || 'Cash')
   const [payStatus, setPayStatus] = useState('Paid')
   const [utrRef, setUtrRef] = useState('')
   const [loading, setLoading] = useState(false)
   const [utrError, setUtrError] = useState('')
+
+  useEffect(() => {
+    if (availableModes.length > 0 && !availableModes.includes(mode)) {
+      setMode(availableModes[0])
+    }
+  }, [availableModes, mode])
 
   const collected =
     booking.payments?.reduce(
@@ -40,13 +65,13 @@ export default function CollectPaymentModal({ booking, onClose, onSuccess }: Pro
     setAmount(balance)
   }, [balance])
 
-  const upiString = `upi://pay?pa=${UPI_ID}&pn=APEX+INN&am=${amount}&cu=INR&tn=Payment+${booking.bookingRef}`
+  const upiId = config?.upiId || ''
+  const payeeName = config?.upiDisplayName || config?.upiMerchantName || booking.property?.name || 'Hotel'
+  const upiString = upiId
+    ? `upi://pay?pa=${upiId}&pn=${encodeURIComponent(payeeName)}&am=${amount}&cu=INR&tn=Payment+${booking.bookingRef}`
+    : ''
 
   function validate() {
-    if (mode === 'UPI' && payStatus === 'Paid' && !utrRef.trim()) {
-      setUtrError('Reference number is required for UPI payments marked as paid.')
-      return false
-    }
     setUtrError('')
     return true
   }
@@ -63,7 +88,13 @@ export default function CollectPaymentModal({ booking, onClose, onSuccess }: Pro
       const res = await fetch(`/api/bookings/${booking.id}/payment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount, mode, status: payStatus, utrRef, notes: 'Collected via PMS' }),
+        body: JSON.stringify({
+          amount,
+          mode,
+          status: payStatus,
+          utrRef: utrRef.trim() || null,
+          notes: `Collected via PMS (${mode})`,
+        }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -127,7 +158,7 @@ export default function CollectPaymentModal({ booking, onClose, onSuccess }: Pro
           </div>
 
           {/* Payment controls */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '16px' }}>
             <div className="form-group" style={{ margin: 0 }}>
               <label className="form-label">Payment mode</label>
               <select
@@ -138,7 +169,7 @@ export default function CollectPaymentModal({ booking, onClose, onSuccess }: Pro
                   setUtrError('')
                 }}
               >
-                {PAYMENT_MODES.map((m) => (
+                {availableModes.map((m) => (
                   <option key={m}>{m}</option>
                 ))}
               </select>
@@ -171,43 +202,163 @@ export default function CollectPaymentModal({ booking, onClose, onSuccess }: Pro
             </div>
           </div>
 
-          {/* UPI QR */}
+          {/* DYNAMIC UPI / QR VIEW */}
           {mode === 'UPI' && (
-            <div className="upi-block">
-              <div className="upi-qr">
-                <QRCodeSVG value={upiString} size={88} bgColor="#ffffff" fgColor="#000000" />
-              </div>
-              <div className="upi-details">
-                <div className="upi-amount-label">Amount to collect</div>
-                <div className="upi-amount">{fmt(amount)}</div>
-                <div className="upi-id-row">
-                  <span className="upi-id">{UPI_ID}</span>
-                  <button
-                    className="btn-icon"
-                    style={{ padding: '3px', border: '1px solid var(--border)', borderRadius: 4 }}
-                    onClick={() => {
-                      navigator.clipboard.writeText(UPI_ID)
-                      showToast('UPI ID copied', 'success')
+            <div
+              style={{
+                background: 'var(--card-2)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '16px',
+                marginBottom: '16px',
+              }}
+            >
+              {config?.qrCodeUrl || upiId ? (
+                <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                  <div
+                    style={{
+                      width: '100px',
+                      height: '100px',
+                      background: '#fff',
+                      padding: '6px',
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                     }}
                   >
-                    <Copy size={12} />
-                  </button>
+                    {config?.qrCodeUrl ? (
+                      <img
+                        src={config.qrCodeUrl}
+                        alt="Hotel QR Code"
+                        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                      />
+                    ) : (
+                      <QRCodeSVG value={upiString} size={88} bgColor="#ffffff" fgColor="#000000" />
+                    )}
+                  </div>
+
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '11px', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Scan to Pay · {fmt(amount)}
+                    </div>
+                    <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text)', marginTop: '2px' }}>
+                      {payeeName}
+                    </div>
+
+                    {upiId && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
+                        <span style={{ fontSize: '12px', fontFamily: 'monospace', color: 'var(--red)', fontWeight: 600 }}>
+                          {upiId}
+                        </span>
+                        <button
+                          type="button"
+                          className="btn-icon"
+                          style={{ padding: '2px 4px', border: '1px solid var(--border)', borderRadius: 4 }}
+                          onClick={() => {
+                            navigator.clipboard.writeText(upiId)
+                            showToast('UPI ID copied to clipboard', 'success')
+                          }}
+                          title="Copy UPI ID"
+                        >
+                          <Copy size={11} />
+                        </button>
+                      </div>
+                    )}
+
+                    {config?.paymentInstructions && (
+                      <div style={{ fontSize: '11px', color: 'var(--text-2)', marginTop: '6px', lineHeight: '1.4' }}>
+                        {config.paymentInstructions}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="upi-payee">Payee · APEX INN</div>
-                <a href={upiString} className="btn btn-ghost btn-sm" style={{ marginTop: '8px', display: 'inline-flex' }}>
-                  <ExternalLink size={12} /> Pay via UPI app
-                </a>
-              </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '12px 0' }}>
+                  <QrCode size={28} style={{ margin: '0 auto 6px', color: 'var(--text-3)' }} />
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>
+                    UPI / QR Code not configured yet
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-2)', marginTop: '2px' }}>
+                    The hotel owner has not set up a UPI ID or QR code for this property.
+                  </div>
+                  <Link
+                    href="/settings"
+                    className="btn btn-ghost btn-sm"
+                    style={{ marginTop: '8px', fontSize: '11px', color: 'var(--red)', display: 'inline-flex', gap: '4px' }}
+                    onClick={onClose}
+                  >
+                    <Settings size={12} /> Configure Payment Settings
+                  </Link>
+                </div>
+              )}
             </div>
           )}
 
-          {/* UTR */}
-          {mode === 'UPI' && (
+          {/* DYNAMIC BANK TRANSFER VIEW */}
+          {mode === 'Bank Transfer' && (
+            <div
+              style={{
+                background: 'var(--card-2)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '14px 16px',
+                marginBottom: '16px',
+                fontSize: '12px',
+              }}
+            >
+              {config?.bankAccountNumber ? (
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '13px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Banknote size={15} color="var(--red)" /> Hotel Bank Account Details
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <div>
+                      <span style={{ color: 'var(--text-3)' }}>Beneficiary:</span>
+                      <div style={{ fontWeight: 600 }}>{config.bankAccountName || 'Hotel Account'}</div>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--text-3)' }}>Bank Name:</span>
+                      <div style={{ fontWeight: 600 }}>{config.bankName || '—'}</div>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--text-3)' }}>Account Number:</span>
+                      <div style={{ fontWeight: 600, fontFamily: 'monospace' }}>{config.bankAccountNumber}</div>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--text-3)' }}>IFSC Code:</span>
+                      <div style={{ fontWeight: 600, fontFamily: 'monospace' }}>{config.bankIfsc || '—'}</div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '10px 0' }}>
+                  <AlertCircle size={20} style={{ margin: '0 auto 4px', color: 'var(--amber)' }} />
+                  <div style={{ fontWeight: 600 }}>Bank details not configured</div>
+                  <Link
+                    href="/settings"
+                    className="btn btn-ghost btn-sm"
+                    style={{ marginTop: '6px', fontSize: '11px', color: 'var(--red)', display: 'inline-flex', gap: '4px' }}
+                    onClick={onClose}
+                  >
+                    <Settings size={12} /> Configure Bank Details
+                  </Link>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Reference / Auth Code Input (Bank Transfer, Card, Cheque) */}
+          {(mode === 'Bank Transfer' || mode === 'Cheque' || mode === 'Card') && (
             <div className="form-group">
-              <label className="form-label">UPI reference / UTR number</label>
+              <label className="form-label">
+                {mode === 'Card' ? 'Card Transaction / Auth Code' : 'Payment Reference Number'}
+              </label>
               <input
                 className="form-control"
-                placeholder="e.g. 412345678901"
+                placeholder="e.g. TXN-882193"
                 value={utrRef}
                 onChange={(e) => {
                   setUtrRef(e.target.value)
@@ -216,7 +367,7 @@ export default function CollectPaymentModal({ booking, onClose, onSuccess }: Pro
               />
               {utrError && (
                 <div style={{ fontSize: '12px', color: 'var(--red)', marginTop: '4px' }}>
-                  Reference number is required for UPI payments marked as paid.
+                  {utrError}
                 </div>
               )}
             </div>

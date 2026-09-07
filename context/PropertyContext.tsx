@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import useSWR, { useSWRConfig } from 'swr'
+import { useSession } from 'next-auth/react'
 
 export interface Property {
   id: string
@@ -33,6 +34,7 @@ export interface Property {
 interface PropertyContextType {
   currentProperty: Property | null
   properties: Property[]
+  hasProperties: boolean
   isLoading: boolean
   isSwitching: boolean
   switchProperty: (propertyId: string) => Promise<void>
@@ -42,6 +44,7 @@ interface PropertyContextType {
 const PropertyContext = createContext<PropertyContextType>({
   currentProperty: null,
   properties: [],
+  hasProperties: false,
   isLoading: true,
   isSwitching: false,
   switchProperty: async () => {},
@@ -51,17 +54,18 @@ const PropertyContext = createContext<PropertyContextType>({
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 export function PropertyProvider({ children }: { children: React.ReactNode }) {
+  const { data: session } = useSession()
   const { data: propertiesData, mutate: mutateProperties, isLoading } = useSWR<Property[]>(
     '/api/properties',
     fetcher,
-    { revalidateOnFocus: false, dedupingInterval: 5000 }
+    { revalidateOnFocus: true, dedupingInterval: 2000 }
   )
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [isSwitching, setIsSwitching] = useState(false)
   const { mutate: globalMutate } = useSWRConfig()
 
-  // Load initial selection from localStorage / cookie on mount
+  // Load initial selection from localStorage on mount
   useEffect(() => {
     const saved = localStorage.getItem('apex_selected_property_id')
     if (saved) {
@@ -70,8 +74,9 @@ export function PropertyProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  // Auto-select first active property if none selected or if selected property not found
-  const properties = propertiesData || []
+  const properties = Array.isArray(propertiesData) ? propertiesData : []
+  const hasProperties = properties.length > 0
+
   const currentProperty =
     properties.find((p) => p.id === selectedId) ||
     properties.find((p) => p.isActive) ||
@@ -83,6 +88,9 @@ export function PropertyProvider({ children }: { children: React.ReactNode }) {
       setSelectedId(currentProperty.id)
       localStorage.setItem('apex_selected_property_id', currentProperty.id)
       document.cookie = `apex_property_id=${currentProperty.id}; path=/; max-age=31536000`
+    } else if (!currentProperty) {
+      setSelectedId(null)
+      localStorage.removeItem('apex_selected_property_id')
     }
   }, [currentProperty, selectedId])
 
@@ -114,6 +122,7 @@ export function PropertyProvider({ children }: { children: React.ReactNode }) {
       value={{
         currentProperty,
         properties,
+        hasProperties,
         isLoading,
         isSwitching,
         switchProperty,

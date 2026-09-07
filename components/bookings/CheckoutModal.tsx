@@ -1,15 +1,20 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Copy, ExternalLink, FileText } from 'lucide-react'
+import { X, Copy, ExternalLink, FileText, QrCode, Banknote, AlertCircle, Settings } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useToast } from '@/components/ui/Toast'
 import InvoiceModal from './InvoiceModal'
 import { broadcastChange } from '@/lib/realtime-sync'
+import useSWR from 'swr'
+import Link from 'next/link'
 
-const PAYMENT_MODES = ['UPI', 'Cash', 'Card', 'Bank Transfer', 'Others']
+const fetcher = (url: string) => fetch(url).then((r) => r.json())
 const PAYMENT_STATUSES = ['Paid', 'Pending', 'Partially Paid']
-const UPI_ID = 'apexinn@upi'
+
+function fmt(n: number) {
+  return `₹${Number(n || 0).toLocaleString('en-IN')}`
+}
 
 interface Props {
   booking: any
@@ -19,12 +24,35 @@ interface Props {
 
 export default function CheckoutModal({ booking, onClose, onSuccess }: Props) {
   const { showToast } = useToast()
-  const [mode, setMode] = useState('UPI')
+  const propertyId = booking.propertyId || ''
+
+  const { data: config } = useSWR(
+    propertyId ? `/api/payment-config?propertyId=${propertyId}` : null,
+    fetcher,
+    { revalidateOnFocus: true }
+  )
+
+  const availableModes: string[] = []
+  if (config?.cashEnabled !== false) availableModes.push('Cash')
+  if (config?.upiEnabled !== false) availableModes.push('UPI')
+  if (config?.cardEnabled !== false) availableModes.push('Card')
+  if (config?.bankTransferEnabled) availableModes.push('Bank Transfer')
+  if (config?.chequeEnabled) availableModes.push('Cheque')
+  if (config?.otherEnabled) availableModes.push('Others')
+  if (availableModes.length === 0) availableModes.push('Cash', 'UPI')
+
+  const [mode, setMode] = useState(availableModes[0] || 'Cash')
   const [payStatus, setPayStatus] = useState('Paid')
   const [utrRef, setUtrRef] = useState('')
   const [loading, setLoading] = useState(false)
   const [utrError, setUtrError] = useState('')
   const [showInvoice, setShowInvoice] = useState(false)
+
+  useEffect(() => {
+    if (availableModes.length > 0 && !availableModes.includes(mode)) {
+      setMode(availableModes[0])
+    }
+  }, [availableModes, mode])
 
   const collected =
     booking.payments?.reduce(
@@ -38,13 +66,13 @@ export default function CheckoutModal({ booking, onClose, onSuccess }: Props) {
     setAmount(balance)
   }, [balance])
 
-  const upiString = `upi://pay?pa=${UPI_ID}&pn=APEX+INN&am=${amount}&cu=INR&tn=Booking+${booking.bookingRef}`
+  const upiId = config?.upiId || ''
+  const payeeName = config?.upiDisplayName || config?.upiMerchantName || booking.property?.name || 'Hotel'
+  const upiString = upiId
+    ? `upi://pay?pa=${upiId}&pn=${encodeURIComponent(payeeName)}&am=${amount}&cu=INR&tn=Booking+${booking.bookingRef}`
+    : ''
 
   function validate() {
-    if (amount > 0 && mode === 'UPI' && payStatus === 'Paid' && !utrRef.trim()) {
-      setUtrError('Reference number / UTR is required for UPI payments marked as paid.')
-      return false
-    }
     setUtrError('')
     return true
   }
@@ -56,13 +84,19 @@ export default function CheckoutModal({ booking, onClose, onSuccess }: Props) {
       const res = await fetch(`/api/bookings/${booking.id}/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount, mode, status: payStatus, utrRef, notes: 'Checkout settlement' }),
+        body: JSON.stringify({
+          amount,
+          mode,
+          status: payStatus,
+          utrRef: utrRef.trim() || null,
+          notes: 'Checkout settlement',
+        }),
       })
       const data = await res.json()
       if (!res.ok) {
         showToast(data.error || 'Checkout failed', 'error')
       } else {
-        showToast(`${booking.guest?.name || 'Guest'} checked out. Invoice ${data.invoiceNo} generated.`, 'success')
+        showToast(`${booking.guest?.name || 'Guest'} checked out. Stay completed.`, 'success')
         broadcastChange('CHECK_OUT', { bookingId: booking.id })
         onSuccess()
       }
@@ -107,27 +141,28 @@ export default function CheckoutModal({ booking, onClose, onSuccess }: Props) {
               }}
             >
               <div className="bill-row">
-                <span>Total Bill</span>
-                <span>₹{(booking.totalAmount || 0).toLocaleString('en-IN')}</span>
+                <span>Room Charges ({booking.numRooms} Room · {booking.roomCategory})</span>
+                <span>{fmt(booking.totalAmount)}</span>
               </div>
               <div className="bill-row">
-                <span style={{ color: 'var(--text-2)' }}>Already Collected</span>
-                <span style={{ color: 'var(--green)' }}>₹{collected.toLocaleString('en-IN')}</span>
+                <span style={{ color: 'var(--text-2)' }}>Already paid</span>
+                <span>{fmt(collected)}</span>
               </div>
               <div className="bill-row total">
-                <span>Balance Due</span>
-                <span style={{ color: balance > 0 ? 'var(--amber)' : 'var(--green)' }}>
-                  {balance > 0 ? `₹${balance.toLocaleString('en-IN')}` : 'Settled (₹0)'}
-                </span>
+                <span>Balance to settle</span>
+                <span style={{ color: balance > 0 ? 'var(--amber)' : 'var(--green)' }}>{fmt(balance)}</span>
               </div>
             </div>
 
-            {/* Payment controls if balance > 0 */}
+            {/* Payment settlement section (if balance > 0) */}
             {balance > 0 ? (
               <>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+                <div style={{ fontWeight: 600, fontSize: '13px', marginBottom: '10px' }}>
+                  Collect Settlement Amount
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '14px' }}>
                   <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label">Payment Mode</label>
+                    <label className="form-label">Payment mode</label>
                     <select
                       className="form-control"
                       value={mode}
@@ -136,13 +171,13 @@ export default function CheckoutModal({ booking, onClose, onSuccess }: Props) {
                         setUtrError('')
                       }}
                     >
-                      {PAYMENT_MODES.map((m) => (
+                      {availableModes.map((m) => (
                         <option key={m}>{m}</option>
                       ))}
                     </select>
                   </div>
                   <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label">Collecting Now</label>
+                    <label className="form-label">Amount collecting</label>
                     <input
                       className="form-control"
                       type="number"
@@ -169,47 +204,129 @@ export default function CheckoutModal({ booking, onClose, onSuccess }: Props) {
                   </div>
                 </div>
 
-                {/* UPI QR */}
-                {mode === 'UPI' && amount > 0 && (
-                  <div className="upi-block">
-                    <div className="upi-qr">
-                      <QRCodeSVG value={upiString} size={88} bgColor="#ffffff" fgColor="#000000" />
-                    </div>
-                    <div className="upi-details">
-                      <div className="upi-amount-label">Amount to Collect</div>
-                      <div className="upi-amount">₹{amount.toLocaleString('en-IN')}</div>
-                      <div className="upi-id-row">
-                        <span className="upi-id">{UPI_ID}</span>
-                        <button
-                          className="btn-icon"
-                          style={{ padding: '3px', border: '1px solid var(--border)', borderRadius: 4 }}
-                          onClick={() => {
-                            navigator.clipboard.writeText(UPI_ID)
-                            showToast('UPI ID copied', 'success')
+                {/* DYNAMIC UPI / QR VIEW */}
+                {mode === 'UPI' && (
+                  <div
+                    style={{
+                      background: 'var(--card-2)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-sm)',
+                      padding: '16px',
+                      marginBottom: '14px',
+                    }}
+                  >
+                    {config?.qrCodeUrl || upiId ? (
+                      <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                        <div
+                          style={{
+                            width: '96px',
+                            height: '96px',
+                            background: '#fff',
+                            padding: '6px',
+                            borderRadius: '8px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                           }}
                         >
-                          <Copy size={12} />
-                        </button>
+                          {config?.qrCodeUrl ? (
+                            <img
+                              src={config.qrCodeUrl}
+                              alt="Hotel QR Code"
+                              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                            />
+                          ) : (
+                            <QRCodeSVG value={upiString} size={84} bgColor="#ffffff" fgColor="#000000" />
+                          )}
+                        </div>
+
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '11px', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            Settlement QR · {fmt(amount)}
+                          </div>
+                          <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text)', marginTop: '2px' }}>
+                            {payeeName}
+                          </div>
+
+                          {upiId && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
+                              <span style={{ fontSize: '12px', fontFamily: 'monospace', color: 'var(--red)', fontWeight: 600 }}>
+                                {upiId}
+                              </span>
+                              <button
+                                type="button"
+                                className="btn-icon"
+                                style={{ padding: '2px 4px', border: '1px solid var(--border)', borderRadius: 4 }}
+                                onClick={() => {
+                                  navigator.clipboard.writeText(upiId)
+                                  showToast('UPI ID copied', 'success')
+                                }}
+                                title="Copy UPI ID"
+                              >
+                                <Copy size={11} />
+                              </button>
+                            </div>
+                          )}
+
+                          {config?.paymentInstructions && (
+                            <div style={{ fontSize: '11px', color: 'var(--text-2)', marginTop: '4px' }}>
+                              {config.paymentInstructions}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div className="upi-payee">Payee · APEX INN</div>
-                      <a
-                        href={upiString}
-                        className="btn btn-ghost btn-sm"
-                        style={{ marginTop: '8px', display: 'inline-flex' }}
-                      >
-                        <ExternalLink size={12} /> Pay via UPI App
-                      </a>
+                    ) : (
+                      <div style={{ textAlign: 'center', padding: '10px 0' }}>
+                        <QrCode size={24} style={{ margin: '0 auto 4px', color: 'var(--text-3)' }} />
+                        <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text)' }}>
+                          UPI / QR Code not configured yet
+                        </div>
+                        <Link
+                          href="/settings"
+                          className="btn btn-ghost btn-sm"
+                          style={{ marginTop: '6px', fontSize: '11px', color: 'var(--red)', display: 'inline-flex', gap: '4px' }}
+                          onClick={onClose}
+                        >
+                          <Settings size={12} /> Configure Payment Settings
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Bank details preview */}
+                {mode === 'Bank Transfer' && config?.bankAccountNumber && (
+                  <div
+                    style={{
+                      background: 'var(--card-2)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-sm)',
+                      padding: '12px 14px',
+                      marginBottom: '14px',
+                      fontSize: '12px',
+                    }}
+                  >
+                    <div style={{ fontWeight: 600, marginBottom: '6px' }}>Bank Transfer Settlement Details</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                      <div><span style={{ color: 'var(--text-3)' }}>A/C:</span> {config.bankAccountNumber}</div>
+                      <div><span style={{ color: 'var(--text-3)' }}>IFSC:</span> {config.bankIfsc}</div>
+                      <div><span style={{ color: 'var(--text-3)' }}>Bank:</span> {config.bankName}</div>
+                      <div><span style={{ color: 'var(--text-3)' }}>Name:</span> {config.bankAccountName}</div>
                     </div>
                   </div>
                 )}
 
-                {/* UTR Reference input */}
-                {mode === 'UPI' && amount > 0 && (
+                {/* Reference number (Bank Transfer, Card, Cheque) */}
+                {(mode === 'Bank Transfer' || mode === 'Cheque' || mode === 'Card') && (
                   <div className="form-group">
-                    <label className="form-label">UPI Reference / UTR Number</label>
+                    <label className="form-label">
+                      {mode === 'Card' ? 'Card Transaction / Auth Code' : 'Payment reference number'}
+                    </label>
                     <input
                       className="form-control"
-                      placeholder="e.g. 412345678901"
+                      placeholder="e.g. TXN-882193"
                       value={utrRef}
                       onChange={(e) => {
                         setUtrRef(e.target.value)
@@ -227,37 +344,36 @@ export default function CheckoutModal({ booking, onClose, onSuccess }: Props) {
             ) : (
               <div
                 style={{
-                  background: 'var(--card)',
-                  border: '1px solid var(--border)',
+                  padding: '14px',
+                  background: 'rgba(34, 197, 94, 0.1)',
+                  border: '1px solid rgba(34, 197, 94, 0.2)',
                   borderRadius: 'var(--radius-sm)',
-                  padding: '12px 14px',
-                  marginBottom: '16px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  color: 'var(--green)',
+                  textAlign: 'center',
                   fontSize: '13px',
+                  color: 'var(--green)',
+                  fontWeight: 600,
+                  marginBottom: '14px',
                 }}
               >
-                ✓ Total charges already paid in full. No balance collection needed.
+                All room charges have been fully settled. Ready for checkout!
               </div>
             )}
           </div>
 
-          <div className="modal-footer">
+          <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between' }}>
             <button
-              className="btn btn-ghost btn-sm"
+              className="btn btn-ghost"
               onClick={() => setShowInvoice(true)}
               style={{ gap: '6px' }}
             >
-              <FileText size={14} /> View Invoice
+              <FileText size={14} /> Preview Receipt
             </button>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button className="btn btn-ghost" onClick={onClose} disabled={loading}>
+              <button className="btn btn-ghost" onClick={onClose}>
                 Cancel
               </button>
               <button className="btn btn-red" onClick={handleCheckout} disabled={loading}>
-                {loading ? <span className="spinner" style={{ width: 14, height: 14 }} /> : 'Confirm & Complete Checkout'}
+                {loading ? <span className="spinner" style={{ width: 14, height: 14 }} /> : 'Complete Checkout'}
               </button>
             </div>
           </div>

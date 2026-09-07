@@ -215,37 +215,54 @@ export default function PricingPage() {
       )}
 
       {/* Category Rate Cards */}
-      <div className="pricing-grid">
-        {(categories || []).map((cat: any) => (
-          <div key={cat.id} className="pricing-card">
-            <div className="pricing-card-name">{cat.name}</div>
-            <div className="pricing-card-meta">
-              {cat.rooms?.length || 0} rooms · Nightly base rate
+      {!currentProperty ? (
+        <div className="empty-state" style={{ padding: '60px 20px' }}>
+          <BedDouble size={36} style={{ margin: '0 auto 12px', color: 'var(--text-3)' }} />
+          <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text)', marginBottom: '6px' }}>No Property Selected</div>
+          <div style={{ fontSize: '13px', color: 'var(--text-2)', maxWidth: '400px', margin: '0 auto' }}>Please add or select a property to configure room types and rates.</div>
+        </div>
+      ) : (categories || []).length === 0 ? (
+        <div className="empty-state" style={{ padding: '40px 20px', marginBottom: '24px' }}>
+          <BedDouble size={32} style={{ margin: '0 auto 10px', color: 'var(--text-3)' }} />
+          <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)', marginBottom: '4px' }}>No Room Categories Yet</div>
+          <div style={{ fontSize: '12px', color: 'var(--text-2)', maxWidth: '420px', margin: '0 auto 16px' }}>Create your first room type (e.g. Standard, Deluxe, Suite, Villa) to start adding rooms.</div>
+          <button className="btn btn-red btn-sm" onClick={() => setShowAddCat(true)}>
+            <Plus size={14} /> Add Category
+          </button>
+        </div>
+      ) : (
+        <div className="pricing-grid">
+          {(categories || []).map((cat: any) => (
+            <div key={cat.id} className="pricing-card">
+              <div className="pricing-card-name">{cat.name}</div>
+              <div className="pricing-card-meta">
+                {cat.rooms?.length || 0} rooms · Nightly base rate
+              </div>
+              <div className="pricing-rate-label">Nightly rate</div>
+              <div className="pricing-rate-row">
+                <span style={{ fontSize: '16px', color: 'var(--text-2)', marginRight: '2px' }}>{currencySymbol}</span>
+                <input
+                  className="pricing-rate-input"
+                  type="number"
+                  value={editRate[cat.id] ?? cat.nightlyRate}
+                  onChange={(e) => setEditRate((prev) => ({ ...prev, [cat.id]: Number(e.target.value) }))}
+                  min={1}
+                />
+                {editRate[cat.id] !== undefined && editRate[cat.id] !== cat.nightlyRate && (
+                  <button className="btn btn-red btn-sm" onClick={() => saveRate(cat)} disabled={savingRate[cat.id]}>
+                    {savingRate[cat.id] ? (
+                      <span className="spinner" style={{ width: 12, height: 12 }} />
+                    ) : (
+                      <Check size={14} />
+                    )}
+                    Save
+                  </button>
+                )}
+              </div>
             </div>
-            <div className="pricing-rate-label">Nightly rate</div>
-            <div className="pricing-rate-row">
-              <span style={{ fontSize: '16px', color: 'var(--text-2)', marginRight: '2px' }}>{currencySymbol}</span>
-              <input
-                className="pricing-rate-input"
-                type="number"
-                value={editRate[cat.id] ?? cat.nightlyRate}
-                onChange={(e) => setEditRate((prev) => ({ ...prev, [cat.id]: Number(e.target.value) }))}
-                min={1}
-              />
-              {editRate[cat.id] !== undefined && editRate[cat.id] !== cat.nightlyRate && (
-                <button className="btn btn-red btn-sm" onClick={() => saveRate(cat)} disabled={savingRate[cat.id]}>
-                  {savingRate[cat.id] ? (
-                    <span className="spinner" style={{ width: 12, height: 12 }} />
-                  ) : (
-                    <Check size={14} />
-                  )}
-                  Save
-                </button>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Room Inventory Toolbar */}
       <div

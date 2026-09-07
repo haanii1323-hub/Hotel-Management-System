@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getTargetPropertyId } from '@/lib/property-helper'
+import { getTenantContext } from '@/lib/property-helper'
 import { eachDayOfInterval, format, startOfMonth, endOfMonth, isValid } from 'date-fns'
 
 function parseDateParam(d: string | null): Date | null {
@@ -22,9 +22,21 @@ function parseDateParam(d: string | null): Date | null {
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    const propertyId = await getTargetPropertyId(req, (session?.user as any)?.propertyId)
+    const { tenantId, propertyId } = await getTenantContext(req, session?.user as any)
 
-    const property = await prisma.property.findUnique({ where: { id: propertyId } })
+    if (!propertyId) {
+      return NextResponse.json({
+        urnUsed: 0,
+        srn: 0,
+        occupancy: 0,
+        roomRevenue: 0,
+        arr: 0,
+        daily: [],
+        sources: [],
+      })
+    }
+
+    const property = await prisma.property.findFirst({ where: { id: propertyId, tenantId } })
     const { searchParams } = new URL(req.url)
 
     const fromParam = parseDateParam(searchParams.get('from'))
@@ -58,68 +70,85 @@ export async function GET(req: NextRequest) {
     const bookings = await prisma.booking.findMany({
       where: {
         propertyId,
-        status: { notIn: ['Cancelled', 'NoShow'] },
-        AND: [{ checkIn: { lte: to } }, { checkOut: { gte: from } }],
+        status: { in: ['CheckedIn', 'CheckedOut', 'Upcoming'] },
+        AND: [
+          { checkIn: { lte: to } },
+          { checkOut: { gte: from } },
+        ],
       },
       include: {
+        bookingRooms: true,
         payments: true,
       },
     })
 
-    // Calculate URN (Used Room Nights) and Revenue
+    // Calculate URN (Utilized Room Nights) and Revenue
     let urnUsed = 0
     let roomRevenue = 0
 
-    const dailyBreakdown = days.map((day) => {
-      const dayStr = format(day, 'yyyy-MM-dd')
-      const dayStart = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, 0, 0)
-      const dayEnd = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 23, 59, 59)
+    const sourceMap: Record<string, { count: number; revenue: number }> = {}
 
-      const activeOnDay = bookings.filter((b) => {
-        const ci = new Date(b.checkIn)
-        const co = new Date(b.checkOut)
-        return ci <= dayEnd && co > dayStart
-      })
-
-      const dayRooms = activeOnDay.reduce((s, b) => s + (b.numRooms || 1), 0)
-      const dayRev = activeOnDay.reduce((s, b) => s + (b.nightlyRate || 0) * (b.numRooms || 1), 0)
-      const dayOcc = totalRooms > 0 ? Math.min(100, Math.round((dayRooms / totalRooms) * 100)) : 0
-      const dayArr = dayRooms > 0 ? Math.round(dayRev / dayRooms) : 0
-
-      urnUsed += dayRooms
-      roomRevenue += dayRev
-
-      return {
-        date: dayStr,
-        dayName: format(day, 'EEE'),
-        displayDate: format(day, 'dd MMM'),
-        urn: dayRooms,
-        srn: totalRooms,
-        occupancy: dayOcc,
-        revenue: dayRev,
-        arr: dayArr,
-      }
+    // Daily breakdown map
+    const dailyMap: Record<string, { date: string; occupiedRooms: number; revenue: number }> = {}
+    days.forEach((d) => {
+      const k = format(d, 'yyyy-MM-dd')
+      dailyMap[k] = { date: k, occupiedRooms: 0, revenue: 0 }
     })
 
-    const occupancy = srn > 0 ? Math.min(100, parseFloat(((urnUsed / srn) * 100).toFixed(1))) : 0
+    for (const b of bookings) {
+      const bCheckIn = new Date(b.checkIn)
+      const bCheckOut = new Date(b.checkOut)
+      const bRooms = Math.max(1, b.numRooms || b.bookingRooms.length || 1)
+      const bNightly = b.nightlyRate || (b.totalAmount / Math.max(1, Math.round((bCheckOut.getTime() - bCheckIn.getTime()) / 86400000)))
+
+      // Track source
+      const src = b.source || 'Direct'
+      if (!sourceMap[src]) sourceMap[src] = { count: 0, revenue: 0 }
+      sourceMap[src].count += 1
+      sourceMap[src].revenue += b.totalAmount
+
+      for (const d of days) {
+        if (d >= bCheckIn && d < bCheckOut) {
+          urnUsed += bRooms
+          roomRevenue += bNightly * bRooms
+          const k = format(d, 'yyyy-MM-dd')
+          if (dailyMap[k]) {
+            dailyMap[k].occupiedRooms += bRooms
+            dailyMap[k].revenue += bNightly * bRooms
+          }
+        }
+      }
+    }
+
+    const occupancy = srn > 0 ? Math.min(100, Math.round((urnUsed / srn) * 100)) : 0
     const arr = urnUsed > 0 ? Math.round(roomRevenue / urnUsed) : 0
+
+    const daily = Object.values(dailyMap)
+    const sources = Object.entries(sourceMap).map(([name, val]) => ({
+      name,
+      bookings: val.count,
+      revenue: val.revenue,
+    }))
 
     return NextResponse.json({
       property: {
+        id: property?.id,
         name: property?.name,
-        code: property?.code,
         currencySymbol: property?.currencySymbol || '₹',
       },
-      roomRevenue,
-      urnUsed,
-      srn,
-      occupancy,
-      arr,
+      from: format(from, 'yyyy-MM-dd'),
+      to: format(to, 'yyyy-MM-dd'),
       totalRooms,
-      dailyBreakdown,
+      srn,
+      urnUsed,
+      occupancy,
+      roomRevenue,
+      arr,
+      daily,
+      sources,
     })
   } catch (error: any) {
     console.error('Error calculating reports:', error)
-    return NextResponse.json({ error: 'Failed to generate reports' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to calculate reports' }, { status: 500 })
   }
 }
