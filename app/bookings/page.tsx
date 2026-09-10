@@ -135,7 +135,9 @@ function BookingCard({
         </div>
         <div className="booking-meta">
           <div>
-            {b.numRooms} Room{b.numRooms !== 1 ? 's' : ''}
+            {b.bookingRooms && b.bookingRooms.length > 0
+              ? `Room ${b.bookingRooms.map((br: any) => br.room?.number).filter(Boolean).join(', ')}`
+              : `${b.numRooms} Room${b.numRooms !== 1 ? 's' : ''}`}
           </div>
           <div className="sub">{b.roomCategory}</div>
         </div>
@@ -217,7 +219,9 @@ function BookingCard({
           </div>
           <div className="booking-card-body-item">
             <div>
-              {b.numRooms} Room{b.numRooms !== 1 ? 's' : ''}
+              {b.bookingRooms && b.bookingRooms.length > 0
+                ? `Room ${b.bookingRooms.map((br: any) => br.room?.number).filter(Boolean).join(', ')}`
+                : `${b.numRooms} Room${b.numRooms !== 1 ? 's' : ''}`}
             </div>
             <div className="sub">{b.roomCategory}</div>
           </div>

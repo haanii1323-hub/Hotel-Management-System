@@ -4,6 +4,21 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getTenantContext } from '@/lib/property-helper'
 
+function parseBookingDate(d: string | Date | null | undefined): Date {
+  if (!d) return new Date()
+  if (typeof d === 'string') {
+    const match = d.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (match) {
+      const year = parseInt(match[1], 10)
+      const month = parseInt(match[2], 10) - 1
+      const day = parseInt(match[3], 10)
+      return new Date(year, month, day, 12, 0, 0)
+    }
+  }
+  const dt = new Date(d)
+  return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), 12, 0, 0)
+}
+
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
@@ -13,6 +28,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json([])
     }
 
+    const { searchParams } = new URL(req.url)
+    const checkIn = searchParams.get('checkIn')
+    const checkOut = searchParams.get('checkOut')
+    const excludeBookingId = searchParams.get('excludeBookingId')
+
     const rooms = await prisma.room.findMany({
       where: { propertyId },
       include: {
@@ -21,7 +41,67 @@ export async function GET(req: NextRequest) {
       orderBy: { number: 'asc' },
     })
 
-    return NextResponse.json(rooms)
+    if (checkIn && checkOut) {
+      const d1 = parseBookingDate(checkIn)
+      const d2 = parseBookingDate(checkOut)
+      const conflictEnd = d1.getTime() === d2.getTime() ? new Date(d2.getTime() + 86400000) : d2
+
+      const conflictingBookings = await prisma.booking.findMany({
+        where: {
+          propertyId,
+          ...(excludeBookingId ? { id: { not: excludeBookingId } } : {}),
+          status: { in: ['Upcoming', 'CheckedIn'] },
+          AND: [
+            { checkIn: { lt: conflictEnd } },
+            { checkOut: { gt: d1 } },
+          ],
+        },
+        include: {
+          bookingRooms: true,
+          guest: { select: { name: true } },
+        },
+      })
+
+      const bookedRoomMap = new Map<string, any>()
+      for (const cb of conflictingBookings) {
+        for (const br of cb.bookingRooms) {
+          bookedRoomMap.set(br.roomId, {
+            bookingRef: cb.bookingRef,
+            guestName: cb.guest?.name,
+            status: cb.status,
+            checkIn: cb.checkIn,
+            checkOut: cb.checkOut,
+          })
+        }
+      }
+
+      const enrichedRooms = rooms.map((r) => {
+        const conflict = bookedRoomMap.get(r.id)
+        const isBlocked = r.status === 'Out of Service' || r.status === 'Maintenance'
+        const isAvailable = !conflict && !isBlocked
+        return {
+          ...r,
+          isAvailable,
+          conflictReason: conflict
+            ? `Booked (${conflict.guestName || conflict.bookingRef})`
+            : isBlocked
+            ? r.status
+            : null,
+          conflictingBooking: conflict || null,
+        }
+      })
+
+      return NextResponse.json(enrichedRooms)
+    }
+
+    const simpleEnriched = rooms.map((r) => ({
+      ...r,
+      isAvailable: r.status === 'Available',
+      conflictReason: r.status !== 'Available' ? r.status : null,
+      conflictingBooking: null,
+    }))
+
+    return NextResponse.json(simpleEnriched)
   } catch (error: any) {
     console.error('Error fetching rooms:', error)
     return NextResponse.json({ error: 'Failed to fetch rooms' }, { status: 500 })

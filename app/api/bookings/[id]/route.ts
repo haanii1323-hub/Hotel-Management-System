@@ -83,6 +83,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     kids,
     notes,
     status,
+    roomIds,
+    selectedRoomIds,
   } = body
 
   // 1. Update Guest if fields provided
@@ -116,8 +118,18 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: 'Check-out date cannot be earlier than check-in date' }, { status: 400 })
   }
 
-  const newNumRooms = numRooms !== undefined ? Math.max(1, Number(numRooms)) : booking.numRooms
-  const newCategory = roomCategory !== undefined ? String(roomCategory) : booking.roomCategory
+  const explicitRoomIds: string[] | undefined = Array.isArray(roomIds)
+    ? roomIds
+    : Array.isArray(selectedRoomIds)
+    ? selectedRoomIds
+    : undefined
+
+  let newNumRooms = numRooms !== undefined ? Math.max(1, Number(numRooms)) : booking.numRooms
+  if (explicitRoomIds && explicitRoomIds.length > 0) {
+    newNumRooms = explicitRoomIds.length
+  }
+
+  let newCategory = roomCategory !== undefined ? String(roomCategory) : booking.roomCategory
   const newNightlyRate = nightlyRate !== undefined ? Math.max(0, Number(nightlyRate)) : booking.nightlyRate
 
   const bookingUpdateData: Record<string, unknown> = {
@@ -137,31 +149,75 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const targetStatus = status !== undefined ? status : booking.status
   const conflictEnd = newCheckIn.getTime() === newCheckOut.getTime() ? new Date(newCheckOut.getTime() + 86400000) : newCheckOut
 
-  if (
-    (datesChanged || roomCategory !== undefined || numRooms !== undefined) &&
-    ['Upcoming', 'CheckedIn'].includes(targetStatus)
-  ) {
-    // Check conflicts excluding this booking
-    const conflictingBookings = await prisma.booking.findMany({
+  // Check conflicts excluding this booking
+  const conflictingBookings = await prisma.booking.findMany({
+    where: {
+      propertyId: booking.propertyId,
+      id: { not: booking.id },
+      status: { in: ['Upcoming', 'CheckedIn'] },
+      AND: [
+        { checkIn: { lt: conflictEnd } },
+        { checkOut: { gt: newCheckIn } },
+      ],
+    },
+    include: { bookingRooms: true },
+  })
+
+  const bookedRoomIds = new Set<string>()
+  for (const cb of conflictingBookings) {
+    for (const br of cb.bookingRooms) {
+      bookedRoomIds.add(br.roomId)
+    }
+  }
+
+  if (explicitRoomIds && explicitRoomIds.length > 0) {
+    const selectedRooms = await prisma.room.findMany({
       where: {
+        id: { in: explicitRoomIds },
         propertyId: booking.propertyId,
-        id: { not: booking.id },
-        status: { in: ['Upcoming', 'CheckedIn'] },
-        AND: [
-          { checkIn: { lt: conflictEnd } },
-          { checkOut: { gt: newCheckIn } },
-        ],
       },
-      include: { bookingRooms: true },
+      include: { category: true },
     })
 
-    const bookedRoomIds = new Set<string>()
-    for (const cb of conflictingBookings) {
-      for (const br of cb.bookingRooms) {
-        bookedRoomIds.add(br.roomId)
+    if (selectedRooms.length !== explicitRoomIds.length) {
+      return NextResponse.json({ error: 'One or more selected rooms were not found in this property.' }, { status: 400 })
+    }
+
+    for (const r of selectedRooms) {
+      if (bookedRoomIds.has(r.id)) {
+        return NextResponse.json(
+          {
+            error: `Room ${r.number} is unavailable for ${format(newCheckIn, 'dd MMM')} → ${format(newCheckOut, 'dd MMM yyyy')}. Please select another room.`,
+          },
+          { status: 409 }
+        )
       }
     }
 
+    // Update assigned rooms
+    await prisma.bookingRoom.deleteMany({ where: { bookingId: booking.id } })
+    await prisma.bookingRoom.createMany({
+      data: explicitRoomIds.map((rId) => ({
+        bookingId: booking.id,
+        roomId: rId,
+      })),
+    })
+
+    if (roomCategory === undefined) {
+      const categoryCounts: Record<string, number> = {}
+      for (const r of selectedRooms) {
+        const catName = r.category?.name || 'Standard'
+        categoryCounts[catName] = (categoryCounts[catName] || 0) + 1
+      }
+      newCategory = Object.entries(categoryCounts)
+        .map(([cName, count]) => (count > 1 ? `${count}× ${cName}` : cName))
+        .join(', ')
+      bookingUpdateData.roomCategory = newCategory
+    }
+  } else if (
+    (datesChanged || roomCategory !== undefined || numRooms !== undefined) &&
+    ['Upcoming', 'CheckedIn'].includes(targetStatus)
+  ) {
     const categoryRooms = await prisma.room.findMany({
       where: {
         propertyId: booking.propertyId,

@@ -1,7 +1,25 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { X, Minus, Plus, AlertCircle, BedDouble, PlusCircle, Trash2, Clock } from 'lucide-react'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import {
+  X,
+  Minus,
+  Plus,
+  AlertCircle,
+  BedDouble,
+  Clock,
+  CheckCircle2,
+  Filter,
+  Check,
+  Building2,
+  Trash2,
+  UserCheck,
+  Sparkles,
+  History,
+  Phone,
+  Mail,
+  MapPin,
+} from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 import { format, addDays } from 'date-fns'
 import useSWR from 'swr'
@@ -25,11 +43,25 @@ export const BOOKING_SOURCES = [
   'Walk inn',
 ]
 
-interface RoomSelection {
-  id: string
-  categoryName: string
-  count: number
-  rate: number
+function parseBookingDate(d: string | Date | null | undefined): Date | null {
+  if (!d) return null
+  if (typeof d === 'string') {
+    const match = d.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (match) {
+      const year = parseInt(match[1], 10)
+      const month = parseInt(match[2], 10) - 1
+      const day = parseInt(match[3], 10)
+      return new Date(year, month, day, 12, 0, 0)
+    }
+  }
+  const dt = new Date(d)
+  return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), 12, 0, 0)
+}
+
+function fmtDate(d: string | Date | null | undefined) {
+  const parsed = parseBookingDate(d)
+  if (!parsed) return '—'
+  return format(parsed, 'dd MMM yyyy')
 }
 
 interface Props {
@@ -42,11 +74,6 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
   const { currentProperty } = useProperty()
   const propertyId = currentProperty?.id || ''
   const currencySymbol = currentProperty?.currencySymbol || '₹'
-
-  const { data: categories } = useSWR(
-    propertyId ? `/api/categories?propertyId=${propertyId}` : '/api/categories',
-    fetcher
-  )
 
   const today = format(new Date(), 'yyyy-MM-dd')
   const tomorrow = format(addDays(new Date(), 1), 'yyyy-MM-dd')
@@ -71,100 +98,141 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
     extraMattressRate: 500,
   })
 
-  // Dynamic Room Selections (e.g. 1 Deluxe, 2 Standard)
-  const [roomSelections, setRoomSelections] = useState<RoomSelection[]>([])
+  // Guest Search & Suggestions
+  const [guestSearchQuery, setGuestSearchQuery] = useState('')
+  const [guestSuggestions, setGuestSuggestions] = useState<any[]>([])
+  const [showGuestDropdown, setShowGuestDropdown] = useState(false)
+  const [selectedReturningGuest, setSelectedReturningGuest] = useState<any | null>(null)
+  const [searchingGuests, setSearchingGuests] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Selected Room IDs (explicit manual selection by staff)
+  const [selectedRoomIds, setSelectedRoomIds] = useState<string[]>([])
+  const [customRoomRates, setCustomRoomRates] = useState<Record<string, number>>({})
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('All')
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [conflictError, setConflictError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  // Initialize room selections when categories load
+  // Fetch rooms with live date availability for this property
+  const roomsUrl =
+    propertyId && form.checkIn && form.checkOut
+      ? `/api/rooms?propertyId=${propertyId}&checkIn=${form.checkIn}&checkOut=${form.checkOut}`
+      : propertyId
+      ? `/api/rooms?propertyId=${propertyId}`
+      : null
+
+  const { data: rawRooms, isLoading: loadingRooms } = useSWR(roomsUrl, fetcher)
+  const rooms: any[] = useMemo(() => (Array.isArray(rawRooms) ? rawRooms : []), [rawRooms])
+
+  // Extract unique categories from rooms list
+  const categoryNames = useMemo(() => {
+    const cats = new Set<string>()
+    rooms.forEach((r) => {
+      if (r.category?.name) cats.add(r.category.name)
+    })
+    return Array.from(cats)
+  }, [rooms])
+
+  // Filtered rooms based on active category tab
+  const filteredRooms = useMemo(() => {
+    if (selectedCategoryFilter === 'All') return rooms
+    return rooms.filter((r) => r.category?.name === selectedCategoryFilter)
+  }, [rooms, selectedCategoryFilter])
+
+  // Selected room details list
+  const selectedRooms = useMemo(() => {
+    return rooms.filter((r) => selectedRoomIds.includes(r.id))
+  }, [rooms, selectedRoomIds])
+
+  // Set default room selection once available rooms load
   useEffect(() => {
-    if (categories && categories.length > 0 && roomSelections.length === 0) {
-      const first = categories[0]
-      setRoomSelections([
-        {
-          id: 'room-1',
-          categoryName: first.name,
-          count: 1,
-          rate: Number(first.nightlyRate) || 2500,
-        },
-      ])
+    if (rooms.length > 0 && selectedRoomIds.length === 0) {
+      const firstAvailable = rooms.find((r) => r.isAvailable)
+      if (firstAvailable) {
+        setSelectedRoomIds([firstAvailable.id])
+        setCustomRoomRates((prev) => ({
+          ...prev,
+          [firstAvailable.id]: Number(firstAvailable.category?.nightlyRate) || 2500,
+        }))
+      }
     }
-  }, [categories, roomSelections.length])
+  }, [rooms, selectedRoomIds.length])
+
+  // Debounced lookup for returning guests by name or phone
+  useEffect(() => {
+    const query = guestSearchQuery.trim()
+    if (!query || query.length < 2) {
+      setGuestSuggestions([])
+      setShowGuestDropdown(false)
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setSearchingGuests(true)
+        const res = await fetch(
+          `/api/guests?propertyId=${propertyId}&search=${encodeURIComponent(query)}`
+        )
+        if (res.ok) {
+          const data = await res.json()
+          if (Array.isArray(data) && data.length > 0) {
+            setGuestSuggestions(data.slice(0, 5))
+            setShowGuestDropdown(true)
+          } else {
+            setGuestSuggestions([])
+            setShowGuestDropdown(false)
+          }
+        }
+      } catch {
+        // ignore
+      } finally {
+        setSearchingGuests(false)
+      }
+    }, 250)
+
+    return () => clearTimeout(timer)
+  }, [guestSearchQuery, propertyId])
 
   const upd = (k: string, v: unknown) => {
     setConflictError('')
     setForm((f) => ({ ...f, [k]: v }))
   }
 
-  function handleAddRoomSelection() {
-    if (!categories || categories.length === 0) return
-    const unusedCat = categories.find(
-      (c: any) => !roomSelections.some((rs) => rs.categoryName === c.name)
-    ) || categories[0]
-
-    setRoomSelections((prev) => [
-      ...prev,
-      {
-        id: `room-${Date.now()}`,
-        categoryName: unusedCat.name,
-        count: 1,
-        rate: Number(unusedCat.nightlyRate) || 2500,
-      },
-    ])
+  function handleNameInput(val: string) {
+    upd('guestName', val)
+    if (!selectedReturningGuest || selectedReturningGuest.name !== val) {
+      setSelectedReturningGuest(null)
+    }
+    setGuestSearchQuery(val)
   }
 
-  function handleRemoveRoomSelection(id: string) {
-    if (roomSelections.length <= 1) return
-    setRoomSelections((prev) => prev.filter((rs) => rs.id !== id))
+  function handlePhoneInput(val: string) {
+    upd('phone', val)
+    if (!selectedReturningGuest || selectedReturningGuest.phone !== val) {
+      setSelectedReturningGuest(null)
+    }
+    setGuestSearchQuery(val)
   }
 
-  function handleSelectionChange(id: string, field: 'categoryName' | 'count' | 'rate', value: any) {
-    setRoomSelections((prev) =>
-      prev.map((rs) => {
-        if (rs.id !== id) return rs
-        if (field === 'categoryName') {
-          const match = categories?.find((c: any) => c.name === value)
-          return {
-            ...rs,
-            categoryName: value,
-            rate: match ? Number(match.nightlyRate) : rs.rate,
-          }
-        }
-        return { ...rs, [field]: value }
-      })
-    )
+  function selectGuestProfile(g: any) {
+    setForm((f) => ({
+      ...f,
+      guestName: g.name || f.guestName,
+      phone: g.phone || f.phone,
+      email: g.email || f.email || '',
+      address: g.address || f.address || '',
+    }))
+    setSelectedReturningGuest(g)
+    setShowGuestDropdown(false)
+    setGuestSuggestions([])
+    setGuestSearchQuery('')
+    showToast(`Loaded details for returning guest ${g.name}!`, 'success')
   }
 
-  function calcNights() {
-    if (!form.checkIn || !form.checkOut) return 1
-    const d1 = new Date(form.checkIn).getTime()
-    const d2 = new Date(form.checkOut).getTime()
-    const diff = d2 - d1
-    // Same day stay = 1 day charge
-    return Math.max(1, Math.round(diff / 86400000))
+  function clearReturningGuest() {
+    setSelectedReturningGuest(null)
   }
-
-  const isSameDay = form.checkIn === form.checkOut
-  const nights = calcNights()
-
-  // Room Charges Calculation
-  const totalNumRooms = roomSelections.reduce((sum, item) => sum + (Number(item.count) || 1), 0)
-  const roomChargePerNight = roomSelections.reduce(
-    (sum, item) => sum + (Number(item.rate) || 0) * (Number(item.count) || 1),
-    0
-  )
-  const totalRoomCharges = roomChargePerNight * nights
-
-  // Add-ons Calculation
-  const earlyCheckInFee = form.earlyCheckIn ? Number(form.earlyCheckInAmount || 0) : 0
-  const lateCheckOutFee = form.lateCheckOut ? Number(form.lateCheckOutAmount || 0) : 0
-  const extraMattressFee = (Number(form.extraMattressCount) || 0) * (Number(form.extraMattressRate) || 0) * nights
-  const totalAddons = earlyCheckInFee + lateCheckOutFee + extraMattressFee
-
-  const discountAmount = Number(form.discount || 0)
-  // GST removed -> Total = Room Charges + Addons - Discount
-  const total = Math.max(0, totalRoomCharges + totalAddons - discountAmount)
 
   function handleCheckInChange(newCheckIn: string) {
     setForm((f) => {
@@ -176,6 +244,63 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
     })
   }
 
+  function toggleRoom(room: any) {
+    setConflictError('')
+    if (selectedRoomIds.includes(room.id)) {
+      setSelectedRoomIds((prev) => prev.filter((id) => id !== room.id))
+    } else {
+      if (!room.isAvailable) {
+        showToast(
+          `Room ${room.number} is unavailable for selected dates (${room.conflictReason || 'Booked'}).`,
+          'error'
+        )
+        return
+      }
+      setSelectedRoomIds((prev) => [...prev, room.id])
+      if (customRoomRates[room.id] === undefined) {
+        setCustomRoomRates((prev) => ({
+          ...prev,
+          [room.id]: Number(room.category?.nightlyRate) || 2500,
+        }))
+      }
+    }
+  }
+
+  function handleRoomRateChange(roomId: string, rate: number) {
+    setCustomRoomRates((prev) => ({
+      ...prev,
+      [roomId]: Math.max(0, rate),
+    }))
+  }
+
+  function calcNights() {
+    if (!form.checkIn || !form.checkOut) return 1
+    const d1 = new Date(form.checkIn).getTime()
+    const d2 = new Date(form.checkOut).getTime()
+    const diff = d2 - d1
+    return Math.max(1, Math.round(diff / 86400000))
+  }
+
+  const isSameDay = form.checkIn === form.checkOut
+  const nights = calcNights()
+
+  // Room Charges Calculation
+  const totalNumRooms = selectedRoomIds.length
+  const totalRoomChargePerNight = selectedRooms.reduce((sum, r) => {
+    const rate = customRoomRates[r.id] ?? Number(r.category?.nightlyRate) ?? 2500
+    return sum + rate
+  }, 0)
+  const totalRoomCharges = totalRoomChargePerNight * nights
+
+  // Add-ons Calculation
+  const earlyCheckInFee = form.earlyCheckIn ? Number(form.earlyCheckInAmount || 0) : 0
+  const lateCheckOutFee = form.lateCheckOut ? Number(form.lateCheckOutAmount || 0) : 0
+  const extraMattressFee = (Number(form.extraMattressCount) || 0) * (Number(form.extraMattressRate) || 0) * nights
+  const totalAddons = earlyCheckInFee + lateCheckOutFee + extraMattressFee
+
+  const discountAmount = Number(form.discount || 0)
+  const total = Math.max(0, totalRoomCharges + totalAddons - discountAmount)
+
   function validate() {
     const e: Record<string, string> = {}
     if (!form.guestName.trim()) e.guestName = 'Guest name is required'
@@ -183,9 +308,8 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
     if (!form.checkIn) e.checkIn = 'Check-in date is required'
     if (!form.checkOut) e.checkOut = 'Check-out date is required'
     if (form.checkOut < form.checkIn) e.checkOut = 'Check-out cannot be earlier than check-in'
-    if (totalNumRooms < 1) e.rooms = 'At least 1 room required'
+    if (selectedRoomIds.length === 0) e.rooms = 'Please select at least 1 room number'
     if (form.adults < 1) e.adults = 'At least 1 adult required'
-    if (roomSelections.some((rs) => rs.rate < 0)) e.rates = 'Rate cannot be negative'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -196,11 +320,12 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
     setConflictError('')
 
     const categorySummary =
-      roomSelections.length === 1
-        ? roomSelections[0].categoryName
-        : roomSelections.map((rs) => `${rs.count}× ${rs.categoryName}`).join(', ')
+      selectedRooms.length > 0
+        ? selectedRooms.map((r) => `Room ${r.number} (${r.category?.name || 'Standard'})`).join(', ')
+        : 'Standard'
 
-    const avgNightlyRate = totalNumRooms > 0 ? Math.round(roomChargePerNight / totalNumRooms) : roomChargePerNight
+    const avgNightlyRate =
+      totalNumRooms > 0 ? Math.round(totalRoomChargePerNight / totalNumRooms) : totalRoomChargePerNight
 
     try {
       const res = await fetch('/api/bookings', {
@@ -215,16 +340,16 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
           checkIn: form.checkIn,
           checkOut: form.checkOut,
           numRooms: totalNumRooms,
+          roomIds: selectedRoomIds,
           adults: form.adults,
           kids: form.kids,
           roomCategory: categorySummary,
           nightlyRate: avgNightlyRate,
-          roomSelections,
           earlyCheckIn: earlyCheckInFee,
           lateCheckOut: lateCheckOutFee,
           extraMattressCount: Number(form.extraMattressCount || 0),
           extraMattressRate: Number(form.extraMattressRate || 0),
-          taxAmount: 0, // GST removed
+          taxAmount: 0,
           discountAmount,
           notes: form.notes,
           propertyId,
@@ -238,7 +363,7 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
         }
         showToast(data.error || 'Failed to create booking', 'error')
       } else {
-        showToast(`Booking ${data.bookingRef || ''} created for ${form.guestName}!`, 'success')
+        showToast(`Booking ${data.bookingRef || ''} created with assigned rooms!`, 'success')
         broadcastChange('BOOKING_CREATED', { bookingId: data.id })
         onSuccess(data)
       }
@@ -253,10 +378,13 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
     <div
       className="drawer-overlay"
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
+        if (e.target === e.currentTarget) {
+          setShowGuestDropdown(false)
+          onClose()
+        }
       }}
     >
-      <div className="drawer" style={{ maxWidth: '640px' }}>
+      <div className="drawer" style={{ maxWidth: '680px' }}>
         <div className="drawer-header">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div className="drawer-title">New Reservation</div>
@@ -265,7 +393,7 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
             </button>
           </div>
           <div className="drawer-subtitle">
-            {currentProperty?.name} ({currentProperty?.code})
+            {currentProperty?.name} ({currentProperty?.code}) · Select exact room numbers &amp; guest details
           </div>
         </div>
 
@@ -277,42 +405,203 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
             </div>
           )}
 
-          {/* Guest Details */}
-          <div className="drawer-section">
-            <div className="drawer-section-title">Guest Details</div>
-            <div className="form-group">
-              <label className="form-label">Full Name *</label>
-              <input
-                className="form-control"
-                placeholder="e.g. John Doe"
-                value={form.guestName}
-                onChange={(e) => upd('guestName', e.target.value)}
-              />
-              {errors.guestName && <div className="form-error">{errors.guestName}</div>}
+          {/* Guest Details with Returning Guest Autofill */}
+          <div className="drawer-section" style={{ position: 'relative' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+              <div className="drawer-section-title" style={{ margin: 0 }}>Guest Details</div>
+              {selectedReturningGuest ? (
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: 'rgba(212, 175, 55, 0.15)',
+                    border: '1px solid rgba(212, 175, 55, 0.4)',
+                    color: 'var(--red)',
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                  }}
+                >
+                  <Sparkles size={11} /> Returning Guest ({selectedReturningGuest.totalStays} Past Stays)
+                  <button
+                    type="button"
+                    onClick={clearReturningGuest}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer', padding: 0, marginLeft: 2 }}
+                    title="Clear guest details"
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
+              ) : (
+                <span style={{ fontSize: '11px', color: 'var(--text-3)' }}>
+                  Type name or mobile to auto-suggest previous guests
+                </span>
+              )}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              <div className="form-group">
-                <label className="form-label">Phone Number *</label>
+            {/* Returning guest alert banner if recognized */}
+            {selectedReturningGuest && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '8px 12px',
+                  background: 'rgba(212, 175, 55, 0.08)',
+                  border: '1px solid rgba(212, 175, 55, 0.3)',
+                  borderRadius: '6px',
+                  marginBottom: '12px',
+                  fontSize: '12px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <UserCheck size={16} color="var(--red)" />
+                  <div>
+                    <span style={{ fontWeight: 600, color: 'var(--text)' }}>
+                      {selectedReturningGuest.name}
+                    </span>
+                    <span style={{ color: 'var(--text-2)', marginLeft: '6px' }}>
+                      · {selectedReturningGuest.totalStays} prior visit{selectedReturningGuest.totalStays !== 1 ? 's' : ''} (Last visit: {fmtDate(selectedReturningGuest.lastStay)})
+                    </span>
+                  </div>
+                </div>
+                <span style={{ fontSize: '11px', color: 'var(--green)', fontWeight: 600 }}>Auto-filled</span>
+              </div>
+            )}
+
+            <div style={{ position: 'relative' }}>
+              <div className="form-group" style={{ position: 'relative' }}>
+                <label className="form-label">Full Name *</label>
                 <input
                   className="form-control"
-                  placeholder="e.g. 9876543210"
-                  value={form.phone}
-                  onChange={(e) => upd('phone', e.target.value)}
+                  placeholder="e.g. John Doe (type to search existing guest)"
+                  value={form.guestName}
+                  onChange={(e) => handleNameInput(e.target.value)}
+                  onFocus={() => {
+                    if (guestSuggestions.length > 0) setShowGuestDropdown(true)
+                  }}
+                  autoComplete="off"
                 />
-                {errors.phone && <div className="form-error">{errors.phone}</div>}
+                {errors.guestName && <div className="form-error">{errors.guestName}</div>}
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Email (Optional)</label>
-                <input
-                  className="form-control"
-                  type="email"
-                  placeholder="e.g. john@example.com"
-                  value={form.email}
-                  onChange={(e) => upd('email', e.target.value)}
-                />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div className="form-group">
+                  <label className="form-label">Phone Number *</label>
+                  <input
+                    className="form-control"
+                    placeholder="e.g. 9876543210"
+                    value={form.phone}
+                    onChange={(e) => handlePhoneInput(e.target.value)}
+                    onFocus={() => {
+                      if (guestSuggestions.length > 0) setShowGuestDropdown(true)
+                    }}
+                    autoComplete="off"
+                  />
+                  {errors.phone && <div className="form-error">{errors.phone}</div>}
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Email (Optional)</label>
+                  <input
+                    className="form-control"
+                    type="email"
+                    placeholder="e.g. john@example.com"
+                    value={form.email}
+                    onChange={(e) => upd('email', e.target.value)}
+                  />
+                </div>
               </div>
+
+              {/* Guest Autocomplete Suggestions Dropdown */}
+              {showGuestDropdown && guestSuggestions.length > 0 && (
+                <div
+                  ref={dropdownRef}
+                  style={{
+                    position: 'absolute',
+                    top: '68px',
+                    left: 0,
+                    right: 0,
+                    zIndex: 50,
+                    background: 'var(--card)',
+                    border: '1px solid var(--border-strong, #333)',
+                    borderRadius: '8px',
+                    boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)',
+                    maxHeight: '260px',
+                    overflowY: 'auto',
+                    padding: '6px',
+                  }}
+                >
+                  <div
+                    style={{
+                      padding: '4px 8px',
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      color: 'var(--text-3)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      borderBottom: '1px solid var(--border)',
+                      marginBottom: '4px',
+                    }}
+                  >
+                    <span>Previous Guest Profiles Found ({guestSuggestions.length})</span>
+                    <span>Click to auto-fill details</span>
+                  </div>
+
+                  {guestSuggestions.map((g) => (
+                    <div
+                      key={g.id}
+                      onClick={() => selectGuestProfile(g)}
+                      role="button"
+                      tabIndex={0}
+                      style={{
+                        padding: '8px 10px',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '2px',
+                        transition: 'background 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--card-2)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--text)' }}>
+                            {g.name}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: '10px',
+                              padding: '1px 6px',
+                              borderRadius: '4px',
+                              background: 'rgba(212, 175, 55, 0.15)',
+                              color: 'var(--red)',
+                              fontWeight: 600,
+                            }}
+                          >
+                            ⭐ {g.totalStays} Stay{g.totalStays !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-2)' }}>
+                          📞 {g.phone}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '11px', color: 'var(--text-3)' }}>
+                        {g.email && <span>✉️ {g.email}</span>}
+                        {g.address && <span>📍 {g.address}</span>}
+                        {g.lastStay && <span>Last visit: {fmtDate(g.lastStay)}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="form-group">
@@ -342,7 +631,10 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
               </div>
               <div className="form-group">
                 <label className="form-label">
-                  Check-out Date * {isSameDay && <span style={{ color: 'var(--amber)', fontSize: '11px' }}>(Same-day Stay)</span>}
+                  Check-out Date *{' '}
+                  {isSameDay && (
+                    <span style={{ color: 'var(--amber)', fontSize: '11px' }}>(Same-day Stay)</span>
+                  )}
                 </label>
                 <input
                   type="date"
@@ -383,7 +675,14 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
                     >
                       <Minus size={12} />
                     </button>
-                    <span style={{ fontWeight: 600, fontSize: '13px', width: '20px', textAlign: 'center' }}>
+                    <span
+                      style={{
+                        fontWeight: 600,
+                        fontSize: '13px',
+                        width: '20px',
+                        textAlign: 'center',
+                      }}
+                    >
                       {form.adults}
                     </span>
                     <button
@@ -408,7 +707,14 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
                     >
                       <Minus size={12} />
                     </button>
-                    <span style={{ fontWeight: 600, fontSize: '13px', width: '20px', textAlign: 'center' }}>
+                    <span
+                      style={{
+                        fontWeight: 600,
+                        fontSize: '13px',
+                        width: '20px',
+                        textAlign: 'center',
+                      }}
+                    >
                       {form.kids}
                     </span>
                     <button
@@ -425,126 +731,309 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
             </div>
           </div>
 
-          {/* Multi-Room Category Builder */}
+          {/* Manual Room Number Selection (Chosen by Staff) */}
           <div className="drawer-section">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-              <div className="drawer-section-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <BedDouble size={14} color="var(--red)" /> Room Categories &amp; Allocation ({totalNumRooms} Rooms)
-              </div>
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
-                onClick={handleAddRoomSelection}
-                style={{ fontSize: '11px', color: 'var(--red)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '10px',
+              }}
+            >
+              <div
+                className="drawer-section-title"
+                style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}
               >
-                <PlusCircle size={13} /> Add Another Room Type
-              </button>
+                <BedDouble size={15} color="var(--red)" /> Select Room Number(s) ({selectedRoomIds.length} Selected)
+              </div>
+              {selectedRoomIds.length > 0 && (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setSelectedRoomIds([])}
+                  style={{ fontSize: '11px', color: 'var(--text-3)' }}
+                >
+                  Clear Selection
+                </button>
+              )}
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {roomSelections.map((sel, idx) => (
-                <div
-                  key={sel.id}
+            {/* Category Filter Tabs */}
+            {categoryNames.length > 1 && (
+              <div
+                style={{
+                  display: 'flex',
+                  gap: '6px',
+                  overflowX: 'auto',
+                  paddingBottom: '8px',
+                  marginBottom: '10px',
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategoryFilter('All')}
                   style={{
-                    display: 'grid',
-                    gridTemplateColumns: '2fr 1.2fr 1.5fr auto',
-                    gap: '10px',
-                    alignItems: 'center',
-                    background: 'var(--card-2)',
-                    padding: '10px 12px',
-                    borderRadius: 'var(--radius-sm)',
-                    border: '1px solid var(--border)',
+                    padding: '4px 10px',
+                    borderRadius: '20px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    border:
+                      selectedCategoryFilter === 'All'
+                        ? '1px solid var(--red)'
+                        : '1px solid var(--border)',
+                    background:
+                      selectedCategoryFilter === 'All' ? 'var(--red-dim)' : 'var(--card-2)',
+                    color: selectedCategoryFilter === 'All' ? 'var(--text)' : 'var(--text-2)',
                   }}
                 >
-                  {/* Category Selection */}
-                  <div>
-                    <label style={{ fontSize: '10px', color: 'var(--text-3)', display: 'block', marginBottom: '2px' }}>
-                      Room Type #{idx + 1}
-                    </label>
-                    <select
-                      className="form-control"
-                      value={sel.categoryName}
-                      onChange={(e) => handleSelectionChange(sel.id, 'categoryName', e.target.value)}
-                      style={{ fontSize: '12px', padding: '6px 8px' }}
-                    >
-                      {categories && categories.length > 0 ? (
-                        categories.map((c: any) => (
-                          <option key={c.id} value={c.name}>
-                            {c.name} ({currencySymbol}{c.nightlyRate}/N)
-                          </option>
-                        ))
-                      ) : (
-                        <option value="Classic">Classic</option>
-                      )}
-                    </select>
-                  </div>
-
-                  {/* Quantity Stepper */}
-                  <div>
-                    <label style={{ fontSize: '10px', color: 'var(--text-3)', display: 'block', marginBottom: '2px' }}>
-                      Qty (Rooms)
-                    </label>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-sm"
-                        style={{ padding: '4px 6px', height: '28px' }}
-                        onClick={() => handleSelectionChange(sel.id, 'count', Math.max(1, sel.count - 1))}
-                      >
-                        <Minus size={11} />
-                      </button>
-                      <span style={{ fontWeight: 700, fontSize: '12px', width: '20px', textAlign: 'center' }}>
-                        {sel.count}
-                      </span>
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-sm"
-                        style={{ padding: '4px 6px', height: '28px' }}
-                        onClick={() => handleSelectionChange(sel.id, 'count', sel.count + 1)}
-                      >
-                        <Plus size={11} />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Nightly Rate */}
-                  <div>
-                    <label style={{ fontSize: '10px', color: 'var(--text-3)', display: 'block', marginBottom: '2px' }}>
-                      Rate/Room ({currencySymbol})
-                    </label>
-                    <input
-                      type="number"
-                      className="form-control"
-                      style={{ fontSize: '12px', padding: '6px 8px' }}
-                      value={sel.rate}
-                      onChange={(e) => handleSelectionChange(sel.id, 'rate', Number(e.target.value))}
-                      min={0}
-                    />
-                  </div>
-
-                  {/* Remove action */}
-                  <div>
-                    <label style={{ fontSize: '10px', visibility: 'hidden', display: 'block', marginBottom: '2px' }}>-</label>
+                  All Types ({rooms.length})
+                </button>
+                {categoryNames.map((catName) => {
+                  const count = rooms.filter((r) => r.category?.name === catName).length
+                  const isCatSelected = selectedCategoryFilter === catName
+                  return (
                     <button
+                      key={catName}
                       type="button"
-                      className="btn-icon"
-                      disabled={roomSelections.length <= 1}
-                      onClick={() => handleRemoveRoomSelection(sel.id)}
+                      onClick={() => setSelectedCategoryFilter(catName)}
                       style={{
-                        color: roomSelections.length > 1 ? 'var(--red)' : 'var(--text-3)',
-                        opacity: roomSelections.length > 1 ? 1 : 0.4,
-                        padding: '6px',
+                        padding: '4px 10px',
+                        borderRadius: '20px',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        border: isCatSelected ? '1px solid var(--red)' : '1px solid var(--border)',
+                        background: isCatSelected ? 'var(--red-dim)' : 'var(--card-2)',
+                        color: isCatSelected ? 'var(--text)' : 'var(--text-2)',
                       }}
-                      title="Remove room category"
                     >
-                      <Trash2 size={14} />
+                      {catName} ({count})
                     </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Room Selection Grid */}
+            {loadingRooms ? (
+              <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-3)', fontSize: '12px' }}>
+                Checking room availability for selected dates...
+              </div>
+            ) : filteredRooms.length === 0 ? (
+              <div
+                style={{
+                  padding: '16px',
+                  textAlign: 'center',
+                  background: 'var(--card-2)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--text-3)',
+                  fontSize: '12px',
+                }}
+              >
+                No rooms configured for this property yet.
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
+                  gap: '8px',
+                  maxHeight: '260px',
+                  overflowY: 'auto',
+                  padding: '2px',
+                }}
+              >
+                {filteredRooms.map((room) => {
+                  const isSelected = selectedRoomIds.includes(room.id)
+                  const isAvail = room.isAvailable
+
+                  return (
+                    <div
+                      key={room.id}
+                      onClick={() => toggleRoom(room)}
+                      role="button"
+                      tabIndex={0}
+                      title={
+                        isAvail
+                          ? `Click to ${isSelected ? 'remove' : 'select'} Room ${room.number} (${room.category?.name})`
+                          : `Room ${room.number} is ${room.conflictReason || 'Unavailable'}`
+                      }
+                      style={{
+                        padding: '10px 10px',
+                        borderRadius: 'var(--radius-sm)',
+                        border: isSelected
+                          ? '2px solid var(--red)'
+                          : isAvail
+                          ? '1px solid var(--border)'
+                          : '1px solid rgba(255, 255, 255, 0.05)',
+                        background: isSelected
+                          ? 'var(--red-dim)'
+                          : isAvail
+                          ? 'var(--card-2)'
+                          : 'rgba(255, 255, 255, 0.02)',
+                        cursor: isAvail || isSelected ? 'pointer' : 'not-allowed',
+                        opacity: isAvail || isSelected ? 1 : 0.5,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        gap: '4px',
+                        position: 'relative',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ fontWeight: 700, fontSize: '14px', color: isSelected ? 'var(--red)' : 'var(--text)' }}>
+                          {room.number}
+                        </div>
+                        {isSelected ? (
+                          <div
+                            style={{
+                              width: 16,
+                              height: 16,
+                              borderRadius: '50%',
+                              background: 'var(--red)',
+                              color: '#fff',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <Check size={10} strokeWidth={3} />
+                          </div>
+                        ) : (
+                          <span
+                            style={{
+                              fontSize: '9px',
+                              padding: '2px 5px',
+                              borderRadius: '4px',
+                              fontWeight: 600,
+                              background: isAvail ? 'rgba(74, 222, 128, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                              color: isAvail ? 'var(--green)' : 'var(--red)',
+                            }}
+                          >
+                            {isAvail ? 'Free' : 'Booked'}
+                          </span>
+                        )}
+                      </div>
+
+                      <div style={{ fontSize: '11px', color: 'var(--text-2)', lineHeight: 1.2 }}>
+                        {room.category?.name || 'Classic'}
+                      </div>
+
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          fontSize: '10px',
+                          color: 'var(--text-3)',
+                          marginTop: '2px',
+                        }}
+                      >
+                        <span>Fl {room.floor || 1}</span>
+                        <span style={{ fontWeight: 600, color: 'var(--text)' }}>
+                          {currencySymbol}{room.category?.nightlyRate || 2500}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
 
             {errors.rooms && <div className="form-error" style={{ marginTop: '6px' }}>{errors.rooms}</div>}
+
+            {/* Selected Room Configuration & Custom Rates */}
+            {selectedRooms.length > 0 && (
+              <div
+                style={{
+                  marginTop: '12px',
+                  background: 'var(--card-2)',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--border)',
+                  padding: '10px 12px',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                    color: 'var(--text-3)',
+                    marginBottom: '8px',
+                  }}
+                >
+                  Selected Rooms &amp; Custom Nightly Rates ({nights} {nights > 1 ? 'Nights' : 'Night'})
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {selectedRooms.map((r) => {
+                    const currentRate = customRoomRates[r.id] ?? Number(r.category?.nightlyRate) ?? 2500
+                    return (
+                      <div
+                        key={r.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '6px 8px',
+                          background: 'var(--card)',
+                          borderRadius: '4px',
+                          border: '1px solid var(--border)',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span
+                            style={{
+                              fontWeight: 700,
+                              fontSize: '13px',
+                              background: 'var(--red-dim)',
+                              color: 'var(--red)',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                            }}
+                          >
+                            Room {r.number}
+                          </span>
+                          <span style={{ fontSize: '12px', color: 'var(--text-2)' }}>
+                            {r.category?.name} · Floor {r.floor || 1}
+                          </span>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ fontSize: '11px', color: 'var(--text-3)' }}>{currencySymbol}</span>
+                            <input
+                              type="number"
+                              title="Rate per night for this room"
+                              className="form-control"
+                              style={{ width: '85px', padding: '4px 6px', fontSize: '12px' }}
+                              value={currentRate}
+                              onChange={(e) => handleRoomRateChange(r.id, Number(e.target.value))}
+                              min={0}
+                            />
+                            <span style={{ fontSize: '11px', color: 'var(--text-3)' }}>/N</span>
+                          </div>
+                          <button
+                            type="button"
+                            className="btn-icon"
+                            onClick={() => toggleRoom(r)}
+                            title="Remove this room"
+                            style={{ padding: '4px', color: 'var(--text-3)' }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Add-ons & Extra Charges */}
@@ -566,7 +1055,16 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
                   borderRadius: '6px',
                 }}
               >
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}>
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                  }}
+                >
                   <input
                     type="checkbox"
                     checked={form.earlyCheckIn}
@@ -602,7 +1100,16 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
                   borderRadius: '6px',
                 }}
               >
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}>
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                  }}
+                >
                   <input
                     type="checkbox"
                     checked={form.lateCheckOut}
@@ -641,8 +1148,16 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
                 <div style={{ fontSize: '12px', fontWeight: 600 }}>
                   Extra Mattress / Bed
                   {form.extraMattressCount > 0 && (
-                    <span style={{ fontSize: '11px', color: 'var(--text-2)', marginLeft: '6px', fontWeight: 400 }}>
-                      ({form.extraMattressCount} × {currencySymbol}{form.extraMattressRate} × {nights}N)
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        color: 'var(--text-2)',
+                        marginLeft: '6px',
+                        fontWeight: 400,
+                      }}
+                    >
+                      ({form.extraMattressCount} × {currencySymbol}
+                      {form.extraMattressRate} × {nights}N)
                     </span>
                   )}
                 </div>
@@ -656,7 +1171,14 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
                     >
                       <Minus size={11} />
                     </button>
-                    <span style={{ fontWeight: 700, fontSize: '12px', width: '16px', textAlign: 'center' }}>
+                    <span
+                      style={{
+                        fontWeight: 700,
+                        fontSize: '12px',
+                        width: '16px',
+                        textAlign: 'center',
+                      }}
+                    >
                       {form.extraMattressCount}
                     </span>
                     <button
@@ -701,15 +1223,20 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
             </div>
 
             <div className="bill-summary" style={{ marginTop: '10px' }}>
-              {/* Itemized Room Categories */}
-              {roomSelections.map((sel) => (
-                <div key={sel.id} className="bill-row">
-                  <span>
-                    {sel.count}× {sel.categoryName} ({nights} {nights > 1 ? 'Nights' : isSameDay ? 'Day-use' : 'Night'} @ {currencySymbol}{sel.rate})
-                  </span>
-                  <span>{currencySymbol}{(sel.count * sel.rate * nights).toLocaleString('en-IN')}</span>
-                </div>
-              ))}
+              {/* Itemized Selected Rooms */}
+              {selectedRooms.map((r) => {
+                const rRate = customRoomRates[r.id] ?? Number(r.category?.nightlyRate) ?? 2500
+                return (
+                  <div key={r.id} className="bill-row">
+                    <span>
+                      Room {r.number} ({r.category?.name}) × {nights}{' '}
+                      {nights > 1 ? 'Nights' : isSameDay ? 'Day-use' : 'Night'} @ {currencySymbol}
+                      {rRate.toLocaleString('en-IN')}
+                    </span>
+                    <span>{currencySymbol}{(rRate * nights).toLocaleString('en-IN')}</span>
+                  </div>
+                )
+              })}
 
               {/* Add-ons */}
               {earlyCheckInFee > 0 && (
@@ -726,7 +1253,10 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
               )}
               {extraMattressFee > 0 && (
                 <div className="bill-row">
-                  <span>Extra Mattress ({form.extraMattressCount}× @ {currencySymbol}{form.extraMattressRate} × {nights}N)</span>
+                  <span>
+                    Extra Mattress ({form.extraMattressCount}× @ {currencySymbol}
+                    {form.extraMattressRate} × {nights}N)
+                  </span>
                   <span>+{currencySymbol}{extraMattressFee.toLocaleString('en-IN')}</span>
                 </div>
               )}
@@ -734,13 +1264,15 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
               {discountAmount > 0 && (
                 <div className="bill-row">
                   <span style={{ color: 'var(--green)' }}>Discount</span>
-                  <span style={{ color: 'var(--green)' }}>-{currencySymbol}{discountAmount.toLocaleString('en-IN')}</span>
+                  <span style={{ color: 'var(--green)' }}>
+                    -{currencySymbol}{discountAmount.toLocaleString('en-IN')}
+                  </span>
                 </div>
               )}
 
               <div className="bill-divider" />
               <div className="bill-row total">
-                <span>Total Bill Amount</span>
+                <span>Total Bill Amount ({selectedRoomIds.length} Room{selectedRoomIds.length !== 1 ? 's' : ''})</span>
                 <span>{currencySymbol}{total.toLocaleString('en-IN')}</span>
               </div>
             </div>
@@ -766,7 +1298,7 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
             {loading ? (
               <span className="spinner" style={{ width: 14, height: 14 }} />
             ) : (
-              `Confirm Booking (${currencySymbol}${total.toLocaleString('en-IN')})`
+              `Confirm Reservation · ${currencySymbol}${total.toLocaleString('en-IN')}`
             )}
           </button>
         </div>

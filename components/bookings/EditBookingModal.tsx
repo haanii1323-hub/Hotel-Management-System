@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { X, Minus, Plus, AlertCircle } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { X, Minus, Plus, AlertCircle, BedDouble, Check, Trash2 } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
-import { format, addDays } from 'date-fns'
+import { format } from 'date-fns'
 import useSWR from 'swr'
 import { broadcastChange } from '@/lib/realtime-sync'
 
@@ -43,10 +43,10 @@ interface Props {
 export default function EditBookingModal({ booking, onClose, onSuccess }: Props) {
   const { showToast } = useToast()
   const propertyId = booking.propertyId || ''
-  const { data: categories } = useSWR(
-    propertyId ? `/api/categories?propertyId=${propertyId}` : '/api/categories',
-    fetcher
-  )
+
+  const initialRoomIds = useMemo(() => {
+    return (booking.bookingRooms || []).map((br: any) => br.roomId).filter(Boolean)
+  }, [booking])
 
   const [form, setForm] = useState({
     guestName: booking.guest?.name || '',
@@ -58,53 +58,53 @@ export default function EditBookingModal({ booking, onClose, onSuccess }: Props)
     checkOut: parseDateInput(booking.checkOut),
     roomCategory: booking.roomCategory || '',
     nightlyRate: booking.nightlyRate || 2500,
-    numRooms: booking.numRooms || 1,
     adults: booking.adults || 1,
     kids: booking.kids || 0,
     notes: booking.notes || '',
     discount: booking.discountAmount || 0,
   })
 
+  const [selectedRoomIds, setSelectedRoomIds] = useState<string[]>(initialRoomIds)
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('All')
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [conflictError, setConflictError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    if (categories && categories.length > 0 && !form.roomCategory) {
-      const match = categories.find((c: any) => c.name === booking.roomCategory) || categories[0]
-      setForm((f) => ({
-        ...f,
-        roomCategory: match.name,
-      }))
-    }
-  }, [categories, booking])
+  // Fetch available rooms for property excluding this booking's own conflicts
+  const roomsUrl =
+    propertyId && form.checkIn && form.checkOut
+      ? `/api/rooms?propertyId=${propertyId}&checkIn=${form.checkIn}&checkOut=${form.checkOut}&excludeBookingId=${booking.id}`
+      : propertyId
+      ? `/api/rooms?propertyId=${propertyId}`
+      : null
+
+  const { data: rawRooms, isLoading: loadingRooms } = useSWR(roomsUrl, fetcher)
+  const rooms: any[] = useMemo(() => (Array.isArray(rawRooms) ? rawRooms : []), [rawRooms])
+
+  // Extract unique categories
+  const categoryNames = useMemo(() => {
+    const cats = new Set<string>()
+    rooms.forEach((r) => {
+      if (r.category?.name) cats.add(r.category.name)
+    })
+    return Array.from(cats)
+  }, [rooms])
+
+  // Filtered rooms
+  const filteredRooms = useMemo(() => {
+    if (selectedCategoryFilter === 'All') return rooms
+    return rooms.filter((r) => r.category?.name === selectedCategoryFilter)
+  }, [rooms, selectedCategoryFilter])
+
+  // Selected room details
+  const selectedRooms = useMemo(() => {
+    return rooms.filter((r) => selectedRoomIds.includes(r.id))
+  }, [rooms, selectedRoomIds])
 
   const upd = (k: string, v: unknown) => {
     setConflictError('')
     setForm((f) => ({ ...f, [k]: v }))
   }
-
-  function handleCategoryChange(catName: string) {
-    const match = categories?.find((c: any) => c.name === catName)
-    setForm((f) => ({
-      ...f,
-      roomCategory: catName,
-      nightlyRate: match ? match.nightlyRate : f.nightlyRate,
-    }))
-  }
-
-  function calcNights() {
-    if (!form.checkIn || !form.checkOut) return 1
-    const diff = new Date(form.checkOut).getTime() - new Date(form.checkIn).getTime()
-    return Math.max(1, Math.round(diff / 86400000))
-  }
-
-  const isSameDay = form.checkIn === form.checkOut
-  const nights = calcNights()
-  const subtotal = form.nightlyRate * nights * form.numRooms
-  const discountAmount = Number(form.discount || 0)
-  // GST removed -> Total = subtotal - discount
-  const total = Math.max(0, subtotal - discountAmount)
 
   function handleCheckInChange(newCheckIn: string) {
     setForm((f) => {
@@ -116,6 +116,36 @@ export default function EditBookingModal({ booking, onClose, onSuccess }: Props)
     })
   }
 
+  function toggleRoom(room: any) {
+    setConflictError('')
+    if (selectedRoomIds.includes(room.id)) {
+      if (selectedRoomIds.length <= 1) {
+        showToast('At least 1 room must remain assigned.', 'error')
+        return
+      }
+      setSelectedRoomIds((prev) => prev.filter((id) => id !== room.id))
+    } else {
+      if (!room.isAvailable && !initialRoomIds.includes(room.id)) {
+        showToast(`Room ${room.number} is unavailable for selected dates.`, 'error')
+        return
+      }
+      setSelectedRoomIds((prev) => [...prev, room.id])
+    }
+  }
+
+  function calcNights() {
+    if (!form.checkIn || !form.checkOut) return 1
+    const diff = new Date(form.checkOut).getTime() - new Date(form.checkIn).getTime()
+    return Math.max(1, Math.round(diff / 86400000))
+  }
+
+  const isSameDay = form.checkIn === form.checkOut
+  const nights = calcNights()
+  const numRooms = selectedRoomIds.length > 0 ? selectedRoomIds.length : booking.numRooms || 1
+  const subtotal = form.nightlyRate * nights * numRooms
+  const discountAmount = Number(form.discount || 0)
+  const total = Math.max(0, subtotal - discountAmount)
+
   function validate() {
     const e: Record<string, string> = {}
     if (!form.guestName.trim()) e.guestName = 'Guest name is required'
@@ -123,7 +153,7 @@ export default function EditBookingModal({ booking, onClose, onSuccess }: Props)
     if (!form.checkIn) e.checkIn = 'Check-in date is required'
     if (!form.checkOut) e.checkOut = 'Check-out date is required'
     if (form.checkOut < form.checkIn) e.checkOut = 'Check-out cannot be earlier than check-in'
-    if (form.numRooms < 1) e.numRooms = 'At least 1 room required'
+    if (selectedRoomIds.length === 0) e.rooms = 'At least 1 room must be assigned'
     if (form.adults < 1) e.adults = 'At least 1 adult required'
     if (form.nightlyRate < 0) e.nightlyRate = 'Rate cannot be negative'
     setErrors(e)
@@ -134,13 +164,22 @@ export default function EditBookingModal({ booking, onClose, onSuccess }: Props)
     if (!validate()) return
     setLoading(true)
     setConflictError('')
+
+    const categorySummary =
+      selectedRooms.length > 0
+        ? selectedRooms.map((r) => `Room ${r.number} (${r.category?.name || 'Standard'})`).join(', ')
+        : form.roomCategory
+
     try {
       const res = await fetch(`/api/bookings/${booking.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
-          taxAmount: 0, // GST removed
+          roomCategory: categorySummary,
+          numRooms: selectedRoomIds.length,
+          roomIds: selectedRoomIds,
+          taxAmount: 0,
           discountAmount,
         }),
       })
@@ -170,7 +209,7 @@ export default function EditBookingModal({ booking, onClose, onSuccess }: Props)
       }}
       style={{ zIndex: 1100 }}
     >
-      <div className="modal" style={{ maxWidth: '580px', width: '92%', maxHeight: '90vh', overflowY: 'auto' }}>
+      <div className="modal" style={{ maxWidth: '640px', width: '92%', maxHeight: '90vh', overflowY: 'auto' }}>
         <div className="modal-header">
           <div className="modal-title">
             Edit Booking · {booking.bookingRef}
@@ -178,7 +217,7 @@ export default function EditBookingModal({ booking, onClose, onSuccess }: Props)
               <X size={16} />
             </button>
           </div>
-          <div className="modal-subtitle">Update guest details, dates, rates or room allocation.</div>
+          <div className="modal-subtitle">Update guest details, dates, rates or assign specific room numbers.</div>
         </div>
 
         <div className="modal-body">
@@ -244,7 +283,7 @@ export default function EditBookingModal({ booking, onClose, onSuccess }: Props)
           {/* Stay & Room Details */}
           <div className="drawer-section" style={{ border: 'none', padding: 0, marginBottom: '16px' }}>
             <div className="drawer-section-title" style={{ marginBottom: '10px' }}>
-              Stay &amp; Room Details
+              Stay &amp; Dates
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
@@ -261,7 +300,10 @@ export default function EditBookingModal({ booking, onClose, onSuccess }: Props)
 
               <div className="form-group">
                 <label className="form-label">
-                  Check-out * {isSameDay && <span style={{ color: 'var(--amber)', fontSize: '11px' }}>(Same-day Stay)</span>}
+                  Check-out *{' '}
+                  {isSameDay && (
+                    <span style={{ color: 'var(--amber)', fontSize: '11px' }}>(Same-day Stay)</span>
+                  )}
                 </label>
                 <input
                   type="date"
@@ -274,26 +316,7 @@ export default function EditBookingModal({ booking, onClose, onSuccess }: Props)
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              <div className="form-group">
-                <label className="form-label">Room Category *</label>
-                <select
-                  className="form-control"
-                  value={form.roomCategory}
-                  onChange={(e) => handleCategoryChange(e.target.value)}
-                >
-                  {categories && categories.length > 0 ? (
-                    categories.map((c: any) => (
-                      <option key={c.id} value={c.name}>
-                        {c.name} (₹{c.nightlyRate}/night)
-                      </option>
-                    ))
-                  ) : (
-                    <option value={form.roomCategory}>{form.roomCategory || 'Classic'}</option>
-                  )}
-                </select>
-              </div>
-
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
               <div className="form-group">
                 <label className="form-label">Source</label>
                 <select
@@ -302,36 +325,11 @@ export default function EditBookingModal({ booking, onClose, onSuccess }: Props)
                   onChange={(e) => upd('source', e.target.value)}
                 >
                   {BOOKING_SOURCES.map((s) => (
-                    <option key={s} value={s}>{s}</option>
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
                   ))}
                 </select>
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
-              <div className="form-group">
-                <label className="form-label">Rooms</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm"
-                    style={{ padding: '6px 8px' }}
-                    onClick={() => upd('numRooms', Math.max(1, form.numRooms - 1))}
-                  >
-                    <Minus size={12} />
-                  </button>
-                  <span style={{ fontWeight: 600, fontSize: '13px', width: '20px', textAlign: 'center' }}>
-                    {form.numRooms}
-                  </span>
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm"
-                    style={{ padding: '6px 8px' }}
-                    onClick={() => upd('numRooms', form.numRooms + 1)}
-                  >
-                    <Plus size={12} />
-                  </button>
-                </div>
               </div>
 
               <div className="form-group">
@@ -386,6 +384,147 @@ export default function EditBookingModal({ booking, onClose, onSuccess }: Props)
             </div>
           </div>
 
+          {/* Manual Room Number Selection Grid */}
+          <div className="drawer-section" style={{ border: 'none', padding: 0, marginBottom: '16px' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '8px',
+              }}
+            >
+              <div
+                className="drawer-section-title"
+                style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <BedDouble size={14} color="var(--red)" /> Assigned Room Numbers ({selectedRoomIds.length})
+              </div>
+            </div>
+
+            {/* Category Filter Tabs */}
+            {categoryNames.length > 1 && (
+              <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '6px', marginBottom: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategoryFilter('All')}
+                  style={{
+                    padding: '3px 8px',
+                    borderRadius: '16px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    border:
+                      selectedCategoryFilter === 'All' ? '1px solid var(--red)' : '1px solid var(--border)',
+                    background: selectedCategoryFilter === 'All' ? 'var(--red-dim)' : 'var(--card-2)',
+                    color: selectedCategoryFilter === 'All' ? 'var(--text)' : 'var(--text-2)',
+                  }}
+                >
+                  All ({rooms.length})
+                </button>
+                {categoryNames.map((cName) => (
+                  <button
+                    key={cName}
+                    type="button"
+                    onClick={() => setSelectedCategoryFilter(cName)}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: '16px',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      border:
+                        selectedCategoryFilter === cName ? '1px solid var(--red)' : '1px solid var(--border)',
+                      background: selectedCategoryFilter === cName ? 'var(--red-dim)' : 'var(--card-2)',
+                      color: selectedCategoryFilter === cName ? 'var(--text)' : 'var(--text-2)',
+                    }}
+                  >
+                    {cName}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Rooms Grid */}
+            {loadingRooms ? (
+              <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-3)', fontSize: '12px' }}>
+                Loading room availability...
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
+                  gap: '6px',
+                  maxHeight: '180px',
+                  overflowY: 'auto',
+                  padding: '2px',
+                }}
+              >
+                {filteredRooms.map((room) => {
+                  const isSelected = selectedRoomIds.includes(room.id)
+                  const isAvail = room.isAvailable || initialRoomIds.includes(room.id)
+
+                  return (
+                    <div
+                      key={room.id}
+                      onClick={() => toggleRoom(room)}
+                      role="button"
+                      tabIndex={0}
+                      title={`Room ${room.number} (${room.category?.name})`}
+                      style={{
+                        padding: '6px 8px',
+                        borderRadius: 'var(--radius-sm)',
+                        border: isSelected
+                          ? '2px solid var(--red)'
+                          : isAvail
+                          ? '1px solid var(--border)'
+                          : '1px solid rgba(255, 255, 255, 0.05)',
+                        background: isSelected
+                          ? 'var(--red-dim)'
+                          : isAvail
+                          ? 'var(--card-2)'
+                          : 'rgba(255, 255, 255, 0.02)',
+                        cursor: isAvail || isSelected ? 'pointer' : 'not-allowed',
+                        opacity: isAvail || isSelected ? 1 : 0.5,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: '13px', color: isSelected ? 'var(--red)' : 'var(--text)' }}>
+                          {room.number}
+                        </div>
+                        <div style={{ fontSize: '10px', color: 'var(--text-3)' }}>
+                          {room.category?.name}
+                        </div>
+                      </div>
+                      {isSelected && (
+                        <div
+                          style={{
+                            width: 14,
+                            height: 14,
+                            borderRadius: '50%',
+                            background: 'var(--red)',
+                            color: '#fff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <Check size={9} strokeWidth={3} />
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            {errors.rooms && <div className="form-error" style={{ marginTop: '4px' }}>{errors.rooms}</div>}
+          </div>
+
           {/* Pricing */}
           <div className="drawer-section" style={{ border: 'none', padding: 0 }}>
             <div className="drawer-section-title" style={{ marginBottom: '10px' }}>
@@ -394,7 +533,7 @@ export default function EditBookingModal({ booking, onClose, onSuccess }: Props)
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div className="form-group">
-                <label className="form-label">Nightly Rate (₹) *</label>
+                <label className="form-label">Average Nightly Rate (₹) *</label>
                 <input
                   type="number"
                   className="form-control"
@@ -417,7 +556,7 @@ export default function EditBookingModal({ booking, onClose, onSuccess }: Props)
 
             <div className="bill-summary" style={{ marginTop: '10px' }}>
               <div className="bill-row">
-                <span>Room Charges ({nights}N × {form.numRooms}R @ ₹{form.nightlyRate})</span>
+                <span>Room Charges ({nights}N × {numRooms}R @ ₹{form.nightlyRate})</span>
                 <span>₹{subtotal.toLocaleString('en-IN')}</span>
               </div>
               {discountAmount > 0 && (
