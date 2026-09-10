@@ -416,7 +416,6 @@ export default function PricingPage() {
                     className="room-status-select"
                     value={room.status}
                     onChange={(e) => updateRoomStatus(room.id, e.target.value)}
-                    disabled={room.status === 'Occupied'}
                   >
                     {STATUSES.map((s) => (
                       <option key={s}>{s}</option>
@@ -450,7 +449,7 @@ export default function PricingPage() {
                   <X size={16} />
                 </button>
               </div>
-              <div className="modal-subtitle">Update room number, category, floor, or status</div>
+              <div className="modal-subtitle">Update room number, category, floor, bed type, or status</div>
             </div>
 
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -513,7 +512,6 @@ export default function PricingPage() {
                   className="form-control"
                   value={editForm.status}
                   onChange={(e) => setEditForm((f) => ({ ...f, status: e.target.value }))}
-                  disabled={editingRoom.status === 'Occupied'}
                 >
                   {STATUSES.map((st) => (
                     <option key={st} value={st}>
@@ -521,11 +519,6 @@ export default function PricingPage() {
                     </option>
                   ))}
                 </select>
-                {editingRoom.status === 'Occupied' && (
-                  <span style={{ fontSize: '11px', color: 'var(--amber)', marginTop: '4px', display: 'block' }}>
-                    Status is locked while an active guest is in-house.
-                  </span>
-                )}
               </div>
             </div>
 
