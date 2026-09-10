@@ -276,7 +276,7 @@ export default function PricingPage() {
       </h2>
       {!categories || categories.length === 0 ? (
         <div className="empty-state" style={{ marginBottom: '24px' }}>
-          No room categories configured yet. Click "Add Category" above.
+          No room categories configured yet. Click &quot;Add Category&quot; above.
         </div>
       ) : (
         <div
