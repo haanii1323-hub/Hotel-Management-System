@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { X, Copy, ExternalLink, FileText, QrCode, Banknote, AlertCircle, Settings } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { X, Copy, ExternalLink, FileText, QrCode, Banknote, AlertCircle, Settings, Globe } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useToast } from '@/components/ui/Toast'
 import InvoiceModal from './InvoiceModal'
@@ -32,16 +32,20 @@ export default function CheckoutModal({ booking, onClose, onSuccess }: Props) {
     { revalidateOnFocus: true }
   )
 
-  const availableModes: string[] = []
-  if (config?.cashEnabled !== false) availableModes.push('Cash')
-  if (config?.upiEnabled !== false) availableModes.push('UPI')
-  if (config?.cardEnabled !== false) availableModes.push('Card')
-  if (config?.bankTransferEnabled) availableModes.push('Bank Transfer')
-  if (config?.chequeEnabled) availableModes.push('Cheque')
-  if (config?.otherEnabled) availableModes.push('Others')
-  if (availableModes.length === 0) availableModes.push('Cash', 'UPI')
+  const availableModes: string[] = useMemo(() => {
+    const modes: string[] = []
+    if (config?.cashEnabled !== false) modes.push('Cash')
+    if (config?.upiEnabled !== false) modes.push('UPI')
+    if (config?.cardEnabled !== false) modes.push('Card')
+    modes.push('Online Prepaid')
+    if (config?.bankTransferEnabled) modes.push('Bank Transfer')
+    if (config?.chequeEnabled) modes.push('Cheque')
+    if (config?.otherEnabled) modes.push('Others')
+    if (modes.length === 0) modes.push('Cash', 'UPI', 'Online Prepaid')
+    return modes
+  }, [config])
 
-  const [mode, setMode] = useState(availableModes[0] || 'Cash')
+  const [mode, setMode] = useState('Cash')
   const [payStatus, setPayStatus] = useState('Paid')
   const [utrRef, setUtrRef] = useState('')
   const [loading, setLoading] = useState(false)
@@ -318,15 +322,49 @@ export default function CheckoutModal({ booking, onClose, onSuccess }: Props) {
                   </div>
                 )}
 
-                {/* Reference number (Bank Transfer, Card, Cheque) */}
-                {(mode === 'Bank Transfer' || mode === 'Cheque' || mode === 'Card') && (
+                {/* Online Prepaid Channel Info */}
+                {mode === 'Online Prepaid' && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '10px 14px',
+                      background: 'rgba(59, 130, 246, 0.08)',
+                      border: '1px solid rgba(59, 130, 246, 0.25)',
+                      borderRadius: 'var(--radius-sm)',
+                      marginBottom: '14px',
+                      fontSize: '12px',
+                      color: 'var(--text)',
+                    }}
+                  >
+                    <Globe size={18} color="var(--blue, #3b82f6)" style={{ flexShrink: 0 }} />
+                    <div>
+                      <strong style={{ color: 'var(--text)' }}>Online Prepaid Payment</strong>
+                      <div style={{ color: 'var(--text-2)', fontSize: '11px', marginTop: '2px' }}>
+                        Prepaid booking via OTA channel (Agoda, MMT, Booking.com, Goibibo) or website gateway.
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Reference number (Bank Transfer, Card, Cheque, Online Prepaid) */}
+                {(mode === 'Bank Transfer' || mode === 'Cheque' || mode === 'Card' || mode === 'Online Prepaid') && (
                   <div className="form-group">
                     <label className="form-label">
-                      {mode === 'Card' ? 'Card Transaction / Auth Code' : 'Payment reference number'}
+                      {mode === 'Card'
+                        ? 'Card Transaction / Auth Code'
+                        : mode === 'Online Prepaid'
+                        ? 'Online Reference / OTA Booking ID (Optional)'
+                        : 'Payment reference number'}
                     </label>
                     <input
                       className="form-control"
-                      placeholder="e.g. TXN-882193"
+                      placeholder={
+                        mode === 'Online Prepaid'
+                          ? 'e.g. MMT-981244, AGODA-88319, TXN-9988'
+                          : 'e.g. TXN-882193'
+                      }
                       value={utrRef}
                       onChange={(e) => {
                         setUtrRef(e.target.value)
