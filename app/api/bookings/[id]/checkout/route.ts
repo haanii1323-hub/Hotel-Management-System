@@ -12,11 +12,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
 
   const body = await req.json().catch(() => ({}))
-  const { amount = 0, mode = 'Cash', status: paymentStatus = 'Paid', utrRef, notes } = body
-
-  const numAmount = Number(amount || 0)
-  if (numAmount < 0) return NextResponse.json({ error: 'Invalid payment amount' }, { status: 400 })
-  if (numAmount > 0 && !mode) return NextResponse.json({ error: 'Payment mode is required' }, { status: 400 })
+  const { splits, amount = 0, mode = 'Cash', status: paymentStatus = 'Paid', utrRef, notes } = body
 
   // Find booking by ID or bookingRef
   const booking = await prisma.booking.findFirst({
@@ -41,19 +37,41 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: 'Booking is already checked out.' }, { status: 400 })
   }
 
-  // Save payment if collected now
-  if (numAmount > 0) {
-    await prisma.payment.create({
-      data: {
-        bookingId: booking.id,
-        amount: numAmount,
-        mode: mode || 'Cash',
-        status: paymentStatus || 'Paid',
-        utrRef: utrRef?.trim() || null,
-        notes: notes || null,
-        collectedBy: session?.user?.id || null,
-      },
-    })
+  // Save payments if collected now (either via splits or single amount)
+  if (Array.isArray(splits) && splits.length > 0) {
+    const validSplits = splits.filter((s: any) => Number(s.amount) > 0)
+    if (validSplits.length > 0) {
+      await prisma.$transaction(
+        validSplits.map((s: any) =>
+          prisma.payment.create({
+            data: {
+              bookingId: booking.id,
+              amount: Number(s.amount),
+              mode: s.mode || 'Cash',
+              status: s.status || paymentStatus || 'Paid',
+              utrRef: s.utrRef?.trim() || null,
+              notes: s.notes?.trim() || notes || `Checkout settlement (${s.mode || 'Cash'})`,
+              collectedBy: session?.user?.id || null,
+            },
+          })
+        )
+      )
+    }
+  } else {
+    const numAmount = Number(amount || 0)
+    if (numAmount > 0) {
+      await prisma.payment.create({
+        data: {
+          bookingId: booking.id,
+          amount: numAmount,
+          mode: mode || 'Cash',
+          status: paymentStatus || 'Paid',
+          utrRef: utrRef?.trim() || null,
+          notes: notes || 'Checkout settlement',
+          collectedBy: session?.user?.id || null,
+        },
+      })
+    }
   }
 
   // Calculate total collected
