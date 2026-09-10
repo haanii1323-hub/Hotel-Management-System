@@ -3,13 +3,15 @@
 import { useState } from 'react'
 import useSWR from 'swr'
 import AppShell from '@/components/layout/AppShell'
-import { Check, Plus, Trash2, BedDouble } from 'lucide-react'
+import { Check, Plus, Trash2, BedDouble, Pencil, X } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 import { useProperty } from '@/context/PropertyContext'
 import { broadcastChange, useRealtimeSync } from '@/lib/realtime-sync'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 const STATUSES = ['Available', 'Occupied', 'Cleaning', 'Maintenance', 'Out of Service']
+const BED_TYPES = ['King Bed', 'Queen Bed', 'Twin Beds', 'Single Bed', 'Double Bed']
+
 const statusClass: Record<string, string> = {
   Available: 'available',
   Occupied: 'occupied',
@@ -44,11 +46,23 @@ export default function PricingPage() {
   const [newRoomCat, setNewRoomCat] = useState('')
   const [addingRoom, setAddingRoom] = useState(false)
 
+  // Edit room modal state
+  const [editingRoom, setEditingRoom] = useState<any | null>(null)
+  const [editForm, setEditForm] = useState({
+    number: '',
+    categoryName: '',
+    floor: 1,
+    bedType: 'King Bed',
+    status: 'Available',
+  })
+  const [savingRoomEdit, setSavingRoomEdit] = useState(false)
+
   // Add category form
   const [showAddCat, setShowAddCat] = useState(false)
   const [catName, setCatName] = useState('')
   const [catRate, setCatRate] = useState('')
   const [addingCat, setAddingCat] = useState(false)
+
   useRealtimeSync(() => {
     mutateCategories()
     mutateRooms()
@@ -92,6 +106,46 @@ export default function PricingPage() {
       broadcastChange('ROOM_UPDATED', { roomId, status })
       mutateRooms()
     } else showToast('Failed to update room', 'error')
+  }
+
+  function startEditingRoom(room: any) {
+    setEditingRoom(room)
+    setEditForm({
+      number: room.number || '',
+      categoryName: room.category?.name || '',
+      floor: room.floor || 1,
+      bedType: room.bedType || 'King Bed',
+      status: room.status || 'Available',
+    })
+  }
+
+  async function saveRoomEdit() {
+    if (!editForm.number.trim()) {
+      showToast('Room number cannot be empty', 'error')
+      return
+    }
+    setSavingRoomEdit(true)
+    try {
+      const res = await fetch(`/api/rooms/${editingRoom.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editForm),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        showToast(`Room ${editForm.number} updated successfully!`, 'success')
+        broadcastChange('ROOM_UPDATED', { roomId: editingRoom.id })
+        mutateRooms()
+        mutateCategories()
+        setEditingRoom(null)
+      } else {
+        showToast(data.error || 'Failed to update room', 'error')
+      }
+    } catch {
+      showToast('Network error while updating room', 'error')
+    } finally {
+      setSavingRoomEdit(false)
+    }
   }
 
   async function deleteRoom(roomId: string, roomNumber: string) {
@@ -182,71 +236,78 @@ export default function PricingPage() {
             background: 'var(--card-2)',
             border: '1px solid var(--border)',
             borderRadius: 'var(--radius-sm)',
-            padding: '14px',
-            marginBottom: '16px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            flexWrap: 'wrap',
+            padding: '16px',
+            marginBottom: '20px',
           }}
         >
-          <input
-            className="form-control"
-            style={{ width: '180px' }}
-            placeholder="Category name (e.g. Studio)"
-            value={catName}
-            onChange={(e) => setCatName(e.target.value)}
-          />
-          <input
-            className="form-control"
-            style={{ width: '140px' }}
-            type="number"
-            placeholder={`Rate (${currencySymbol})`}
-            value={catRate}
-            onChange={(e) => setCatRate(e.target.value)}
-          />
-          <button className="btn btn-red btn-sm" onClick={addCategory} disabled={addingCat}>
-            {addingCat ? <span className="spinner" style={{ width: 12, height: 12 }} /> : 'Create Category'}
-          </button>
-          <button className="btn btn-ghost btn-sm" onClick={() => setShowAddCat(false)}>
-            Cancel
-          </button>
+          <div style={{ fontWeight: 600, marginBottom: '10px', fontSize: '13px' }}>
+            Create Room Category for {currentProperty?.name}
+          </div>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <input
+              className="form-control"
+              style={{ width: '180px' }}
+              placeholder="Category name (e.g. Suite)"
+              value={catName}
+              onChange={(e) => setCatName(e.target.value)}
+            />
+            <input
+              className="form-control"
+              style={{ width: '140px' }}
+              type="number"
+              placeholder={`Rate (${currencySymbol})`}
+              value={catRate}
+              onChange={(e) => setCatRate(e.target.value)}
+            />
+            <button className="btn btn-red btn-sm" onClick={addCategory} disabled={addingCat}>
+              {addingCat ? <span className="spinner" style={{ width: 12, height: 12 }} /> : <Plus size={12} />}
+              Create
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setShowAddCat(false)}>
+              Cancel
+            </button>
+          </div>
         </div>
       )}
 
       {/* Category Rate Cards */}
-      {!currentProperty ? (
-        <div className="empty-state" style={{ padding: '60px 20px' }}>
-          <BedDouble size={36} style={{ margin: '0 auto 12px', color: 'var(--text-3)' }} />
-          <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text)', marginBottom: '6px' }}>No Property Selected</div>
-          <div style={{ fontSize: '13px', color: 'var(--text-2)', maxWidth: '400px', margin: '0 auto' }}>Please add or select a property to configure room types and rates.</div>
-        </div>
-      ) : (categories || []).length === 0 ? (
-        <div className="empty-state" style={{ padding: '40px 20px', marginBottom: '24px' }}>
-          <BedDouble size={32} style={{ margin: '0 auto 10px', color: 'var(--text-3)' }} />
-          <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)', marginBottom: '4px' }}>No Room Categories Yet</div>
-          <div style={{ fontSize: '12px', color: 'var(--text-2)', maxWidth: '420px', margin: '0 auto 16px' }}>Create your first room type (e.g. Standard, Deluxe, Suite, Villa) to start adding rooms.</div>
-          <button className="btn btn-red btn-sm" onClick={() => setShowAddCat(true)}>
-            <Plus size={14} /> Add Category
-          </button>
+      <h2 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--text-2)' }}>
+        Room Categories &amp; Nightly Base Rates
+      </h2>
+      {!categories || categories.length === 0 ? (
+        <div className="empty-state" style={{ marginBottom: '24px' }}>
+          No room categories configured yet. Click "Add Category" above.
         </div>
       ) : (
-        <div className="pricing-grid">
-          {(categories || []).map((cat: any) => (
-            <div key={cat.id} className="pricing-card">
-              <div className="pricing-card-name">{cat.name}</div>
-              <div className="pricing-card-meta">
-                {cat.rooms?.length || 0} rooms · Nightly base rate
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+            gap: '12px',
+            marginBottom: '28px',
+          }}
+        >
+          {categories.map((cat: any) => (
+            <div key={cat.id} className="card" style={{ padding: '14px 16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span style={{ fontWeight: 600, fontSize: '14px' }}>{cat.name}</span>
+                <span className="badge badge-gray" style={{ fontSize: '10px' }}>
+                  {cat.totalRooms || 0} Rooms
+                </span>
               </div>
-              <div className="pricing-rate-label">Nightly rate</div>
-              <div className="pricing-rate-row">
-                <span style={{ fontSize: '16px', color: 'var(--text-2)', marginRight: '2px' }}>{currencySymbol}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ color: 'var(--text-3)', fontSize: '13px' }}>{currencySymbol}</span>
                 <input
-                  className="pricing-rate-input"
                   type="number"
-                  value={editRate[cat.id] ?? cat.nightlyRate}
-                  onChange={(e) => setEditRate((prev) => ({ ...prev, [cat.id]: Number(e.target.value) }))}
-                  min={1}
+                  className="form-control"
+                  style={{ width: '100px', padding: '4px 8px', fontSize: '13px', fontWeight: 600 }}
+                  value={editRate[cat.id] !== undefined ? editRate[cat.id] : cat.nightlyRate}
+                  onChange={(e) =>
+                    setEditRate((prev) => ({
+                      ...prev,
+                      [cat.id]: Number(e.target.value),
+                    }))
+                  }
                 />
                 {editRate[cat.id] !== undefined && editRate[cat.id] !== cat.nightlyRate && (
                   <button className="btn btn-red btn-sm" onClick={() => saveRate(cat)} disabled={savingRate[cat.id]}>
@@ -332,14 +393,24 @@ export default function PricingPage() {
                       <div className="room-number">{room.number}</div>
                       <div className="room-category-label">{room.category?.name || cat.name}</div>
                     </div>
-                    <button
-                      className="btn-icon"
-                      style={{ padding: '4px', border: 'none', background: 'none', color: 'var(--text-3)' }}
-                      onClick={() => deleteRoom(room.id, room.number)}
-                      title="Remove room"
-                    >
-                      <Trash2 size={12} />
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                      <button
+                        className="btn-icon"
+                        style={{ padding: '4px', border: 'none', background: 'none', color: 'var(--text-3)' }}
+                        onClick={() => startEditingRoom(room)}
+                        title="Edit room number & details"
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      <button
+                        className="btn-icon"
+                        style={{ padding: '4px', border: 'none', background: 'none', color: 'var(--text-3)' }}
+                        onClick={() => deleteRoom(room.id, room.number)}
+                        title="Remove room"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   </div>
                   <select
                     className="room-status-select"
@@ -357,6 +428,118 @@ export default function PricingPage() {
           </div>
         )
       })}
+
+      {/* Edit Room Modal */}
+      {editingRoom && (
+        <div
+          className="modal-overlay"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setEditingRoom(null)
+          }}
+          style={{ zIndex: 1100 }}
+        >
+          <div className="modal" style={{ maxWidth: '440px', width: '92%' }}>
+            <div className="modal-header">
+              <div className="modal-title">
+                Edit Room · {editingRoom.number}
+                <button
+                  onClick={() => setEditingRoom(null)}
+                  className="btn-icon"
+                  style={{ background: 'none', border: 'none' }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="modal-subtitle">Update room number, category, floor, or status</div>
+            </div>
+
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div className="form-group">
+                <label className="form-label">Room Number *</label>
+                <input
+                  className="form-control"
+                  value={editForm.number}
+                  onChange={(e) => setEditForm((f) => ({ ...f, number: e.target.value }))}
+                  placeholder="e.g. 101"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Room Category *</label>
+                <select
+                  className="form-control"
+                  value={editForm.categoryName}
+                  onChange={(e) => setEditForm((f) => ({ ...f, categoryName: e.target.value }))}
+                >
+                  {(categories || []).map((c: any) => (
+                    <option key={c.id} value={c.name}>
+                      {c.name} ({currencySymbol}{c.nightlyRate}/night)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div className="form-group">
+                  <label className="form-label">Floor</label>
+                  <input
+                    type="number"
+                    className="form-control"
+                    value={editForm.floor}
+                    onChange={(e) => setEditForm((f) => ({ ...f, floor: Number(e.target.value) }))}
+                    min={1}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Bed Type</label>
+                  <select
+                    className="form-control"
+                    value={editForm.bedType}
+                    onChange={(e) => setEditForm((f) => ({ ...f, bedType: e.target.value }))}
+                  >
+                    {BED_TYPES.map((bt) => (
+                      <option key={bt} value={bt}>
+                        {bt}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Room Status</label>
+                <select
+                  className="form-control"
+                  value={editForm.status}
+                  onChange={(e) => setEditForm((f) => ({ ...f, status: e.target.value }))}
+                  disabled={editingRoom.status === 'Occupied'}
+                >
+                  {STATUSES.map((st) => (
+                    <option key={st} value={st}>
+                      {st}
+                    </option>
+                  ))}
+                </select>
+                {editingRoom.status === 'Occupied' && (
+                  <span style={{ fontSize: '11px', color: 'var(--amber)', marginTop: '4px', display: 'block' }}>
+                    Status is locked while an active guest is in-house.
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setEditingRoom(null)} disabled={savingRoomEdit}>
+                Cancel
+              </button>
+              <button className="btn btn-red" onClick={saveRoomEdit} disabled={savingRoomEdit}>
+                {savingRoomEdit ? <span className="spinner" style={{ width: 14, height: 14 }} /> : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   )
 }
