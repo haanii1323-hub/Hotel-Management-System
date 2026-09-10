@@ -162,7 +162,7 @@ export default function DashboardPage() {
               <div style={{ padding: '16px', background: 'var(--card-2)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--red)', marginBottom: '4px' }}>STEP 1</div>
                 <div style={{ fontWeight: 600, fontSize: '13px', marginBottom: '4px' }}>Add Property</div>
-                <div style={{ fontSize: '11px', color: 'var(--text-3)' }}>Enter property name, address, tax rate &amp; check-in times.</div>
+                <div style={{ fontSize: '11px', color: 'var(--text-3)' }}>Enter property name, address &amp; check-in times.</div>
               </div>
               <div style={{ padding: '16px', background: 'var(--card-2)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: '12px', fontWeight: 700, color: '#e5c06e', marginBottom: '4px' }}>STEP 2</div>
@@ -189,7 +189,7 @@ export default function DashboardPage() {
             <div>
               <h1 className="page-title">{currentProperty?.name || 'Hotel Dashboard'}</h1>
               <div style={{ fontSize: '12px', color: 'var(--text-2)', marginTop: '2px' }}>
-                {currentProperty?.code} · {currentProperty?.city}, {currentProperty?.country} · Tax: {currentProperty?.taxRate}%
+                {currentProperty?.code} · {currentProperty?.city}, {currentProperty?.country}
               </div>
             </div>
             <button className="btn btn-red" onClick={() => setShowNewBooking(true)}>

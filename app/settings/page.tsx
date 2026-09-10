@@ -91,7 +91,7 @@ export default function SettingsPage() {
               whiteSpace: 'nowrap',
             }}
           >
-            <Building2 size={15} /> Property Profile &amp; Taxes
+            <Building2 size={15} /> Property Profile
           </button>
 
           <button
@@ -185,12 +185,6 @@ export default function SettingsPage() {
                   <div>
                     <span style={{ color: 'var(--text-3)' }}>Email Address:</span>
                     <div style={{ marginTop: '2px' }}>{currentProperty.email || '—'}</div>
-                  </div>
-                  <div>
-                    <span style={{ color: 'var(--text-3)' }}>Default Tax Rate:</span>
-                    <div style={{ fontWeight: 600, color: 'var(--green)', marginTop: '2px' }}>
-                      {currentProperty.taxRate}% (GST/VAT)
-                    </div>
                   </div>
                   <div>
                     <span style={{ color: 'var(--text-3)' }}>Standard Timings:</span>

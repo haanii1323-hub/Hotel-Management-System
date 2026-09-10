@@ -29,7 +29,7 @@ export default function EditPropertyModal({ property, onClose, onSuccess }: Prop
     website: property.website || '',
     currency: property.currency || 'INR',
     currencySymbol: property.currencySymbol || '₹',
-    taxRate: property.taxRate || 12,
+    taxRate: 0,
     checkInTime: property.checkInTime || '02:00 PM',
     checkOutTime: property.checkOutTime || '11:00 AM',
     coverImage: property.coverImage || '',
@@ -113,7 +113,7 @@ export default function EditPropertyModal({ property, onClose, onSuccess }: Prop
             </button>
           </div>
           <div className="modal-subtitle">
-            Configure {property.code} policies, tax rates, contact information, and operating hours.
+            Configure {property.code} policies, contact information, and operating hours.
           </div>
         </div>
 
@@ -140,7 +140,7 @@ export default function EditPropertyModal({ property, onClose, onSuccess }: Prop
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
               <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label">City</label>
                 <input
@@ -176,9 +176,9 @@ export default function EditPropertyModal({ property, onClose, onSuccess }: Prop
               />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Phone</label>
+                <label className="form-label">Contact Phone</label>
                 <input
                   className="form-control"
                   value={form.phone}
@@ -186,7 +186,7 @@ export default function EditPropertyModal({ property, onClose, onSuccess }: Prop
                 />
               </div>
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Email</label>
+                <label className="form-label">Official Email</label>
                 <input
                   className="form-control"
                   value={form.email}
@@ -195,22 +195,13 @@ export default function EditPropertyModal({ property, onClose, onSuccess }: Prop
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '10px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
               <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label">Currency Symbol</label>
                 <input
                   className="form-control"
                   value={form.currencySymbol}
                   onChange={(e) => handleChange('currencySymbol', e.target.value)}
-                />
-              </div>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Tax Rate (%)</label>
-                <input
-                  className="form-control"
-                  type="number"
-                  value={form.taxRate}
-                  onChange={(e) => handleChange('taxRate', Number(e.target.value))}
                 />
               </div>
               <div className="form-group" style={{ margin: 0 }}>

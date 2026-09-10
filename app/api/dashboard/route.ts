@@ -134,7 +134,7 @@ export async function GET(req: NextRequest) {
         code: property?.code,
         city: property?.city,
         currencySymbol: property?.currencySymbol || '₹',
-        taxRate: property?.taxRate || 12.0,
+        taxRate: property?.taxRate || 0.0,
       },
       kpis: {
         totalProperties,

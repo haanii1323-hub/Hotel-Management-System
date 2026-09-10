@@ -29,7 +29,7 @@ export default function AddPropertyModal({ onClose, onSuccess }: Props) {
     currency: 'INR',
     currencySymbol: '₹',
     timezone: 'Asia/Kolkata',
-    taxRate: 12,
+    taxRate: 0,
     checkInTime: '02:00 PM',
     checkOutTime: '11:00 AM',
     coverImage: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=800&q=80',
@@ -104,7 +104,7 @@ export default function AddPropertyModal({ onClose, onSuccess }: Props) {
             </button>
           </div>
           <div className="modal-subtitle">
-            Configure a separate hotel property with its own inventory, rates, currency, taxes, and bookings.
+            Configure a separate hotel property with its own inventory, rates, currency, and bookings.
           </div>
         </div>
 
@@ -177,22 +177,13 @@ export default function AddPropertyModal({ onClose, onSuccess }: Props) {
             </div>
 
             {/* Financial & Time Policies */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '10px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
               <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label">Currency</label>
                 <input
                   className="form-control"
                   value={form.currency}
                   onChange={(e) => handleChange('currency', e.target.value)}
-                />
-              </div>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Tax Rate (%)</label>
-                <input
-                  className="form-control"
-                  type="number"
-                  value={form.taxRate}
-                  onChange={(e) => handleChange('taxRate', Number(e.target.value))}
                 />
               </div>
               <div className="form-group" style={{ margin: 0 }}>
