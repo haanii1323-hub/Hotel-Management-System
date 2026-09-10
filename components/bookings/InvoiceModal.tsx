@@ -1,41 +1,22 @@
 'use client'
 
+import React from 'react'
 import { X, Printer, QrCode } from 'lucide-react'
 import { format } from 'date-fns'
 import useSWR from 'swr'
 import { QRCodeSVG } from 'qrcode.react'
+import { calculateBookingFinancials, fmtDate, fmtCurrency } from '@/lib/financials'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 interface Props {
   booking: any
-  collected: number
-  balance: number
+  collected?: number
+  balance?: number
   onClose: () => void
 }
 
-function parseBookingDate(d: string | Date | null | undefined): Date | null {
-  if (!d) return null
-  if (typeof d === 'string') {
-    const match = d.match(/^(\d{4})-(\d{2})-(\d{2})/)
-    if (match) {
-      const year = parseInt(match[1], 10)
-      const month = parseInt(match[2], 10) - 1
-      const day = parseInt(match[3], 10)
-      return new Date(year, month, day, 12, 0, 0)
-    }
-  }
-  const dt = new Date(d)
-  return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), 12, 0, 0)
-}
-
-function fmtDate(d: string | Date | null | undefined) {
-  const parsed = parseBookingDate(d)
-  if (!parsed) return '—'
-  return format(parsed, 'dd MMM yyyy')
-}
-
-export default function InvoiceModal({ booking, collected, balance, onClose }: Props) {
+export default function InvoiceModal({ booking, collected: overrideCollected, balance: overrideBalance, onClose }: Props) {
   const property = booking.property || {}
   const propertyId = booking.propertyId || ''
 
@@ -44,10 +25,8 @@ export default function InvoiceModal({ booking, collected, balance, onClose }: P
     fetcher
   )
 
-  const d1 = parseBookingDate(booking.checkIn)
-  const d2 = parseBookingDate(booking.checkOut)
-  const isSameDay = d1 && d2 && d1.toDateString() === d2.toDateString()
-  const nights = d1 && d2 ? Math.max(1, Math.round((d2.getTime() - d1.getTime()) / 86400000)) : 1
+  const fin = calculateBookingFinancials(booking, overrideCollected)
+  const currentBalance = overrideBalance !== undefined ? overrideBalance : fin.balance
 
   // Receipt Number format
   const receiptNo =
@@ -59,21 +38,15 @@ export default function InvoiceModal({ booking, collected, balance, onClose }: P
     window.print()
   }
 
-  // Parse any add-on charges or breakdown recorded in notes
-  const notesText = booking.notes || ''
-  const hasEarlyCheckIn = notesText.includes('Early Check-in:')
-  const hasLateCheckOut = notesText.includes('Late Checkout:')
-  const hasExtraMattress = notesText.includes('Extra Mattress')
-
   return (
     <div
-      className="modal-overlay"
+      className="modal-overlay receipt-modal-overlay"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}
       style={{ zIndex: 1200 }}
     >
-      <div className="modal invoice-modal" style={{ maxWidth: '640px' }}>
+      <div className="modal invoice-modal receipt-print-container" style={{ maxWidth: '640px' }}>
         {/* Receipt Header */}
         <div className="invoice-header">
           <div className="invoice-logo">
@@ -91,7 +64,7 @@ export default function InvoiceModal({ booking, collected, balance, onClose }: P
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontWeight: 800, fontSize: '18px', color: 'var(--text)', letterSpacing: '0.5px' }}>
-              RECEIPT
+              RECEIPT / INVOICE
             </div>
             <div className="invoice-number" style={{ fontWeight: 600 }}>{receiptNo}</div>
             <div style={{ fontSize: '11px', color: 'var(--text-2)' }}>{format(new Date(), 'dd MMM yyyy')}</div>
@@ -108,48 +81,56 @@ export default function InvoiceModal({ booking, collected, balance, onClose }: P
               </div>
               {booking.guest?.phone && <div className="invoice-val">Phone: {booking.guest.phone}</div>}
               {booking.guest?.email && <div className="invoice-val">Email: {booking.guest.email}</div>}
+              {booking.guest?.address && <div className="invoice-val">Address: {booking.guest.address}</div>}
             </div>
             <div>
-              <div className="invoice-label">Booking Reference</div>
+              <div className="invoice-label">Reservation Details</div>
               <div className="invoice-val" style={{ fontWeight: 600 }}>{booking.bookingRef}</div>
               <div className="invoice-val">Source: <strong>{booking.source}</strong></div>
               <div className="invoice-val">
                 Stay: {fmtDate(booking.checkIn)} → {fmtDate(booking.checkOut)}
-                {isSameDay ? ' (Same-day)' : ` (${nights}N)`}
+                {fin.isSameDay ? ' (Same-day 1D)' : ` (${fin.nights}N)`}
+              </div>
+              <div className="invoice-val">
+                Rooms: {fin.numRooms} Room{fin.numRooms > 1 ? 's' : ''} ({booking.roomCategory})
               </div>
             </div>
           </div>
 
-          {/* Line items table */}
+          {/* Itemized Line Items Table */}
           <table className="invoice-table">
             <thead>
               <tr>
                 <th>Description</th>
                 <th style={{ textAlign: 'center' }}>Qty</th>
-                <th style={{ textAlign: 'right' }}>Duration</th>
+                <th style={{ textAlign: 'right' }}>Rate / Duration</th>
                 <th style={{ textAlign: 'right' }}>Amount</th>
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td>
-                  <div style={{ fontWeight: 600 }}>{booking.roomCategory}</div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-2)' }}>
-                    Room Reservation ({booking.numRooms} Room{booking.numRooms !== 1 ? 's' : ''})
-                  </div>
-                </td>
-                <td style={{ textAlign: 'center' }}>{booking.numRooms}</td>
-                <td style={{ textAlign: 'right' }}>
-                  {isSameDay ? 'Same-day (1D)' : `${nights} Night${nights !== 1 ? 's' : ''}`}
-                </td>
-                <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                  ₹{(booking.totalAmount || 0).toLocaleString('en-IN')}
-                </td>
-              </tr>
+              {fin.lineItems.map((item) => (
+                <tr key={item.id}>
+                  <td>
+                    <div style={{ fontWeight: 600 }}>{item.description}</div>
+                    {item.subtext && (
+                      <div style={{ fontSize: '11px', color: 'var(--text-2)' }}>
+                        {item.subtext}
+                      </div>
+                    )}
+                  </td>
+                  <td style={{ textAlign: 'center' }}>{item.qty}</td>
+                  <td style={{ textAlign: 'right' }}>
+                    {item.rate ? `${fmtCurrency(item.rate)} · ` : ''}{item.duration || '—'}
+                  </td>
+                  <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                    {fmtCurrency(item.amount)}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
 
-          {/* Notes / Special Instructions if any */}
+          {/* Notes / Particulars */}
           {booking.notes && (
             <div
               style={{
@@ -158,39 +139,56 @@ export default function InvoiceModal({ booking, collected, balance, onClose }: P
                 background: 'var(--card-2)',
                 padding: '8px 12px',
                 borderRadius: '4px',
-                marginBottom: '12px',
+                marginBottom: '14px',
                 border: '1px solid var(--border)',
               }}
             >
-              <strong>Particulars:</strong> {booking.notes}
+              <strong>Particulars / Notes:</strong> {booking.notes}
             </div>
           )}
 
           {/* Totals Breakdown */}
           <div className="invoice-totals">
-            <div className="invoice-total-row">
-              <span>Total Charges</span>
-              <span>₹{(booking.totalAmount || 0).toLocaleString('en-IN')}</span>
-            </div>
-            {booking.discountAmount > 0 && (
+            {fin.discount > 0 || fin.addOnsTotal > 0 || fin.tax > 0 ? (
+              <div className="invoice-total-row">
+                <span>Subtotal (Gross Charges)</span>
+                <span>{fmtCurrency(fin.grossTotal)}</span>
+              </div>
+            ) : null}
+
+            {fin.discount > 0 && (
               <div className="invoice-total-row">
                 <span style={{ color: 'var(--green)' }}>Discount Applied</span>
-                <span style={{ color: 'var(--green)' }}>-₹{Number(booking.discountAmount).toLocaleString('en-IN')}</span>
+                <span style={{ color: 'var(--green)' }}>- {fmtCurrency(fin.discount)}</span>
               </div>
             )}
-            <div className="invoice-total-row">
-              <span style={{ color: 'var(--green)', fontWeight: 600 }}>Total Collected</span>
-              <span style={{ color: 'var(--green)', fontWeight: 600 }}>₹{collected.toLocaleString('en-IN')}</span>
+
+            {fin.tax > 0 && (
+              <div className="invoice-total-row">
+                <span>Taxes &amp; Fees</span>
+                <span>+ {fmtCurrency(fin.tax)}</span>
+              </div>
+            )}
+
+            <div className="invoice-total-row" style={{ fontWeight: 700, fontSize: '14.5px', borderTop: '1px solid var(--border)', paddingTop: '6px' }}>
+              <span>Total Bill (Net Payable)</span>
+              <span>{fmtCurrency(fin.totalAmount)}</span>
             </div>
+
+            <div className="invoice-total-row">
+              <span style={{ color: 'var(--green)', fontWeight: 600 }}>Total Collected / Paid</span>
+              <span style={{ color: 'var(--green)', fontWeight: 600 }}>{fmtCurrency(fin.collected)}</span>
+            </div>
+
             <div className="invoice-total-row bold">
               <span>Balance Due</span>
-              <span style={{ color: balance > 0 ? 'var(--amber)' : 'var(--green)' }}>
-                {balance > 0 ? `₹${balance.toLocaleString('en-IN')}` : '₹0 (Fully Settled)'}
+              <span style={{ color: currentBalance > 0 ? 'var(--amber)' : 'var(--green)' }}>
+                {currentBalance > 0 ? fmtCurrency(currentBalance) : '₹0 (Fully Settled)'}
               </span>
             </div>
           </div>
 
-          {/* Payment History */}
+          {/* Payment Records History */}
           {booking.payments && booking.payments.length > 0 && (
             <div style={{ marginTop: '16px' }}>
               <div
@@ -203,7 +201,7 @@ export default function InvoiceModal({ booking, collected, balance, onClose }: P
                   fontWeight: 700,
                 }}
               >
-                Payment Records
+                Payment Records ({booking.payments.length})
               </div>
               {booking.payments.map((p: any, i: number) => (
                 <div
@@ -217,16 +215,16 @@ export default function InvoiceModal({ booking, collected, balance, onClose }: P
                   }}
                 >
                   <span style={{ color: 'var(--text-2)' }}>
-                    {p.mode} · <strong style={{ color: 'var(--green)' }}>{p.status}</strong> {p.utrRef ? `(Ref: ${p.utrRef})` : ''}
+                    {p.mode} · <strong style={{ color: p.status === 'Paid' ? 'var(--green)' : 'var(--amber)' }}>{p.status || 'Paid'}</strong> {p.utrRef ? `(Ref: ${p.utrRef})` : ''} · {p.createdAt ? format(new Date(p.createdAt), 'dd MMM yyyy, hh:mm a') : '—'}
                   </span>
-                  <span style={{ fontWeight: 600 }}>₹{p.amount.toLocaleString('en-IN')}</span>
+                  <span style={{ fontWeight: 600 }}>{fmtCurrency(p.amount)}</span>
                 </div>
               ))}
             </div>
           )}
 
           {/* Custom QR Code & Payment Information Footer */}
-          {(config?.qrCodeUrl || config?.upiId || config?.bankAccountNumber) && balance > 0 && (
+          {(config?.qrCodeUrl || config?.upiId || config?.bankAccountNumber) && currentBalance > 0 && (
             <div
               style={{
                 display: 'flex',
@@ -247,13 +245,13 @@ export default function InvoiceModal({ booking, collected, balance, onClose }: P
                 />
               ) : config.upiId ? (
                 <div style={{ background: '#fff', padding: 3, borderRadius: 4 }}>
-                  <QRCodeSVG value={`upi://pay?pa=${config.upiId}&pn=${encodeURIComponent(property.name || 'Hotel')}&am=${balance}&cu=INR`} size={62} />
+                  <QRCodeSVG value={`upi://pay?pa=${config.upiId}&pn=${encodeURIComponent(property.name || 'Hotel')}&am=${currentBalance}&cu=INR`} size={62} />
                 </div>
               ) : null}
 
               <div style={{ fontSize: '11px', color: 'var(--text-2)', lineHeight: '1.4' }}>
                 <div style={{ fontWeight: 700, color: 'var(--text)', fontSize: '12px', marginBottom: '2px' }}>
-                  Payment Information
+                  Payment Information · Settle {fmtCurrency(currentBalance)}
                 </div>
                 {config.upiId && (
                   <div>UPI ID: <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--red)' }}>{config.upiId}</span></div>

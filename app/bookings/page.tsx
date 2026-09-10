@@ -14,6 +14,7 @@ import {
   Plus,
   RefreshCw,
   X,
+  Pencil,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import NewBookingDrawer from '@/components/bookings/NewBookingDrawer'
@@ -185,7 +186,20 @@ function BookingCard({
             </button>
           )}
           {b.status === 'CheckedOut' && (
-            <span className="badge badge-green">Checked out</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span className="badge badge-green">Checked out</span>
+              <button
+                className="btn btn-ghost btn-sm"
+                style={{ padding: '4px 8px', fontSize: '11px', gap: '4px' }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onSelect(b)
+                }}
+                title="View / Edit Booking"
+              >
+                <Pencil size={12} /> Edit
+              </button>
+            </div>
           )}
           {b.status === 'NoShow' && (
             <span className="badge badge-gray">No show</span>
@@ -278,6 +292,18 @@ function BookingCard({
                 }}
               >
                 Checkout
+              </button>
+            )}
+            {b.status === 'CheckedOut' && (
+              <button
+                className="btn btn-ghost btn-sm"
+                style={{ padding: '8px 14px', gap: '6px' }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onSelect(b)
+                }}
+              >
+                <Pencil size={13} /> Edit / Manage
               </button>
             )}
           </div>

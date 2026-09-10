@@ -28,6 +28,8 @@ import PaymentReceiptModal from './PaymentReceiptModal'
 import { useToast } from '@/components/ui/Toast'
 import { broadcastChange } from '@/lib/realtime-sync'
 
+import { calculateBookingFinancials, fmtCurrency } from '@/lib/financials'
+
 function fmt(n: number) {
   return `₹${Number(n || 0).toLocaleString('en-IN')}`
 }
@@ -51,14 +53,6 @@ function fmtDate(d: string | Date | null | undefined) {
   const parsed = parseBookingDate(d)
   if (!parsed) return '—'
   return format(parsed, 'dd MMM yyyy')
-}
-
-function nights(checkIn: string, checkOut: string) {
-  if (!checkIn || !checkOut) return 1
-  const d1 = parseBookingDate(checkIn)
-  const d2 = parseBookingDate(checkOut)
-  if (!d1 || !d2) return 1
-  return Math.max(1, Math.round((d2.getTime() - d1.getTime()) / 86400000))
 }
 
 interface Props {
@@ -87,13 +81,10 @@ export default function BookingDetailsModal({
 
   if (!booking) return null
 
-  const collected =
-    booking.payments?.reduce(
-      (s: number, p: any) => s + (p.status !== 'Pending' ? p.amount : 0),
-      0
-    ) || 0
-  const balance = Math.max(0, (booking.totalAmount || 0) - collected)
-  const numNights = nights(booking.checkIn, booking.checkOut)
+  const fin = calculateBookingFinancials(booking)
+  const collected = fin.collected
+  const balance = fin.balance
+  const numNights = fin.nights
 
   const assignedRooms =
     booking.bookingRooms && booking.bookingRooms.length > 0
@@ -187,17 +178,17 @@ export default function BookingDetailsModal({
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {booking.status !== 'Cancelled' && booking.status !== 'CheckedOut' && (
+              {booking.status !== 'Cancelled' && (
                 <button
                   className="btn btn-ghost btn-sm"
                   onClick={() => setShowEdit(true)}
                   style={{ gap: '5px', fontSize: '12px', padding: '6px 10px' }}
-                  title="Edit booking"
+                  title="Edit booking details"
                 >
                   <Pencil size={13} /> Edit
                 </button>
               )}
-              {booking.status !== 'Cancelled' && booking.status !== 'CheckedOut' && (
+              {booking.status !== 'Cancelled' && (
                 <button
                   className="btn btn-ghost btn-sm"
                   onClick={handleCancelBooking}
@@ -386,16 +377,46 @@ export default function BookingDetailsModal({
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
                   <span style={{ color: 'var(--text-2)' }}>
-                    Room Rate ({booking.roomCategory} × {booking.numRooms} × {numNights}N)
+                    Room Charges ({booking.roomCategory} × {fin.numRooms} × {fin.isSameDay ? '1D' : `${fin.nights}N`})
                   </span>
-                  <span style={{ color: 'var(--text)', fontWeight: 500 }}>
-                    {fmt(booking.nightlyRate || 0)} / night
+                  <span style={{ color: 'var(--text)', fontWeight: 600 }}>
+                    {fmt(fin.baseRoomCharges)}
                   </span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                  <span style={{ color: 'var(--text-2)' }}>Total Room Charges</span>
-                  <span style={{ color: 'var(--text)', fontWeight: 600 }}>{fmt(booking.totalAmount)}</span>
+
+                {fin.earlyCheckIn > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                    <span style={{ color: 'var(--text-2)' }}>Early Check-in Fee</span>
+                    <span style={{ color: 'var(--text)', fontWeight: 500 }}>+{fmt(fin.earlyCheckIn)}</span>
+                  </div>
+                )}
+
+                {fin.lateCheckOut > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                    <span style={{ color: 'var(--text-2)' }}>Late Checkout Fee</span>
+                    <span style={{ color: 'var(--text)', fontWeight: 500 }}>+{fmt(fin.lateCheckOut)}</span>
+                  </div>
+                )}
+
+                {fin.extraMattress > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                    <span style={{ color: 'var(--text-2)' }}>Extra Mattress ({fin.extraMattressCount}× @ {fmt(fin.extraMattressRate)}/N × {fin.nights}N)</span>
+                    <span style={{ color: 'var(--text)', fontWeight: 500 }}>+{fmt(fin.extraMattress)}</span>
+                  </div>
+                )}
+
+                {fin.discount > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                    <span style={{ color: 'var(--green)' }}>Discount Applied</span>
+                    <span style={{ color: 'var(--green)', fontWeight: 500 }}>-{fmt(fin.discount)}</span>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13.5px', fontWeight: 600, borderTop: '1px solid var(--border)', paddingTop: '4px' }}>
+                  <span>Total Bill</span>
+                  <span style={{ color: 'var(--text)', fontWeight: 700 }}>{fmt(fin.totalAmount)}</span>
                 </div>
+
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
                   <span style={{ color: 'var(--green)' }}>Total Collected</span>
                   <span style={{ color: 'var(--green)', fontWeight: 600 }}>{fmt(collected)}</span>
@@ -527,6 +548,25 @@ export default function BookingDetailsModal({
               >
                 <FileText size={14} /> View / Print Receipt
               </button>
+              {booking.status !== 'Cancelled' && (
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setShowEdit(true)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Pencil size={13} /> Edit Booking
+                </button>
+              )}
+              {booking.status !== 'Cancelled' && (
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={handleCancelBooking}
+                  disabled={cancelling}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--red)' }}
+                >
+                  <Ban size={13} /> {cancelling ? 'Cancelling...' : 'Cancel Booking'}
+                </button>
+              )}
             </div>
 
             {/* Right side contextual status actions */}

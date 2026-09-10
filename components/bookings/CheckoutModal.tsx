@@ -21,6 +21,7 @@ import InvoiceModal from './InvoiceModal'
 import { broadcastChange } from '@/lib/realtime-sync'
 import useSWR from 'swr'
 import Link from 'next/link'
+import { calculateBookingFinancials, fmtCurrency } from '@/lib/financials'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 const PAYMENT_STATUSES = ['Paid', 'Pending', 'Partially Paid']
@@ -65,12 +66,9 @@ export default function CheckoutModal({ booking, onClose, onSuccess }: Props) {
     return modes
   }, [config])
 
-  const collected =
-    booking.payments?.reduce(
-      (s: number, p: any) => s + (p.status !== 'Pending' ? p.amount : 0),
-      0
-    ) || 0
-  const balance = Math.max(0, (booking.totalAmount || 0) - collected)
+  const fin = calculateBookingFinancials(booking)
+  const collected = fin.collected
+  const balance = fin.balance
 
   const [payStatus, setPayStatus] = useState('Paid')
   const [loading, setLoading] = useState(false)
@@ -216,8 +214,24 @@ export default function CheckoutModal({ booking, onClose, onSuccess }: Props) {
               }}
             >
               <div className="bill-row">
-                <span>Room Charges ({booking.numRooms} Room · {booking.roomCategory})</span>
-                <span>{fmt(booking.totalAmount)}</span>
+                <span>Room Charges ({fin.numRooms} Room · {booking.roomCategory})</span>
+                <span>{fmt(fin.baseRoomCharges)}</span>
+              </div>
+              {fin.addOnsTotal > 0 && (
+                <div className="bill-row">
+                  <span style={{ color: 'var(--text-2)' }}>Add-ons &amp; Extras</span>
+                  <span>+{fmt(fin.addOnsTotal)}</span>
+                </div>
+              )}
+              {fin.discount > 0 && (
+                <div className="bill-row">
+                  <span style={{ color: 'var(--green)' }}>Discount Applied</span>
+                  <span style={{ color: 'var(--green)' }}>-{fmt(fin.discount)}</span>
+                </div>
+              )}
+              <div className="bill-row" style={{ borderTop: '1px solid var(--border)', paddingTop: '6px', fontWeight: 600 }}>
+                <span>Total Bill</span>
+                <span>{fmt(fin.totalAmount)}</span>
               </div>
               <div className="bill-row">
                 <span style={{ color: 'var(--text-2)' }}>Already Paid</span>

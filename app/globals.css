@@ -1767,6 +1767,95 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .invoice-total-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13.5px; }
 .invoice-total-row.bold { font-weight: 800; font-size: 16px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); color: #ffffff; }
 
+/* ===== PRINT STYLES FOR RECEIPTS ===== */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #111827 !important;
+  }
+
+  .receipt-modal-overlay,
+  .receipt-print-container,
+  .receipt-print-container * {
+    visibility: visible !important;
+  }
+
+  .receipt-modal-overlay {
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+    width: 100% !important;
+  }
+
+  .receipt-print-container {
+    position: static !important;
+    transform: none !important;
+    box-shadow: none !important;
+    border: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    background: #ffffff !important;
+    color: #111827 !important;
+    padding: 0 !important;
+  }
+
+  .invoice-header {
+    border-bottom: 2px solid #e5e7eb !important;
+    padding: 16px 0 !important;
+  }
+
+  .invoice-brand {
+    color: #111827 !important;
+  }
+
+  .invoice-number {
+    color: #4b5563 !important;
+  }
+
+  .invoice-body {
+    padding: 16px 0 !important;
+    color: #111827 !important;
+  }
+
+  .invoice-val, .invoice-guest-box {
+    color: #111827 !important;
+  }
+
+  .invoice-table th {
+    color: #4b5563 !important;
+    border-bottom: 2px solid #e5e7eb !important;
+  }
+
+  .invoice-table td {
+    color: #111827 !important;
+    border-bottom: 1px solid #e5e7eb !important;
+  }
+
+  .invoice-total-row {
+    color: #111827 !important;
+  }
+
+  .invoice-total-row.bold {
+    color: #111827 !important;
+    border-top: 2px solid #111827 !important;
+  }
+
+  .no-print,
+  .modal-footer,
+  .invoice-actions,
+  .btn-icon {
+    display: none !important;
+    visibility: hidden !important;
+  }
+}
+
 /* ===== SEARCH RESULTS ===== */
 .search-results {
   position: absolute;

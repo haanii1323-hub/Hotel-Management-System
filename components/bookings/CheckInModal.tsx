@@ -7,33 +7,14 @@ import { useToast } from '@/components/ui/Toast'
 import useSWR from 'swr'
 import { broadcastChange } from '@/lib/realtime-sync'
 
+import { calculateBookingFinancials, fmtDate, fmtCurrency } from '@/lib/financials'
+
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 interface Props {
   booking: any
   onClose: () => void
   onSuccess: () => void
-}
-
-function parseBookingDate(d: string | Date | null | undefined): Date | null {
-  if (!d) return null
-  if (typeof d === 'string') {
-    const match = d.match(/^(\d{4})-(\d{2})-(\d{2})/)
-    if (match) {
-      const year = parseInt(match[1], 10)
-      const month = parseInt(match[2], 10) - 1
-      const day = parseInt(match[3], 10)
-      return new Date(year, month, day, 12, 0, 0)
-    }
-  }
-  const dt = new Date(d)
-  return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), 12, 0, 0)
-}
-
-function fmtDate(d: string | Date | null | undefined) {
-  const parsed = parseBookingDate(d)
-  if (!parsed) return '—'
-  return format(parsed, 'dd MMM yyyy')
 }
 
 export default function CheckInModal({ booking, onClose, onSuccess }: Props) {
@@ -53,15 +34,10 @@ export default function CheckInModal({ booking, onClose, onSuccess }: Props) {
   const initialRoomIds = (booking.bookingRooms || []).map((br: any) => br.roomId)
   const [selectedRoomIds, setSelectedRoomIds] = useState<string[]>(initialRoomIds)
 
-  const collected =
-    booking.payments?.reduce(
-      (s: number, p: any) => s + (p.status !== 'Pending' ? p.amount : 0),
-      0
-    ) || 0
-  const balance = Math.max(0, (booking.totalAmount || 0) - collected)
-  const d1 = parseBookingDate(booking.checkIn)
-  const d2 = parseBookingDate(booking.checkOut)
-  const nights = d1 && d2 ? Math.max(1, Math.round((d2.getTime() - d1.getTime()) / 86400000)) : 1
+  const fin = calculateBookingFinancials(booking)
+  const collected = fin.collected
+  const balance = fin.balance
+  const nights = fin.nights
 
   function toggleRoom(roomId: string) {
     if (selectedRoomIds.includes(roomId)) {
@@ -154,21 +130,43 @@ export default function CheckInModal({ booking, onClose, onSuccess }: Props) {
               </span>
             </div>
             <div className="bill-divider" />
-            <div className="bill-row total">
-              <span>Total Amount</span>
-              <span>₹{(booking.totalAmount || 0).toLocaleString('en-IN')}</span>
+            <div className="bill-row">
+              <span style={{ color: 'var(--text-2)' }}>Room Charges</span>
+              <span>{fmtCurrency(fin.baseRoomCharges)}</span>
             </div>
+            {fin.addOnsTotal > 0 && (
+              <div className="bill-row">
+                <span style={{ color: 'var(--text-2)' }}>Add-ons</span>
+                <span>+{fmtCurrency(fin.addOnsTotal)}</span>
+              </div>
+            )}
+            {fin.discount > 0 && (
+              <div className="bill-row">
+                <span style={{ color: 'var(--green)' }}>Discount</span>
+                <span style={{ color: 'var(--green)' }}>-{fmtCurrency(fin.discount)}</span>
+              </div>
+            )}
+            <div className="bill-row total">
+              <span>Total Bill</span>
+              <span>{fmtCurrency(fin.totalAmount)}</span>
+            </div>
+            {collected > 0 && (
+              <div className="bill-row">
+                <span style={{ color: 'var(--green)' }}>Already Collected</span>
+                <span style={{ color: 'var(--green)', fontWeight: 600 }}>{fmtCurrency(collected)}</span>
+              </div>
+            )}
             {balance > 0 ? (
               <div className="bill-row">
                 <span style={{ color: 'var(--amber)' }}>Balance to collect</span>
                 <span style={{ color: 'var(--amber)', fontWeight: 700 }}>
-                  ₹{balance.toLocaleString('en-IN')}
+                  {fmtCurrency(balance)}
                 </span>
               </div>
             ) : (
               <div className="bill-row">
                 <span style={{ color: 'var(--green)' }}>Payment Status</span>
-                <span style={{ color: 'var(--green)', fontWeight: 600 }}>Fully Paid</span>
+                <span style={{ color: 'var(--green)', fontWeight: 600 }}>Fully Settled</span>
               </div>
             )}
           </div>

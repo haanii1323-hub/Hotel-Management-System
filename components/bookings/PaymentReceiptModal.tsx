@@ -1,37 +1,13 @@
 'use client'
 
 import React from 'react'
-import { X, Printer, CheckCircle2, ShieldCheck } from 'lucide-react'
+import { X, Printer } from 'lucide-react'
 import { format } from 'date-fns'
 import useSWR from 'swr'
 import { QRCodeSVG } from 'qrcode.react'
+import { calculateBookingFinancials, fmtDate, fmtCurrency } from '@/lib/financials'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
-
-function fmt(n: number) {
-  return `₹${Number(n || 0).toLocaleString('en-IN')}`
-}
-
-function parseBookingDate(d: string | Date | null | undefined): Date | null {
-  if (!d) return null
-  if (typeof d === 'string') {
-    const match = d.match(/^(\d{4})-(\d{2})-(\d{2})/)
-    if (match) {
-      const year = parseInt(match[1], 10)
-      const month = parseInt(match[2], 10) - 1
-      const day = parseInt(match[3], 10)
-      return new Date(year, month, day, 12, 0, 0)
-    }
-  }
-  const dt = new Date(d)
-  return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), 12, 0, 0)
-}
-
-function fmtDate(d: string | Date | null | undefined) {
-  const parsed = parseBookingDate(d)
-  if (!parsed) return '—'
-  return format(parsed, 'dd MMM yyyy')
-}
 
 interface Props {
   payment: any
@@ -48,15 +24,12 @@ export default function PaymentReceiptModal({ payment, booking, onClose }: Props
     fetcher
   )
 
-  const collected =
-    booking.payments?.reduce(
-      (s: number, p: any) => s + (p.status !== 'Pending' ? p.amount : 0),
-      0
-    ) || 0
-  const balance = Math.max(0, (booking.totalAmount || 0) - collected)
+  const fin = calculateBookingFinancials(booking)
 
   const receiptNo = `REC-${(payment.id || '').slice(-6).toUpperCase()}`
-  const paymentDate = payment.createdAt ? format(new Date(payment.createdAt), 'dd MMM yyyy, hh:mm a') : format(new Date(), 'dd MMM yyyy, hh:mm a')
+  const paymentDate = payment.createdAt
+    ? format(new Date(payment.createdAt), 'dd MMM yyyy, hh:mm a')
+    : format(new Date(), 'dd MMM yyyy, hh:mm a')
 
   function handlePrint() {
     window.print()
@@ -64,13 +37,13 @@ export default function PaymentReceiptModal({ payment, booking, onClose }: Props
 
   return (
     <div
-      className="modal-overlay"
+      className="modal-overlay receipt-modal-overlay"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}
       style={{ zIndex: 1200 }}
     >
-      <div className="modal invoice-modal" style={{ maxWidth: '600px' }}>
+      <div className="modal invoice-modal receipt-print-container" style={{ maxWidth: '600px' }}>
         {/* Receipt Header */}
         <div className="invoice-header">
           <div className="invoice-logo">
@@ -111,10 +84,10 @@ export default function PaymentReceiptModal({ payment, booking, onClose }: Props
               <div className="invoice-section-title">Reservation Details</div>
               <div style={{ fontWeight: 600, fontSize: '13px' }}>{booking.bookingRef}</div>
               <div style={{ fontSize: '12px', color: 'var(--text-2)', marginTop: '2px' }}>
-                Room: {booking.numRooms} × {booking.roomCategory}
+                Room: {fin.numRooms} × {booking.roomCategory}
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-2)' }}>
-                Stay: {fmtDate(booking.checkIn)} to {fmtDate(booking.checkOut)}
+                Stay: {fmtDate(booking.checkIn)} to {fmtDate(booking.checkOut)} {fin.isSameDay ? '(1D)' : `(${fin.nights}N)`}
               </div>
             </div>
           </div>
@@ -138,8 +111,8 @@ export default function PaymentReceiptModal({ payment, booking, onClose }: Props
                     {payment.status || 'Paid'}
                   </span>
                 </td>
-                <td style={{ textAlign: 'right', fontWeight: 700, fontSize: '14px', color: 'var(--green)' }}>
-                  {fmt(payment.amount)}
+                <td style={{ textAlign: 'right', fontWeight: 700, fontSize: '15px', color: 'var(--green)' }}>
+                  {fmtCurrency(payment.amount)}
                 </td>
               </tr>
             </tbody>
@@ -147,24 +120,38 @@ export default function PaymentReceiptModal({ payment, booking, onClose }: Props
 
           {/* Ledger Summary */}
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px' }}>
-            <div style={{ width: '240px' }}>
-              <div className="invoice-total-row">
+            <div style={{ width: '260px' }}>
+              {fin.discount > 0 && (
+                <>
+                  <div className="invoice-total-row">
+                    <span>Gross Charges</span>
+                    <span>{fmtCurrency(fin.grossTotal)}</span>
+                  </div>
+                  <div className="invoice-total-row">
+                    <span style={{ color: 'var(--green)' }}>Discount Applied</span>
+                    <span style={{ color: 'var(--green)' }}>- {fmtCurrency(fin.discount)}</span>
+                  </div>
+                </>
+              )}
+              <div className="invoice-total-row" style={{ fontWeight: 600 }}>
                 <span>Total Booking Bill</span>
-                <span>{fmt(booking.totalAmount)}</span>
+                <span>{fmtCurrency(fin.totalAmount)}</span>
               </div>
               <div className="invoice-total-row">
                 <span style={{ color: 'var(--green)' }}>Total Paid to Date</span>
-                <span style={{ color: 'var(--green)', fontWeight: 600 }}>{fmt(collected)}</span>
+                <span style={{ color: 'var(--green)', fontWeight: 600 }}>{fmtCurrency(fin.collected)}</span>
               </div>
-              <div className="invoice-total-row final">
+              <div className="invoice-total-row final" style={{ borderTop: '1px solid var(--border)', paddingTop: '6px' }}>
                 <span>Remaining Balance</span>
-                <span style={{ color: balance > 0 ? 'var(--amber)' : 'var(--green)' }}>{fmt(balance)}</span>
+                <span style={{ color: fin.balance > 0 ? 'var(--amber)' : 'var(--green)', fontWeight: 700 }}>
+                  {fin.balance > 0 ? fmtCurrency(fin.balance) : '₹0 (Settled)'}
+                </span>
               </div>
             </div>
           </div>
 
           {/* QR Code / Instructions Footer */}
-          {(config?.qrCodeUrl || config?.upiId) && balance > 0 && (
+          {(config?.qrCodeUrl || config?.upiId) && fin.balance > 0 && (
             <div
               style={{
                 display: 'flex',
@@ -185,11 +172,11 @@ export default function PaymentReceiptModal({ payment, booking, onClose }: Props
                 />
               ) : (
                 <div style={{ background: '#fff', padding: 3, borderRadius: 4 }}>
-                  <QRCodeSVG value={`upi://pay?pa=${config.upiId}&pn=${encodeURIComponent(property.name || 'Hotel')}&am=${balance}&cu=INR`} size={58} />
+                  <QRCodeSVG value={`upi://pay?pa=${config.upiId}&pn=${encodeURIComponent(property.name || 'Hotel')}&am=${fin.balance}&cu=INR`} size={58} />
                 </div>
               )}
               <div style={{ fontSize: '11px', color: 'var(--text-2)' }}>
-                <div style={{ fontWeight: 600, color: 'var(--text)' }}>Scan QR to settle remaining balance ({fmt(balance)})</div>
+                <div style={{ fontWeight: 600, color: 'var(--text)' }}>Scan QR to settle remaining balance ({fmtCurrency(fin.balance)})</div>
                 {config.upiId && <div>UPI ID: <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{config.upiId}</span></div>}
               </div>
             </div>
