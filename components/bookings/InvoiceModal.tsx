@@ -6,6 +6,7 @@ import { format } from 'date-fns'
 import useSWR from 'swr'
 import { QRCodeSVG } from 'qrcode.react'
 import { calculateBookingFinancials, fmtDate, fmtCurrency } from '@/lib/financials'
+import { printReceiptDocument } from '@/lib/receipt-printer'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -35,7 +36,14 @@ export default function InvoiceModal({ booking, collected: overrideCollected, ba
       : `REC-${(booking.bookingRef || '').replace('#', '')}-${(booking.id || '').slice(-4).toUpperCase()}`
 
   function handlePrint() {
-    window.print()
+    printReceiptDocument({
+      property,
+      booking,
+      financials: fin,
+      receiptNo,
+      config,
+      type: 'invoice',
+    })
   }
 
   return (

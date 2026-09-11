@@ -6,6 +6,7 @@ import { format } from 'date-fns'
 import useSWR from 'swr'
 import { QRCodeSVG } from 'qrcode.react'
 import { calculateBookingFinancials, fmtDate, fmtCurrency } from '@/lib/financials'
+import { printReceiptDocument } from '@/lib/receipt-printer'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -32,7 +33,15 @@ export default function PaymentReceiptModal({ payment, booking, onClose }: Props
     : format(new Date(), 'dd MMM yyyy, hh:mm a')
 
   function handlePrint() {
-    window.print()
+    printReceiptDocument({
+      property,
+      booking,
+      financials: fin,
+      receiptNo,
+      payment,
+      config,
+      type: 'receipt',
+    })
   }
 
   return (
