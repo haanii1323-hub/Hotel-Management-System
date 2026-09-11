@@ -95,32 +95,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const collected = payments.reduce((s, p) => s + (p.status !== 'Pending' ? p.amount : 0), 0)
   const total = booking?.totalAmount || 0
   const balance = Math.max(0, total - collected)
-  const newPaymentStatus =
-    collected >= total && total > 0
-      ? 'Paid'
-      : collected > 0
-      ? 'Partially Paid'
-      : 'Pending'
-
-  const updatedBooking = await prisma.booking.update({
-    where: { id: params.id },
-    data: { paymentStatus: newPaymentStatus },
-    include: {
-      guest: true,
-      property: true,
-      bookingRooms: { include: { room: true } },
-      payments: { orderBy: { createdAt: 'asc' } },
-      invoices: true,
-    },
-  })
 
   return NextResponse.json({
     success: true,
     collected,
     balance,
-    paymentStatus: newPaymentStatus,
     payments,
-    booking: updatedBooking,
+    booking,
   })
 }
 
@@ -161,6 +142,13 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
 
   const booking = await prisma.booking.findUnique({
     where: { id: params.id },
+    include: {
+      guest: true,
+      property: true,
+      bookingRooms: { include: { room: true } },
+      payments: { orderBy: { createdAt: 'asc' } },
+      invoices: true,
+    },
   })
 
   if (!booking) {
@@ -173,32 +161,13 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   )
   const total = booking.totalAmount || 0
   const balance = Math.max(0, total - collected)
-  const newPaymentStatus =
-    collected >= total && total > 0
-      ? 'Paid'
-      : collected > 0
-      ? 'Partially Paid'
-      : 'Pending'
-
-  const updatedBooking = await prisma.booking.update({
-    where: { id: params.id },
-    data: { paymentStatus: newPaymentStatus },
-    include: {
-      guest: true,
-      property: true,
-      bookingRooms: { include: { room: true } },
-      payments: { orderBy: { createdAt: 'asc' } },
-      invoices: true,
-    },
-  })
 
   return NextResponse.json({
     success: true,
     message: `Payment (${payment.mode} ₹${payment.amount}) deleted successfully`,
     collected,
     balance,
-    paymentStatus: newPaymentStatus,
     payments: remainingPayments,
-    booking: updatedBooking,
+    booking,
   })
 }

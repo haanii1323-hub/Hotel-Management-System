@@ -12,6 +12,7 @@ export type RealtimeEventType =
   | 'CHECK_IN'
   | 'CHECK_OUT'
   | 'PAYMENT_COLLECTED'
+  | 'PAYMENT_DELETED'
   | 'PAYMENT_CONFIG_UPDATED'
   | 'ROOM_UPDATED'
   | 'ROOM_CREATED'
