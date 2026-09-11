@@ -153,29 +153,31 @@ export default function PaymentReceiptModal({ payment, booking, onClose }: Props
           {/* QR Code / Instructions Footer */}
           {(config?.qrCodeUrl || config?.upiId) && fin.balance > 0 && (
             <div
+              className="receipt-qr-footer"
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: '14px',
-                padding: '12px 14px',
+                padding: '10px 12px',
                 background: 'var(--card-2)',
                 border: '1px solid var(--border)',
                 borderRadius: '6px',
-                marginBottom: '16px',
+                marginBottom: '14px',
               }}
             >
               {config.qrCodeUrl ? (
                 <img
                   src={config.qrCodeUrl}
                   alt="QR"
-                  style={{ width: 64, height: 64, objectFit: 'contain', background: '#fff', borderRadius: 4, padding: 2 }}
+                  className="receipt-qr-img"
+                  style={{ width: 56, height: 56, objectFit: 'contain', background: '#fff', borderRadius: 4, padding: 2 }}
                 />
               ) : (
-                <div style={{ background: '#fff', padding: 3, borderRadius: 4 }}>
-                  <QRCodeSVG value={`upi://pay?pa=${config.upiId}&pn=${encodeURIComponent(property.name || 'Hotel')}&am=${fin.balance}&cu=INR`} size={58} />
+                <div className="receipt-qr-img" style={{ background: '#fff', padding: 2, borderRadius: 4 }}>
+                  <QRCodeSVG value={`upi://pay?pa=${config.upiId}&pn=${encodeURIComponent(property.name || 'Hotel')}&am=${fin.balance}&cu=INR`} size={52} />
                 </div>
               )}
-              <div style={{ fontSize: '11px', color: 'var(--text-2)' }}>
+              <div style={{ fontSize: '11px', color: 'var(--text-2)', lineHeight: '1.35' }}>
                 <div style={{ fontWeight: 600, color: 'var(--text)' }}>Scan QR to settle remaining balance ({fmtCurrency(fin.balance)})</div>
                 {config.upiId && <div>UPI ID: <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{config.upiId}</span></div>}
               </div>

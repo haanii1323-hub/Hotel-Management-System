@@ -133,6 +133,7 @@ export default function InvoiceModal({ booking, collected: overrideCollected, ba
           {/* Notes / Particulars */}
           {booking.notes && (
             <div
+              className="invoice-notes-box"
               style={{
                 fontSize: '11px',
                 color: 'var(--text-2)',
@@ -190,14 +191,14 @@ export default function InvoiceModal({ booking, collected: overrideCollected, ba
 
           {/* Payment Records History */}
           {booking.payments && booking.payments.length > 0 && (
-            <div style={{ marginTop: '16px' }}>
+            <div className="invoice-payment-history" style={{ marginTop: '14px' }}>
               <div
                 style={{
                   fontSize: '11px',
                   color: 'var(--text-3)',
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
-                  marginBottom: '8px',
+                  marginBottom: '6px',
                   fontWeight: 700,
                 }}
               >
@@ -206,6 +207,7 @@ export default function InvoiceModal({ booking, collected: overrideCollected, ba
               {booking.payments.map((p: any, i: number) => (
                 <div
                   key={i}
+                  className="invoice-payment-row"
                   style={{
                     display: 'flex',
                     justifyContent: 'space-between',
@@ -226,30 +228,32 @@ export default function InvoiceModal({ booking, collected: overrideCollected, ba
           {/* Custom QR Code & Payment Information Footer */}
           {(config?.qrCodeUrl || config?.upiId || config?.bankAccountNumber) && currentBalance > 0 && (
             <div
+              className="invoice-qr-footer"
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '16px',
-                padding: '12px 14px',
+                gap: '14px',
+                padding: '10px 12px',
                 background: 'var(--card-2)',
                 border: '1px solid var(--border)',
                 borderRadius: '6px',
-                marginTop: '16px',
+                marginTop: '14px',
               }}
             >
               {config.qrCodeUrl ? (
                 <img
                   src={config.qrCodeUrl}
                   alt="Hotel QR Code"
-                  style={{ width: 68, height: 68, objectFit: 'contain', background: '#fff', borderRadius: 4, padding: 2 }}
+                  className="invoice-qr-img"
+                  style={{ width: 60, height: 60, objectFit: 'contain', background: '#fff', borderRadius: 4, padding: 2 }}
                 />
               ) : config.upiId ? (
-                <div style={{ background: '#fff', padding: 3, borderRadius: 4 }}>
-                  <QRCodeSVG value={`upi://pay?pa=${config.upiId}&pn=${encodeURIComponent(property.name || 'Hotel')}&am=${currentBalance}&cu=INR`} size={62} />
+                <div className="invoice-qr-img" style={{ background: '#fff', padding: 2, borderRadius: 4 }}>
+                  <QRCodeSVG value={`upi://pay?pa=${config.upiId}&pn=${encodeURIComponent(property.name || 'Hotel')}&am=${currentBalance}&cu=INR`} size={56} />
                 </div>
               ) : null}
 
-              <div style={{ fontSize: '11px', color: 'var(--text-2)', lineHeight: '1.4' }}>
+              <div style={{ fontSize: '11px', color: 'var(--text-2)', lineHeight: '1.35' }}>
                 <div style={{ fontWeight: 700, color: 'var(--text)', fontSize: '12px', marginBottom: '2px' }}>
                   Payment Information · Settle {fmtCurrency(currentBalance)}
                 </div>

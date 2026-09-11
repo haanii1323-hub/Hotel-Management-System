@@ -67,7 +67,15 @@ export default function CollectPaymentModal({ booking, onClose, onSuccess }: Pro
     return modes
   }, [config])
 
-  const fin = calculateBookingFinancials(booking)
+  const [existingPayments, setExistingPayments] = useState<any[]>(booking.payments || [])
+  const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null)
+
+  const currentBookingState = useMemo(() => ({
+    ...booking,
+    payments: existingPayments,
+  }), [booking, existingPayments])
+
+  const fin = calculateBookingFinancials(currentBookingState)
   const collected = fin.collected
   const balance = fin.balance
 
@@ -95,6 +103,47 @@ export default function CollectPaymentModal({ booking, onClose, onSuccess }: Pro
   }, [splits])
 
   const remainingBalanceDiff = balance - totalSplitsAmount
+
+  async function handleDeletePayment(p: any) {
+    if (
+      !confirm(
+        `Are you sure you want to delete this recorded payment?\n\n• Mode: ${p.mode}\n• Amount: ${fmt(
+          p.amount
+        )}\n\nThis will restore ₹${p.amount} to the outstanding balance.`
+      )
+    ) {
+      return
+    }
+
+    setDeletingPaymentId(p.id)
+    try {
+      const res = await fetch(`/api/bookings/${booking.id}/payment?paymentId=${p.id}`, {
+        method: 'DELETE',
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        showToast(data.error || 'Failed to delete payment', 'error')
+      } else {
+        showToast(`Payment of ${fmt(p.amount)} (${p.mode}) deleted`, 'success')
+        broadcastChange('PAYMENT_DELETED', { bookingId: booking.id, paymentId: p.id })
+        const updatedList = existingPayments.filter((item: any) => item.id !== p.id)
+        setExistingPayments(updatedList)
+        const newFin = calculateBookingFinancials({ ...booking, payments: updatedList })
+        setSplits([
+          {
+            id: 'split-1',
+            mode: availableModes[0] || 'Cash',
+            amount: newFin.balance > 0 ? newFin.balance : 0,
+            utrRef: '',
+          },
+        ])
+      }
+    } catch {
+      showToast('Network error while deleting payment', 'error')
+    } finally {
+      setDeletingPaymentId(null)
+    }
+  }
 
   function handleAddSplit() {
     // Pick the next available mode not already in splits if possible
@@ -245,6 +294,88 @@ export default function CollectPaymentModal({ booking, onClose, onSuccess }: Pro
               <span style={{ color: balance > 0 ? 'var(--amber)' : 'var(--green)' }}>{fmt(balance)}</span>
             </div>
           </div>
+
+          {/* Existing Payments with Delete Option */}
+          {existingPayments.length > 0 && (
+            <div
+              style={{
+                background: 'rgba(239, 68, 68, 0.03)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '10px 14px',
+                marginBottom: '16px',
+              }}
+            >
+              <div
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  color: 'var(--text-3)',
+                  marginBottom: '8px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <span>Recorded Payments ({existingPayments.length})</span>
+                <span style={{ fontSize: '10px', color: 'var(--text-3)', fontWeight: 'normal' }}>
+                  Wrong entry? Click trash icon to delete
+                </span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {existingPayments.map((p: any) => (
+                  <div
+                    key={p.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '6px 10px',
+                      background: 'var(--card)',
+                      borderRadius: '4px',
+                      border: '1px solid var(--border)',
+                      fontSize: '12px',
+                    }}
+                  >
+                    <div>
+                      <span style={{ fontWeight: 600, color: 'var(--text)' }}>{p.mode}</span>
+                      <span style={{ color: 'var(--text-3)', margin: '0 6px' }}>·</span>
+                      <span style={{ color: p.status === 'Paid' ? 'var(--green)' : 'var(--amber)', fontSize: '11px', fontWeight: 600 }}>
+                        {p.status || 'Paid'}
+                      </span>
+                      {p.utrRef && <span style={{ color: 'var(--text-3)', fontSize: '11px', marginLeft: '6px' }}>({p.utrRef})</span>}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontWeight: 700, color: 'var(--text)' }}>{fmt(p.amount)}</span>
+                      <button
+                        type="button"
+                        className="btn-icon"
+                        style={{
+                          padding: '3px',
+                          color: 'var(--red)',
+                          background: 'rgba(239, 68, 68, 0.1)',
+                          border: '1px solid rgba(239, 68, 68, 0.2)',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                        }}
+                        onClick={() => handleDeletePayment(p)}
+                        disabled={deletingPaymentId === p.id}
+                        title={`Delete ${p.mode} payment of ${fmt(p.amount)}`}
+                      >
+                        {deletingPaymentId === p.id ? (
+                          <span className="spinner" style={{ width: 10, height: 10 }} />
+                        ) : (
+                          <Trash2 size={12} />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Multiple Payment Modes Header */}
           <div

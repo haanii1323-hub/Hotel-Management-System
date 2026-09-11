@@ -20,6 +20,7 @@ import {
   Pencil,
   Ban,
   Printer,
+  Trash2,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import InvoiceModal from './InvoiceModal'
@@ -77,6 +78,7 @@ export default function BookingDetailsModal({
   const [showInvoice, setShowInvoice] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
   const [cancelling, setCancelling] = useState(false)
+  const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null)
   const [receiptPayment, setReceiptPayment] = useState<any>(null)
 
   if (!booking) return null
@@ -102,6 +104,46 @@ export default function BookingDetailsModal({
   const currentStatus = statusConfig[booking.status] || {
     label: booking.status,
     className: 'badge-gray',
+  }
+
+  async function handleDeletePayment(payment: any) {
+    if (
+      !confirm(
+        `Are you sure you want to delete this recorded payment?\n\n• Mode: ${payment.mode}\n• Amount: ${fmt(
+          payment.amount
+        )}\n• Date: ${fmtDate(payment.createdAt)}\n\nThe outstanding balance will be automatically recalculated.`
+      )
+    ) {
+      return
+    }
+
+    setDeletingPaymentId(payment.id)
+    try {
+      const res = await fetch(`/api/bookings/${booking.id}/payment?paymentId=${payment.id}`, {
+        method: 'DELETE',
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        showToast(data.error || 'Failed to delete payment', 'error')
+      } else {
+        showToast(`Payment of ${fmt(payment.amount)} (${payment.mode}) deleted. Balance updated.`, 'success')
+        broadcastChange('PAYMENT_DELETED', { bookingId: booking.id, paymentId: payment.id })
+        if (data.booking) {
+          setBooking(data.booking)
+        } else {
+          setBooking((prev: any) => ({
+            ...prev,
+            payments: (prev.payments || []).filter((p: any) => p.id !== payment.id),
+            paymentStatus: data.paymentStatus || prev.paymentStatus,
+          }))
+        }
+        if (onSuccess) onSuccess()
+      }
+    } catch {
+      showToast('Network error while deleting payment', 'error')
+    } finally {
+      setDeletingPaymentId(null)
+    }
   }
 
   async function handleCancelBooking() {
@@ -501,7 +543,7 @@ export default function BookingDetailsModal({
                           {p.utrRef ? ` · UTR: ${p.utrRef}` : ''}
                         </div>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>
                           {fmt(p.amount)}
                         </div>
@@ -513,6 +555,25 @@ export default function BookingDetailsModal({
                           title="View / Print Receipt"
                         >
                           <Printer size={12} /> Receipt
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm text-red"
+                          style={{
+                            padding: '3px 6px',
+                            color: 'var(--red)',
+                            border: '1px solid rgba(239, 68, 68, 0.2)',
+                            borderRadius: '4px',
+                          }}
+                          onClick={() => handleDeletePayment(p)}
+                          disabled={deletingPaymentId === p.id}
+                          title={`Delete ${p.mode} payment of ${fmt(p.amount)}`}
+                        >
+                          {deletingPaymentId === p.id ? (
+                            <span className="spinner" style={{ width: 11, height: 11 }} />
+                          ) : (
+                            <Trash2 size={12} />
+                          )}
                         </button>
                       </div>
                     </div>
