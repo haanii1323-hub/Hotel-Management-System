@@ -51,8 +51,7 @@ export function printReceiptDocument({
       : '—'
 
   const allPayments = payments || booking?.payments || (payment ? [payment] : [])
-  const isReceipt = type === 'receipt' || !!payment
-  const title = isReceipt ? 'OFFICIAL PAYMENT RECEIPT' : 'GUEST FOLIO / TAX INVOICE'
+  const title = 'RECEIPT'
   const printDate = format(new Date(), 'dd MMM yyyy, hh:mm a')
 
   // Generate HTML for line items
@@ -420,7 +419,7 @@ export function printReceiptDocument({
 
     <!-- Footer -->
     <div class="footer-note">
-      This is a computer-generated receipt/invoice issued by APEX INN PMS. Thank you for staying with us!
+      This is a computer-generated receipt issued by APEX INN PMS. Thank you for staying with us!
     </div>
   </div>
 </body>

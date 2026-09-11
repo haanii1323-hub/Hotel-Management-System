@@ -72,7 +72,7 @@ export default function InvoiceModal({ booking, collected: overrideCollected, ba
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontWeight: 800, fontSize: '18px', color: 'var(--text)', letterSpacing: '0.5px' }}>
-              RECEIPT / INVOICE
+              RECEIPT
             </div>
             <div className="invoice-number" style={{ fontWeight: 600 }}>{receiptNo}</div>
             <div style={{ fontSize: '11px', color: 'var(--text-2)' }}>{format(new Date(), 'dd MMM yyyy')}</div>
