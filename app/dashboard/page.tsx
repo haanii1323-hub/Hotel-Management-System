@@ -167,7 +167,7 @@ export default function DashboardPage() {
               <div style={{ padding: '16px', background: 'var(--card-2)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: '12px', fontWeight: 700, color: '#e5c06e', marginBottom: '4px' }}>STEP 2</div>
                 <div style={{ fontWeight: 600, fontSize: '13px', marginBottom: '4px' }}>Room Types &amp; Rates</div>
-                <div style={{ fontSize: '11px', color: 'var(--text-3)' }}>Configure Standard, Deluxe, Suite and pricing.</div>
+                <div style={{ fontSize: '11px', color: 'var(--text-3)' }}>Configure Standard, Deluxe, Superior and pricing.</div>
               </div>
               <div style={{ padding: '16px', background: 'var(--card-2)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--green)', marginBottom: '4px' }}>STEP 3</div>

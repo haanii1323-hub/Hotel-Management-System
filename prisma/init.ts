@@ -22,7 +22,7 @@ export const PROPERTIES_DATA = [
     categories: [
       { name: 'Standard', rate: 2500, rooms: ['101', '102', '103', '104', '105'] },
       { name: 'Deluxe', rate: 3500, rooms: ['201', '202', '203', '204', '205'] },
-      { name: 'Suite', rate: 5500, rooms: ['301', '302', '303'] },
+      { name: 'Superior', rate: 5500, rooms: ['301', '302', '303'] },
     ],
   },
   {
@@ -43,7 +43,7 @@ export const PROPERTIES_DATA = [
     categories: [
       { name: 'Classic', rate: 1896, rooms: ['A101', 'A102', 'A103', 'A104'] },
       { name: 'Deluxe', rate: 2800, rooms: ['B201', 'B202', 'B203', 'B204'] },
-      { name: 'Suite', rate: 4500, rooms: ['C301', 'C302'] },
+      { name: 'Superior', rate: 4500, rooms: ['C301', 'C302'] },
     ],
   },
   {

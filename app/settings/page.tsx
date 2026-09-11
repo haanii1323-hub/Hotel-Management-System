@@ -211,7 +211,7 @@ export default function SettingsPage() {
                 Room Inventory &amp; Category Pricing
               </h3>
               <p style={{ color: 'var(--text-2)', fontSize: '13px', maxWidth: '460px', margin: '0 auto 20px' }}>
-                Configure nightly pricing, room categories (Standard, Deluxe, Suite), weekend rates, extra guest surcharges, and room numbers.
+                Configure nightly pricing, room categories (Standard, Deluxe, Superior), weekend rates, extra guest surcharges, and room numbers.
               </p>
               <Link href="/pricing" className="btn btn-red" style={{ margin: '0 auto', gap: '6px' }}>
                 <Sliders size={14} /> Open Pricing &amp; Rooms Manager

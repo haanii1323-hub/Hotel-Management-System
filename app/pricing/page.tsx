@@ -247,7 +247,7 @@ export default function PricingPage() {
             <input
               className="form-control"
               style={{ width: '180px' }}
-              placeholder="Category name (e.g. Suite)"
+              placeholder="Category name (e.g. Superior)"
               value={catName}
               onChange={(e) => setCatName(e.target.value)}
             />

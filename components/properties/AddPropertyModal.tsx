@@ -37,8 +37,8 @@ export default function AddPropertyModal({ onClose, onSuccess }: Props) {
     deluxeRate: 3200,
     classicRooms: 6,
     classicRate: 2200,
-    suiteRooms: 3,
-    suiteRate: 5000,
+    superiorRooms: 3,
+    superiorRate: 5000,
   })
 
   function handleChange(field: string, val: any) {
@@ -57,7 +57,7 @@ export default function AddPropertyModal({ onClose, onSuccess }: Props) {
       const categories = [
         { name: 'Classic', rate: Number(form.classicRate), roomCount: Number(form.classicRooms) },
         { name: 'Deluxe', rate: Number(form.deluxeRate), roomCount: Number(form.deluxeRooms) },
-        { name: 'Suite', rate: Number(form.suiteRate), roomCount: Number(form.suiteRooms) },
+        { name: 'Superior', rate: Number(form.superiorRate), roomCount: Number(form.superiorRooms) },
       ]
 
       const res = await fetch('/api/properties', {
@@ -262,23 +262,23 @@ export default function AddPropertyModal({ onClose, onSuccess }: Props) {
                 </div>
 
                 <div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-3)', marginBottom: '4px' }}>Suite (Rooms / Rate)</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-3)', marginBottom: '4px' }}>Superior (Rooms / Rate)</div>
                   <div style={{ display: 'flex', gap: '4px' }}>
                     <input
                       className="form-control"
                       type="number"
                       title="Rooms"
                       placeholder="Rooms"
-                      value={form.suiteRooms}
-                      onChange={(e) => handleChange('suiteRooms', e.target.value)}
+                      value={form.superiorRooms}
+                      onChange={(e) => handleChange('superiorRooms', e.target.value)}
                     />
                     <input
                       className="form-control"
                       type="number"
                       title="Rate"
                       placeholder="₹ Rate"
-                      value={form.suiteRate}
-                      onChange={(e) => handleChange('suiteRate', e.target.value)}
+                      value={form.superiorRate}
+                      onChange={(e) => handleChange('superiorRate', e.target.value)}
                     />
                   </div>
                 </div>
