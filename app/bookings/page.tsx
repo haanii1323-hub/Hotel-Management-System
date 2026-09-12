@@ -431,6 +431,13 @@ function BookingsContent() {
   const noShow = (completed || []).filter((b: any) => b.status === 'NoShow')
   const cancelled = (completed || []).filter((b: any) => b.status === 'Cancelled')
 
+  function countRooms(list: any[]): number {
+    return (list || []).reduce(
+      (sum: number, b: any) => sum + (b.bookingRooms?.length || b.numRooms || 1),
+      0
+    )
+  }
+
   function roomNights(list: any[]) {
     return list.reduce(
       (s: number, b: any) => s + nights(b.checkIn, b.checkOut) * (b.numRooms || 1),
@@ -463,9 +470,9 @@ function BookingsContent() {
           <div className="tabs">
             {(
               [
-                { key: 'Upcoming', label: 'Upcoming', count: (upcoming || []).length },
-                { key: 'InHouse', label: 'In-house', count: (inhouse || []).length },
-                { key: 'Completed', label: 'Completed', count: (completed || []).length },
+                { key: 'Upcoming', label: 'Upcoming', count: countRooms(upcoming) },
+                { key: 'InHouse', label: 'In-house', count: countRooms(inhouse) },
+                { key: 'Completed', label: 'Completed', count: countRooms(completed) },
               ] as const
             ).map((t) => (
               <button
@@ -568,7 +575,7 @@ function BookingsContent() {
         {tab === 'Upcoming' && (
           <>
             <div className="section-header">
-              <div className="section-title">Arriving today ({arrivingToday.length})</div>
+              <div className="section-title">Arriving today ({countRooms(arrivingToday)})</div>
               <div className="section-meta">Booked room nights: {roomNights(arrivingToday)}</div>
             </div>
             {isLoading && !upcoming ? (
@@ -591,7 +598,7 @@ function BookingsContent() {
             )}
 
             <div className="section-header" style={{ marginTop: '24px' }}>
-              <div className="section-title">Arriving later ({arrivingLater.length})</div>
+              <div className="section-title">Arriving later ({countRooms(arrivingLater)})</div>
               <div className="section-meta">Booked room nights: {roomNights(arrivingLater)}</div>
             </div>
             {isLoading && !upcoming ? (
@@ -620,7 +627,7 @@ function BookingsContent() {
           <>
             <div className="section-header">
               <div className="section-title">
-                Departing today or earlier ({departingTodayEarlier.length})
+                Departing today or earlier ({countRooms(departingTodayEarlier)})
               </div>
               <div className="section-meta">
                 Booked room nights: {roomNights(departingTodayEarlier)}
@@ -646,7 +653,7 @@ function BookingsContent() {
             )}
 
             <div className="section-header" style={{ marginTop: '24px' }}>
-              <div className="section-title">Staying on ({stayingOn.length})</div>
+              <div className="section-title">Staying on ({countRooms(stayingOn)})</div>
               <div className="section-meta">Booked room nights: {roomNights(stayingOn)}</div>
             </div>
             {isLoading && !inhouse ? (
@@ -674,7 +681,7 @@ function BookingsContent() {
         {tab === 'Completed' && (
           <>
             <div className="section-header">
-              <div className="section-title">Checked out ({checkedOut.length})</div>
+              <div className="section-title">Checked out ({countRooms(checkedOut)})</div>
               <div className="section-meta">Booked room nights: {roomNights(checkedOut)}</div>
             </div>
             {isLoading && !completed ? (
@@ -699,7 +706,7 @@ function BookingsContent() {
             {noShow.length > 0 && (
               <>
                 <div className="section-header" style={{ marginTop: '24px' }}>
-                  <div className="section-title">No show ({noShow.length})</div>
+                  <div className="section-title">No show ({countRooms(noShow)})</div>
                 </div>
                 {noShow.map((b: any) => (
                   <BookingCard
@@ -717,7 +724,7 @@ function BookingsContent() {
             {cancelled.length > 0 && (
               <>
                 <div className="section-header" style={{ marginTop: '24px' }}>
-                  <div className="section-title">Cancelled ({cancelled.length})</div>
+                  <div className="section-title">Cancelled ({countRooms(cancelled)})</div>
                 </div>
                 {cancelled.map((b: any) => (
                   <BookingCard
