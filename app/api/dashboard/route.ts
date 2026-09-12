@@ -72,15 +72,6 @@ export async function GET(req: NextRequest) {
       where: { id: propertyId, tenantId },
     })
 
-    // 1. Rooms breakdown
-    const rooms = await prisma.room.findMany({ where: { propertyId } })
-    const totalRooms = rooms.length
-    const availableRooms = rooms.filter((r) => r.status === 'Available').length
-    const occupiedRooms = rooms.filter((r) => r.status === 'Occupied').length
-    const cleaningRooms = rooms.filter((r) => r.status === 'Cleaning').length
-    const maintenanceRooms = rooms.filter((r) => r.status === 'Maintenance').length
-    const outOfServiceRooms = rooms.filter((r) => r.status === 'Out of Service').length
-
     // 2. Bookings
     const allBookings = await prisma.booking.findMany({
       where: { propertyId },
@@ -103,6 +94,32 @@ export async function GET(req: NextRequest) {
     const arrivingToday = upcomingBookings.filter((b) => getDateString(b.checkIn) <= todayStr)
     const departingToday = inHouseBookings.filter((b) => getDateString(b.checkOut) <= todayStr)
 
+    // Gather all room IDs actively assigned to checked-in guests
+    const inHouseRoomIds = new Set<string>()
+    for (const b of inHouseBookings) {
+      for (const br of b.bookingRooms) {
+        if (br.roomId) inHouseRoomIds.add(br.roomId)
+      }
+    }
+
+    // 1. Rooms breakdown
+    const rooms = await prisma.room.findMany({ where: { propertyId } })
+    const totalRooms = rooms.length
+
+    // Auto-sync room status for any room with an active in-house checked-in booking
+    for (const r of rooms) {
+      if (inHouseRoomIds.has(r.id) && r.status !== 'Occupied') {
+        r.status = 'Occupied'
+        prisma.room.update({ where: { id: r.id }, data: { status: 'Occupied' } }).catch(() => {})
+      }
+    }
+
+    const occupiedRooms = rooms.filter((r) => r.status === 'Occupied' || inHouseRoomIds.has(r.id)).length
+    const cleaningRooms = rooms.filter((r) => r.status === 'Cleaning' && !inHouseRoomIds.has(r.id)).length
+    const maintenanceRooms = rooms.filter((r) => r.status === 'Maintenance' && !inHouseRoomIds.has(r.id)).length
+    const outOfServiceRooms = rooms.filter((r) => r.status === 'Out of Service' && !inHouseRoomIds.has(r.id)).length
+    const availableRooms = Math.max(0, totalRooms - occupiedRooms - cleaningRooms - maintenanceRooms - outOfServiceRooms)
+
     // 3. Revenue calculations
     const allPayments = await prisma.payment.findMany({
       where: {
@@ -123,7 +140,7 @@ export async function GET(req: NextRequest) {
     })
     const collectedToday = todayPayments.reduce((s, p) => s + p.amount, 0)
 
-    const occupancy = totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0
+    const occupancy = totalRooms > 0 ? Math.min(100, Math.round((occupiedRooms / totalRooms) * 100)) : 0
 
     return NextResponse.json({
       hasProperties: true,

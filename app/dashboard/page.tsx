@@ -208,8 +208,11 @@ export default function DashboardPage() {
               <div className="kpi-value" style={{ fontSize: '20px', color: 'var(--text)' }}>{kpis.availableRooms}</div>
             </div>
             <div className="kpi-card" style={{ padding: '12px' }}>
-              <div className="kpi-label">Occupied</div>
+              <div className="kpi-label">Occupied / In-House</div>
               <div className="kpi-value" style={{ fontSize: '20px', color: 'var(--green)' }}>{kpis.occupiedRooms}</div>
+              <div style={{ fontSize: '11px', color: 'var(--text-3)', marginTop: '2px' }}>
+                {kpis.inHouseCount || 0} In-house booking{kpis.inHouseCount === 1 ? '' : 's'}
+              </div>
             </div>
             <div className="kpi-card" style={{ padding: '12px' }}>
               <div className="kpi-label">Cleaning</div>
