@@ -192,22 +192,28 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Category not found or unauthorized' }, { status: 404 })
     }
 
+    // Clean up rooms and references if any exist
     if (existing.rooms.length > 0) {
-      return NextResponse.json(
-        {
-          error: `Cannot delete "${existing.name}" because ${existing.rooms.length} room${
-            existing.rooms.length === 1 ? ' is' : 's are'
-          } currently assigned to it. Please reassign or remove those rooms first.`,
-        },
-        { status: 400 }
-      )
+      const roomIds = existing.rooms.map((r) => r.id)
+      await prisma.bookingRoom.deleteMany({
+        where: { roomId: { in: roomIds } },
+      })
+      await prisma.roomStatusLog.deleteMany({
+        where: { roomId: { in: roomIds } },
+      })
+      await prisma.room.deleteMany({
+        where: { categoryId: id },
+      })
     }
 
     await prisma.roomCategory.delete({
       where: { id },
     })
 
-    return NextResponse.json({ success: true, message: `Category "${existing.name}" deleted successfully` })
+    return NextResponse.json({
+      success: true,
+      message: `Category "${existing.name}" deleted successfully`,
+    })
   } catch (error: any) {
     console.error('Error deleting category:', error)
     return NextResponse.json({ error: error.message || 'Failed to delete category' }, { status: 500 })

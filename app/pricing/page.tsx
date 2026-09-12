@@ -131,7 +131,15 @@ export default function PricingPage() {
   }
 
   async function deleteCategory(cat: any) {
-    if (!confirm(`Are you sure you want to delete category "${cat.name}"?`)) return
+    const roomCount = cat.totalRooms || 0
+    const msg =
+      roomCount > 0
+        ? `Are you sure you want to delete category "${cat.name}" and its ${roomCount} room${
+            roomCount === 1 ? '' : 's'
+          }? This cannot be undone.`
+        : `Are you sure you want to delete category "${cat.name}"?`
+
+    if (!confirm(msg)) return
     setDeletingCatId(cat.id)
     try {
       const res = await fetch(`/api/categories?id=${cat.id}`, { method: 'DELETE' })
@@ -419,17 +427,15 @@ export default function PricingPage() {
                     <span className="badge badge-gray" style={{ fontSize: '10.5px' }}>
                       {roomCount} {roomCount === 1 ? 'Room' : 'Rooms'}
                     </span>
-                    {roomCount === 0 && (
-                      <button
-                        className="btn-icon"
-                        style={{ padding: '2px 4px', border: 'none', background: 'none', color: 'var(--red)' }}
-                        onClick={() => deleteCategory(cat)}
-                        disabled={deletingCatId === cat.id}
-                        title="Delete empty category"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    )}
+                    <button
+                      className="btn-icon"
+                      style={{ padding: '2px 4px', border: 'none', background: 'none', color: 'var(--red)', cursor: 'pointer' }}
+                      onClick={() => deleteCategory(cat)}
+                      disabled={deletingCatId === cat.id}
+                      title={`Delete category "${cat.name}"`}
+                    >
+                      <Trash2 size={12} />
+                    </button>
                   </div>
                 </div>
 
