@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Building, Plus, Check } from 'lucide-react'
+import { X, Building, Plus, Trash2 } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 import { useProperty } from '@/context/PropertyContext'
 import { broadcastChange } from '@/lib/realtime-sync'
@@ -9,6 +9,12 @@ import { broadcastChange } from '@/lib/realtime-sync'
 interface Props {
   onClose: () => void
   onSuccess?: () => void
+}
+
+interface CategoryInput {
+  name: string
+  roomCount: number
+  rate: number
 }
 
 export default function AddPropertyModal({ onClose, onSuccess }: Props) {
@@ -33,16 +39,39 @@ export default function AddPropertyModal({ onClose, onSuccess }: Props) {
     checkInTime: '02:00 PM',
     checkOutTime: '11:00 AM',
     coverImage: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=800&q=80',
-    deluxeRooms: 6,
-    deluxeRate: 3200,
-    classicRooms: 6,
-    classicRate: 2200,
-    superiorRooms: 3,
-    superiorRate: 5000,
   })
+
+  const [categories, setCategories] = useState<CategoryInput[]>([
+    { name: 'Standard', roomCount: 6, rate: 2500 },
+    { name: 'Deluxe', roomCount: 5, rate: 3500 },
+    { name: 'Superior', roomCount: 3, rate: 5500 },
+  ])
 
   function handleChange(field: string, val: any) {
     setForm((prev) => ({ ...prev, [field]: val }))
+  }
+
+  function handleCategoryChange(idx: number, field: keyof CategoryInput, val: any) {
+    setCategories((prev) => {
+      const next = [...prev]
+      next[idx] = {
+        ...next[idx],
+        [field]: field === 'name' ? val : Math.max(0, Number(val) || 0),
+      }
+      return next
+    })
+  }
+
+  function addCategoryRow() {
+    setCategories((prev) => [...prev, { name: '', roomCount: 2, rate: 2000 }])
+  }
+
+  function removeCategoryRow(idx: number) {
+    if (categories.length <= 1) {
+      showToast('Property must have at least one room category', 'error')
+      return
+    }
+    setCategories((prev) => prev.filter((_, i) => i !== idx))
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -52,20 +81,26 @@ export default function AddPropertyModal({ onClose, onSuccess }: Props) {
       return
     }
 
+    const validCategories = categories.filter((c) => c.name.trim().length > 0)
+    if (validCategories.length === 0) {
+      showToast('Please specify at least one category name', 'error')
+      return
+    }
+
     setLoading(true)
     try {
-      const categories = [
-        { name: 'Classic', rate: Number(form.classicRate), roomCount: Number(form.classicRooms) },
-        { name: 'Deluxe', rate: Number(form.deluxeRate), roomCount: Number(form.deluxeRooms) },
-        { name: 'Superior', rate: Number(form.superiorRate), roomCount: Number(form.superiorRooms) },
-      ]
+      const formattedCategories = validCategories.map((c) => ({
+        name: c.name.trim(),
+        rate: Number(c.rate),
+        roomCount: Number(c.roomCount),
+      }))
 
       const res = await fetch('/api/properties', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
-          categories,
+          categories: formattedCategories,
         }),
       })
 
@@ -104,7 +139,7 @@ export default function AddPropertyModal({ onClose, onSuccess }: Props) {
             </button>
           </div>
           <div className="modal-subtitle">
-            Configure a separate hotel property with its own inventory, rates, currency, and bookings.
+            Configure a separate hotel property with its own custom categories, inventory, rates, and currency.
           </div>
         </div>
 
@@ -140,7 +175,6 @@ export default function AddPropertyModal({ onClose, onSuccess }: Props) {
                 <label className="form-label">City *</label>
                 <input
                   className="form-control"
-                  placeholder="Bangalore"
                   value={form.city}
                   onChange={(e) => handleChange('city', e.target.value)}
                   required
@@ -150,7 +184,6 @@ export default function AddPropertyModal({ onClose, onSuccess }: Props) {
                 <label className="form-label">State</label>
                 <input
                   className="form-control"
-                  placeholder="Karnataka"
                   value={form.state}
                   onChange={(e) => handleChange('state', e.target.value)}
                 />
@@ -159,129 +192,146 @@ export default function AddPropertyModal({ onClose, onSuccess }: Props) {
                 <label className="form-label">Country</label>
                 <input
                   className="form-control"
-                  placeholder="India"
                   value={form.country}
                   onChange={(e) => handleChange('country', e.target.value)}
                 />
               </div>
             </div>
 
-            <div className="form-group" style={{ margin: 0 }}>
-              <label className="form-label">Address</label>
-              <input
-                className="form-control"
-                placeholder="e.g. 12 Indiranagar 100 Feet Road"
-                value={form.address}
-                onChange={(e) => handleChange('address', e.target.value)}
-              />
+            {/* Contact Details */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Contact Phone</label>
+                <input
+                  className="form-control"
+                  placeholder="+91 80 4112 3396"
+                  value={form.phone}
+                  onChange={(e) => handleChange('phone', e.target.value)}
+                />
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Contact Email</label>
+                <input
+                  type="email"
+                  className="form-control"
+                  placeholder="info@hotel.com"
+                  value={form.email}
+                  onChange={(e) => handleChange('email', e.target.value)}
+                />
+              </div>
             </div>
 
-            {/* Financial & Time Policies */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+            {/* Currency & Tax */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
               <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label">Currency</label>
-                <input
+                <select
                   className="form-control"
                   value={form.currency}
-                  onChange={(e) => handleChange('currency', e.target.value)}
+                  onChange={(e) => {
+                    const c = e.target.value
+                    handleChange('currency', c)
+                    handleChange('currencySymbol', c === 'USD' ? '$' : c === 'EUR' ? '€' : c === 'GBP' ? '£' : '₹')
+                  }}
+                >
+                  <option value="INR">INR (₹)</option>
+                  <option value="USD">USD ($)</option>
+                  <option value="EUR">EUR (€)</option>
+                  <option value="GBP">GBP (£)</option>
+                  <option value="AED">AED (د.إ)</option>
+                </select>
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Tax Rate (%)</label>
+                <input
+                  type="number"
+                  className="form-control"
+                  value={form.taxRate}
+                  onChange={(e) => handleChange('taxRate', Number(e.target.value))}
+                  min={0}
+                  max={100}
                 />
               </div>
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Check-In</label>
+                <label className="form-label">Check-in / Check-out</label>
                 <input
                   className="form-control"
-                  value={form.checkInTime}
-                  onChange={(e) => handleChange('checkInTime', e.target.value)}
-                />
-              </div>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Check-Out</label>
-                <input
-                  className="form-control"
-                  value={form.checkOutTime}
-                  onChange={(e) => handleChange('checkOutTime', e.target.value)}
+                  value={`${form.checkInTime} / ${form.checkOutTime}`}
+                  readOnly
+                  style={{ opacity: 0.8 }}
                 />
               </div>
             </div>
 
-            {/* Initial Room Categories */}
+            {/* Custom Room Categories for this Property */}
             <div
               style={{
                 background: 'var(--card-2)',
                 border: '1px solid var(--border)',
                 borderRadius: 'var(--radius-sm)',
-                padding: '12px 14px',
+                padding: '14px',
               }}
             >
-              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-2)', marginBottom: '8px' }}>
-                Initial Room Inventory &amp; Nightly Rates
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>
+                    Room Categories &amp; Inventory for this Property
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-3)' }}>
+                    Add custom category types specific to this hotel (e.g. Standard, Suite, Villa, Dorm...)
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={addCategoryRow}
+                  style={{ fontSize: '11.5px', padding: '4px 8px' }}
+                >
+                  <Plus size={12} /> Add Type
+                </button>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
-                <div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-3)', marginBottom: '4px' }}>Classic (Rooms / Rate)</div>
-                  <div style={{ display: 'flex', gap: '4px' }}>
-                    <input
-                      className="form-control"
-                      type="number"
-                      title="Rooms"
-                      placeholder="Rooms"
-                      value={form.classicRooms}
-                      onChange={(e) => handleChange('classicRooms', e.target.value)}
-                    />
-                    <input
-                      className="form-control"
-                      type="number"
-                      title="Rate"
-                      placeholder="₹ Rate"
-                      value={form.classicRate}
-                      onChange={(e) => handleChange('classicRate', e.target.value)}
-                    />
-                  </div>
-                </div>
 
-                <div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-3)', marginBottom: '4px' }}>Deluxe (Rooms / Rate)</div>
-                  <div style={{ display: 'flex', gap: '4px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {categories.map((cat, idx) => (
+                  <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <input
                       className="form-control"
+                      style={{ flex: 2 }}
+                      placeholder="Category name (e.g. Suite)"
+                      value={cat.name}
+                      onChange={(e) => handleCategoryChange(idx, 'name', e.target.value)}
+                    />
+                    <input
+                      className="form-control"
+                      style={{ flex: 1 }}
                       type="number"
-                      title="Rooms"
                       placeholder="Rooms"
-                      value={form.deluxeRooms}
-                      onChange={(e) => handleChange('deluxeRooms', e.target.value)}
+                      value={cat.roomCount}
+                      onChange={(e) => handleCategoryChange(idx, 'roomCount', e.target.value)}
+                      min={0}
                     />
                     <input
                       className="form-control"
+                      style={{ flex: 1.2 }}
                       type="number"
-                      title="Rate"
-                      placeholder="₹ Rate"
-                      value={form.deluxeRate}
-                      onChange={(e) => handleChange('deluxeRate', e.target.value)}
+                      placeholder={`${form.currencySymbol} Rate`}
+                      value={cat.rate}
+                      onChange={(e) => handleCategoryChange(idx, 'rate', e.target.value)}
+                      min={0}
                     />
+                    {categories.length > 1 && (
+                      <button
+                        type="button"
+                        className="btn-icon"
+                        style={{ padding: '6px', color: 'var(--red)', background: 'none', border: 'none' }}
+                        onClick={() => removeCategoryRow(idx)}
+                        title="Remove category"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </div>
-                </div>
-
-                <div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-3)', marginBottom: '4px' }}>Superior (Rooms / Rate)</div>
-                  <div style={{ display: 'flex', gap: '4px' }}>
-                    <input
-                      className="form-control"
-                      type="number"
-                      title="Rooms"
-                      placeholder="Rooms"
-                      value={form.superiorRooms}
-                      onChange={(e) => handleChange('superiorRooms', e.target.value)}
-                    />
-                    <input
-                      className="form-control"
-                      type="number"
-                      title="Rate"
-                      placeholder="₹ Rate"
-                      value={form.superiorRate}
-                      onChange={(e) => handleChange('superiorRate', e.target.value)}
-                    />
-                  </div>
-                </div>
+                ))}
               </div>
             </div>
 

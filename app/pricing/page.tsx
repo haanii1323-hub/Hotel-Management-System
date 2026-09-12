@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import useSWR from 'swr'
 import AppShell from '@/components/layout/AppShell'
-import { Check, Plus, Trash2, BedDouble, Pencil, X } from 'lucide-react'
+import { Check, Plus, Trash2, BedDouble, Pencil, X, Tag } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 import { useProperty } from '@/context/PropertyContext'
 import { broadcastChange, useRealtimeSync } from '@/lib/realtime-sync'
@@ -41,6 +41,11 @@ export default function PricingPage() {
   const [editRate, setEditRate] = useState<Record<string, number>>({})
   const [savingRate, setSavingRate] = useState<Record<string, boolean>>({})
 
+  // Category rename inline
+  const [editingCatId, setEditingCatId] = useState<string | null>(null)
+  const [editCatName, setEditCatName] = useState('')
+  const [savingCatName, setSavingCatName] = useState(false)
+
   // Add room form
   const [newRoomNo, setNewRoomNo] = useState('')
   const [newRoomCat, setNewRoomCat] = useState('')
@@ -62,6 +67,7 @@ export default function PricingPage() {
   const [catName, setCatName] = useState('')
   const [catRate, setCatRate] = useState('')
   const [addingCat, setAddingCat] = useState(false)
+  const [deletingCatId, setDeletingCatId] = useState<string | null>(null)
 
   useRealtimeSync(() => {
     mutateCategories()
@@ -92,6 +98,56 @@ export default function PricingPage() {
       mutateCategories()
     } else {
       showToast('Failed to update rate', 'error')
+    }
+  }
+
+  async function saveCategoryName(cat: any) {
+    if (!editCatName.trim()) {
+      showToast('Category name cannot be empty', 'error')
+      return
+    }
+    setSavingCatName(true)
+    try {
+      const res = await fetch('/api/categories', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: cat.id, name: editCatName.trim() }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        showToast(`Category renamed to "${editCatName.trim()}"`, 'success')
+        setEditingCatId(null)
+        broadcastChange('CATEGORY_UPDATED', { categoryId: cat.id })
+        mutateCategories()
+        mutateRooms()
+      } else {
+        showToast(data.error || 'Failed to rename category', 'error')
+      }
+    } catch {
+      showToast('Network error while updating category', 'error')
+    } finally {
+      setSavingCatName(false)
+    }
+  }
+
+  async function deleteCategory(cat: any) {
+    if (!confirm(`Are you sure you want to delete category "${cat.name}"?`)) return
+    setDeletingCatId(cat.id)
+    try {
+      const res = await fetch(`/api/categories?id=${cat.id}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (res.ok) {
+        showToast(`Category "${cat.name}" deleted successfully`, 'success')
+        broadcastChange('CATEGORY_UPDATED', { categoryId: cat.id, action: 'deleted' })
+        mutateCategories()
+        mutateRooms()
+      } else {
+        showToast(data.error || 'Failed to delete category', 'error')
+      }
+    } catch {
+      showToast('Network error while deleting category', 'error')
+    } finally {
+      setDeletingCatId(null)
     }
   }
 
@@ -165,7 +221,7 @@ export default function PricingPage() {
       return
     }
     setAddingRoom(true)
-    const categoryName = newRoomCat || (categories && categories[0]?.name) || 'Classic'
+    const categoryName = newRoomCat || (categories && categories[0]?.name) || 'Standard'
     const res = await fetch('/api/rooms', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -204,7 +260,7 @@ export default function PricingPage() {
     const data = await res.json()
     setAddingCat(false)
     if (res.ok) {
-      showToast(`Category "${catName}" added!`, 'success')
+      showToast(`Category "${catName.trim()}" added to ${currentProperty?.name}!`, 'success')
       setCatName('')
       setCatRate('')
       setShowAddCat(false)
@@ -217,51 +273,66 @@ export default function PricingPage() {
 
   return (
     <AppShell>
-      <div className="page-header">
+      <div className="page-header" style={{ marginBottom: '20px' }}>
         <div>
           <h1 className="page-title">Pricing &amp; Rooms · {currentProperty?.name}</h1>
           <div style={{ fontSize: '12px', color: 'var(--text-2)', marginTop: '2px' }}>
-            {currentProperty?.code} · {currentProperty?.city} · Currency: {currentProperty?.currency} ({currencySymbol})
+            {currentProperty?.code} · {currentProperty?.city} · Currency: {currentProperty?.currency} ({currencySymbol}) · Custom property categories
           </div>
         </div>
-        <button className="btn btn-ghost btn-sm" onClick={() => setShowAddCat(!showAddCat)}>
+        <button
+          className="btn btn-red btn-sm"
+          onClick={() => setShowAddCat(!showAddCat)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+        >
           <Plus size={14} /> Add Category
         </button>
       </div>
 
-      {/* Add Category Drawer / Inline */}
+      {/* Add Category Drawer / Inline Form */}
       {showAddCat && (
         <div
           style={{
             background: 'var(--card-2)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-sm)',
-            padding: '16px',
-            marginBottom: '20px',
+            border: '1px solid var(--border-2)',
+            borderRadius: 'var(--radius-md)',
+            padding: '18px 20px',
+            marginBottom: '24px',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
           }}
         >
-          <div style={{ fontWeight: 600, marginBottom: '10px', fontSize: '13px' }}>
-            Create Room Category for {currentProperty?.name}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text)' }}>
+              Add New Custom Category for {currentProperty?.name}
+            </div>
+            <button
+              onClick={() => setShowAddCat(false)}
+              className="btn-icon"
+              style={{ background: 'none', border: 'none', color: 'var(--text-3)' }}
+            >
+              <X size={15} />
+            </button>
           </div>
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
             <input
               className="form-control"
-              style={{ width: '180px' }}
-              placeholder="Category name (e.g. Superior)"
+              style={{ width: '220px' }}
+              placeholder="Category name (e.g. Deluxe, Suite, Villa...)"
               value={catName}
               onChange={(e) => setCatName(e.target.value)}
+              autoFocus
             />
             <input
               className="form-control"
-              style={{ width: '140px' }}
+              style={{ width: '150px' }}
               type="number"
-              placeholder={`Rate (${currencySymbol})`}
+              placeholder={`Base Rate (${currencySymbol})`}
               value={catRate}
               onChange={(e) => setCatRate(e.target.value)}
             />
             <button className="btn btn-red btn-sm" onClick={addCategory} disabled={addingCat}>
               {addingCat ? <span className="spinner" style={{ width: 12, height: 12 }} /> : <Plus size={12} />}
-              Create
+              Save Category
             </button>
             <button className="btn btn-ghost btn-sm" onClick={() => setShowAddCat(false)}>
               Cancel
@@ -271,57 +342,126 @@ export default function PricingPage() {
       )}
 
       {/* Category Rate Cards */}
-      <h2 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--text-2)' }}>
-        Room Categories &amp; Nightly Base Rates
-      </h2>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+        <h2 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-2)' }}>
+          Room Categories &amp; Nightly Base Rates
+        </h2>
+        <span style={{ fontSize: '12px', color: 'var(--text-3)' }}>
+          {categories?.length || 0} Categories configured
+        </span>
+      </div>
+
       {!categories || categories.length === 0 ? (
         <div className="empty-state" style={{ marginBottom: '24px' }}>
-          No room categories configured yet. Click &quot;Add Category&quot; above.
+          No room categories configured yet for this property. Click &quot;Add Category&quot; above to create one.
         </div>
       ) : (
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-            gap: '12px',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+            gap: '14px',
             marginBottom: '28px',
           }}
         >
-          {categories.map((cat: any) => (
-            <div key={cat.id} className="card" style={{ padding: '14px 16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <span style={{ fontWeight: 600, fontSize: '14px' }}>{cat.name}</span>
-                <span className="badge badge-gray" style={{ fontSize: '10px' }}>
-                  {cat.totalRooms || 0} Rooms
-                </span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ color: 'var(--text-3)', fontSize: '13px' }}>{currencySymbol}</span>
-                <input
-                  type="number"
-                  className="form-control"
-                  style={{ width: '100px', padding: '4px 8px', fontSize: '13px', fontWeight: 600 }}
-                  value={editRate[cat.id] !== undefined ? editRate[cat.id] : cat.nightlyRate}
-                  onChange={(e) =>
-                    setEditRate((prev) => ({
-                      ...prev,
-                      [cat.id]: Number(e.target.value),
-                    }))
-                  }
-                />
-                {editRate[cat.id] !== undefined && editRate[cat.id] !== cat.nightlyRate && (
-                  <button className="btn btn-red btn-sm" onClick={() => saveRate(cat)} disabled={savingRate[cat.id]}>
-                    {savingRate[cat.id] ? (
-                      <span className="spinner" style={{ width: 12, height: 12 }} />
-                    ) : (
-                      <Check size={14} />
+          {categories.map((cat: any) => {
+            const isEditingThis = editingCatId === cat.id
+            const roomCount = cat.totalRooms || 0
+
+            return (
+              <div key={cat.id} className="card" style={{ padding: '16px', position: 'relative' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                  {isEditingThis ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, marginRight: '8px' }}>
+                      <input
+                        className="form-control"
+                        style={{ padding: '3px 8px', fontSize: '13px', fontWeight: 700 }}
+                        value={editCatName}
+                        onChange={(e) => setEditCatName(e.target.value)}
+                        autoFocus
+                      />
+                      <button
+                        className="btn-icon"
+                        style={{ padding: '4px', color: 'var(--green)' }}
+                        onClick={() => saveCategoryName(cat)}
+                        disabled={savingCatName}
+                        title="Save name"
+                      >
+                        <Check size={14} />
+                      </button>
+                      <button
+                        className="btn-icon"
+                        style={{ padding: '4px', color: 'var(--text-3)' }}
+                        onClick={() => setEditingCatId(null)}
+                        title="Cancel"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontWeight: 700, fontSize: '14.5px', color: '#ffffff' }}>{cat.name}</span>
+                      <button
+                        className="btn-icon"
+                        style={{ padding: '2px 4px', border: 'none', background: 'none', color: 'var(--text-3)' }}
+                        onClick={() => {
+                          setEditingCatId(cat.id)
+                          setEditCatName(cat.name)
+                        }}
+                        title="Rename category"
+                      >
+                        <Pencil size={11} />
+                      </button>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span className="badge badge-gray" style={{ fontSize: '10.5px' }}>
+                      {roomCount} {roomCount === 1 ? 'Room' : 'Rooms'}
+                    </span>
+                    {roomCount === 0 && (
+                      <button
+                        className="btn-icon"
+                        style={{ padding: '2px 4px', border: 'none', background: 'none', color: 'var(--red)' }}
+                        onClick={() => deleteCategory(cat)}
+                        disabled={deletingCatId === cat.id}
+                        title="Delete empty category"
+                      >
+                        <Trash2 size={12} />
+                      </button>
                     )}
-                    Save
-                  </button>
-                )}
+                  </div>
+                </div>
+
+                {/* Rate Input */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ color: 'var(--text-3)', fontSize: '13px', fontWeight: 600 }}>{currencySymbol}</span>
+                  <input
+                    type="number"
+                    className="form-control"
+                    style={{ width: '110px', padding: '5px 8px', fontSize: '13px', fontWeight: 700 }}
+                    value={editRate[cat.id] !== undefined ? editRate[cat.id] : cat.nightlyRate}
+                    onChange={(e) =>
+                      setEditRate((prev) => ({
+                        ...prev,
+                        [cat.id]: Number(e.target.value),
+                      }))
+                    }
+                  />
+                  {editRate[cat.id] !== undefined && editRate[cat.id] !== cat.nightlyRate && (
+                    <button className="btn btn-red btn-sm" onClick={() => saveRate(cat)} disabled={savingRate[cat.id]}>
+                      {savingRate[cat.id] ? (
+                        <span className="spinner" style={{ width: 12, height: 12 }} />
+                      ) : (
+                        <Check size={14} />
+                      )}
+                      Save
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
@@ -349,7 +489,7 @@ export default function PricingPage() {
           />
           <select
             className="form-control"
-            style={{ width: '140px' }}
+            style={{ width: '150px' }}
             value={newRoomCat || (categories && categories[0]?.name) || ''}
             onChange={(e) => setNewRoomCat(e.target.value)}
           >

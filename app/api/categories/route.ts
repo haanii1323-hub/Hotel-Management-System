@@ -21,7 +21,20 @@ export async function GET(req: NextRequest) {
       orderBy: { nightlyRate: 'asc' },
     })
 
-    return NextResponse.json(categories)
+    const categoriesWithCount = categories.map((cat) => ({
+      id: cat.id,
+      name: cat.name,
+      nightlyRate: cat.nightlyRate,
+      weekendRate: cat.weekendRate,
+      extraGuestCharge: cat.extraGuestCharge,
+      baseOccupancy: cat.baseOccupancy,
+      maxOccupancy: cat.maxOccupancy,
+      description: cat.description,
+      totalRooms: cat.rooms.length,
+      createdAt: cat.createdAt,
+    }))
+
+    return NextResponse.json(categoriesWithCount)
   } catch (error: any) {
     console.error('Error fetching categories:', error)
     return NextResponse.json({ error: 'Failed to fetch categories' }, { status: 500 })
@@ -42,7 +55,6 @@ export async function POST(req: NextRequest) {
       baseOccupancy = 2,
       maxOccupancy = 3,
       description,
-      totalRooms = 0,
     } = body
 
     if (!name?.trim() || nightlyRate === undefined) {
@@ -81,7 +93,7 @@ export async function POST(req: NextRequest) {
         baseOccupancy: Number(baseOccupancy) || 2,
         maxOccupancy: Number(maxOccupancy) || 3,
         description: description?.trim() || null,
-        totalRooms: Number(totalRooms),
+        totalRooms: 0,
       },
     })
 
@@ -106,7 +118,6 @@ export async function PATCH(req: NextRequest) {
       maxOccupancy,
       description,
       name,
-      totalRooms,
     } = body
 
     if (!id) {
@@ -128,8 +139,24 @@ export async function PATCH(req: NextRequest) {
     if (baseOccupancy !== undefined) updateData.baseOccupancy = Number(baseOccupancy)
     if (maxOccupancy !== undefined) updateData.maxOccupancy = Number(maxOccupancy)
     if (description !== undefined) updateData.description = description?.trim() || null
-    if (name !== undefined) updateData.name = name.trim()
-    if (totalRooms !== undefined) updateData.totalRooms = Number(totalRooms)
+    if (name !== undefined && name.trim()) {
+      const trimmedName = name.trim()
+      if (trimmedName !== existing.name) {
+        // Check for collision
+        const duplicate = await prisma.roomCategory.findUnique({
+          where: {
+            propertyId_name: {
+              propertyId: existing.propertyId,
+              name: trimmedName,
+            },
+          },
+        })
+        if (duplicate) {
+          return NextResponse.json({ error: `Category "${trimmedName}" already exists` }, { status: 400 })
+        }
+        updateData.name = trimmedName
+      }
+    }
 
     const updated = await prisma.roomCategory.update({
       where: { id },
@@ -140,5 +167,49 @@ export async function PATCH(req: NextRequest) {
   } catch (error: any) {
     console.error('Error updating category:', error)
     return NextResponse.json({ error: error.message || 'Failed to update category' }, { status: 500 })
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    const { tenantId } = await getTenantContext(req, session?.user as any)
+    const { searchParams } = new URL(req.url)
+    const id = searchParams.get('id')
+
+    if (!id) {
+      return NextResponse.json({ error: 'Category ID is required' }, { status: 400 })
+    }
+
+    const existing = await prisma.roomCategory.findFirst({
+      where: { id, property: { tenantId } },
+      include: {
+        rooms: true,
+      },
+    })
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Category not found or unauthorized' }, { status: 404 })
+    }
+
+    if (existing.rooms.length > 0) {
+      return NextResponse.json(
+        {
+          error: `Cannot delete "${existing.name}" because ${existing.rooms.length} room${
+            existing.rooms.length === 1 ? ' is' : 's are'
+          } currently assigned to it. Please reassign or remove those rooms first.`,
+        },
+        { status: 400 }
+      )
+    }
+
+    await prisma.roomCategory.delete({
+      where: { id },
+    })
+
+    return NextResponse.json({ success: true, message: `Category "${existing.name}" deleted successfully` })
+  } catch (error: any) {
+    console.error('Error deleting category:', error)
+    return NextResponse.json({ error: error.message || 'Failed to delete category' }, { status: 500 })
   }
 }
