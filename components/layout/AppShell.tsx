@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
 import { InstallAppButton } from '@/components/ui/InstallApp'
 import PropertySelector from './PropertySelector'
+import DelayedAlertsPopup from '@/components/notifications/DelayedAlertsPopup'
 import { useProperty } from '@/context/PropertyContext'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -223,6 +224,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <InstallAppButton variant="mobile-item" />
         </nav>
       </div>
+
+      {/* Floating Delayed Checkin/Checkout Alert Popup */}
+      <DelayedAlertsPopup />
     </div>
   )
 }

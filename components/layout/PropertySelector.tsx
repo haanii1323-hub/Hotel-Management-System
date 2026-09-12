@@ -1,11 +1,27 @@
-'use client'
-
 import { useState, useRef, useEffect } from 'react'
-import { ChevronDown, Check, Search, Plus, Settings, Building2, Bell, AlertCircle, Sparkles, X } from 'lucide-react'
+import {
+  ChevronDown,
+  Check,
+  Search,
+  Plus,
+  Settings,
+  Building2,
+  Bell,
+  AlertCircle,
+  AlertTriangle,
+  LogIn,
+  LogOut,
+  Clock,
+  Sparkles,
+  X,
+} from 'lucide-react'
 import { useProperty } from '@/context/PropertyContext'
 import AddPropertyModal from '@/components/properties/AddPropertyModal'
 import EditPropertyModal from '@/components/properties/EditPropertyModal'
 import AllPropertiesModal from '@/components/properties/AllPropertiesModal'
+import CheckInModal from '@/components/bookings/CheckInModal'
+import CheckoutModal from '@/components/bookings/CheckoutModal'
+import { broadcastChange } from '@/lib/realtime-sync'
 import useSWR from 'swr'
 import { useRouter } from 'next/navigation'
 
@@ -20,13 +36,15 @@ export default function PropertySelector() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showOverviewModal, setShowOverviewModal] = useState(false)
+  const [checkInBooking, setCheckInBooking] = useState<any | null>(null)
+  const [checkoutBooking, setCheckoutBooking] = useState<any | null>(null)
 
   const dropdownRef = useRef<HTMLDivElement>(null)
   const notifRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   const propertyId = currentProperty?.id || ''
-  const { data: notifData } = useSWR(
+  const { data: notifData, mutate: refreshNotifications } = useSWR(
     propertyId ? `/api/notifications?propertyId=${propertyId}` : '/api/notifications',
     fetcher,
     { refreshInterval: 5000 }
@@ -161,36 +179,132 @@ export default function PropertySelector() {
                 </button>
               </div>
 
-              <div style={{ maxHeight: '340px', overflowY: 'auto' }}>
+              <div style={{ maxHeight: '380px', overflowY: 'auto' }}>
                 {notifications.length === 0 ? (
                   <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-3)', fontSize: '12px' }}>
                     <Check size={24} style={{ margin: '0 auto 8px', color: 'var(--green)' }} />
                     All clear! No urgent check-ins, check-outs, or housekeeping tasks pending.
                   </div>
                 ) : (
-                  notifications.map((n: any) => (
-                    <div
-                      key={n.id}
-                      onClick={() => {
-                        if (n.href) router.push(n.href)
-                        setShowNotifications(false)
-                      }}
-                      style={{
-                        padding: '10px 14px',
-                        borderBottom: '1px solid var(--border)',
-                        cursor: 'pointer',
-                        transition: 'background 0.15s ease',
-                      }}
-                      className="notif-item-hover"
-                    >
-                      <div style={{ fontWeight: 600, fontSize: '12px', color: n.type === 'cleaning' ? 'var(--amber)' : 'var(--text)' }}>
-                        {n.title}
+                  notifications.map((n: any) => {
+                    const isCheckin = n.type === 'delayed_checkin' || n.type === 'arrival'
+                    const isCheckout = n.type === 'delayed_checkout' || n.type === 'departure'
+                    const isCleaning = n.type === 'cleaning'
+
+                    return (
+                      <div
+                        key={n.id}
+                        onClick={() => {
+                          if (n.href) router.push(n.href)
+                          setShowNotifications(false)
+                        }}
+                        style={{
+                          padding: '10px 14px',
+                          borderBottom: '1px solid var(--border)',
+                          cursor: 'pointer',
+                          transition: 'background 0.15s ease',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '6px',
+                        }}
+                        className="notif-item-hover"
+                      >
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '6px' }}>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                              <span style={{ fontWeight: 600, fontSize: '12px', color: 'var(--text)' }}>
+                                {n.guestName || n.title}
+                              </span>
+                              {n.isDelayed && (
+                                <span
+                                  style={{
+                                    fontSize: '9px',
+                                    fontWeight: 800,
+                                    padding: '1px 5px',
+                                    borderRadius: '3px',
+                                    background: isCheckin ? 'rgba(239, 68, 68, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+                                    color: isCheckin ? 'var(--red)' : 'var(--amber)',
+                                    border: isCheckin ? '1px solid var(--red)' : '1px solid var(--amber)',
+                                  }}
+                                >
+                                  {isCheckin ? 'DELAYED CHECK-IN' : 'OVERDUE CHECKOUT'}
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-2)', marginTop: '2px' }}>
+                              {n.description}
+                            </div>
+                          </div>
+
+                          {n.isDelayed && n.delayedDays > 0 && (
+                            <div
+                              style={{
+                                fontSize: '10px',
+                                fontWeight: 700,
+                                color: 'var(--red)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                flexShrink: 0,
+                              }}
+                            >
+                              <Clock size={10} />
+                              {n.delayedDays}d overdue
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Direct Action Buttons */}
+                        {(isCheckin || isCheckout) && n.booking && (
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'flex-end',
+                              gap: '6px',
+                              marginTop: '2px',
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {isCheckin && (
+                              <button
+                                type="button"
+                                className="btn btn-red btn-sm"
+                                style={{ fontSize: '11px', padding: '2px 8px', height: '22px', gap: '4px' }}
+                                onClick={() => {
+                                  setShowNotifications(false)
+                                  setCheckInBooking(n.booking)
+                                }}
+                              >
+                                <LogIn size={11} /> Check In
+                              </button>
+                            )}
+                            {isCheckout && (
+                              <button
+                                type="button"
+                                className="btn btn-amber btn-sm"
+                                style={{
+                                  fontSize: '11px',
+                                  padding: '2px 8px',
+                                  height: '22px',
+                                  gap: '4px',
+                                  background: 'var(--amber)',
+                                  color: '#000',
+                                  fontWeight: 600,
+                                }}
+                                onClick={() => {
+                                  setShowNotifications(false)
+                                  setCheckoutBooking(n.booking)
+                                }}
+                              >
+                                <LogOut size={11} /> Checkout
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-2)', marginTop: '2px' }}>
-                        {n.description}
-                      </div>
-                    </div>
-                  ))
+                    )
+                  })
                 )}
               </div>
             </div>
@@ -517,6 +631,32 @@ export default function PropertySelector() {
           onAddProperty={() => {
             setShowOverviewModal(false)
             setShowAddModal(true)
+          }}
+        />
+      )}
+
+      {/* Check In Modal triggered from Notifications */}
+      {checkInBooking && (
+        <CheckInModal
+          booking={checkInBooking}
+          onClose={() => setCheckInBooking(null)}
+          onSuccess={() => {
+            setCheckInBooking(null)
+            refreshNotifications()
+            broadcastChange('CHECK_IN')
+          }}
+        />
+      )}
+
+      {/* Checkout Modal triggered from Notifications */}
+      {checkoutBooking && (
+        <CheckoutModal
+          booking={checkoutBooking}
+          onClose={() => setCheckoutBooking(null)}
+          onSuccess={() => {
+            setCheckoutBooking(null)
+            refreshNotifications()
+            broadcastChange('CHECK_OUT')
           }}
         />
       )}
