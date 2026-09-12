@@ -5,21 +5,44 @@ import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { InstallAppButton } from '@/components/ui/InstallApp'
-import { Building2, Sparkles, ShieldCheck, ArrowRight, CheckCircle2, Lock, User, Mail, Hotel } from 'lucide-react'
+import {
+  Building2,
+  Sparkles,
+  ShieldCheck,
+  ArrowRight,
+  CheckCircle2,
+  Lock,
+  User,
+  Mail,
+  Hotel,
+  KeyRound,
+  Search,
+  ArrowLeft,
+  Check,
+} from 'lucide-react'
 
 export default function AuthPage() {
   const router = useRouter()
   const [authTab, setAuthTab] = useState<'owner' | 'demo'>('owner')
-  const [ownerMode, setOwnerMode] = useState<'signin' | 'register'>('signin')
+  const [ownerMode, setOwnerMode] = useState<'signin' | 'register' | 'forgot'>('signin')
   const [form, setForm] = useState({ name: '', hotelName: '', email: '', password: '' })
+  const [forgotForm, setForgotForm] = useState({ identifier: '', newPassword: '', confirmPassword: '' })
+  const [discoveredAccount, setDiscoveredAccount] = useState<any>(null)
+  const [findingAccount, setFindingAccount] = useState(false)
+  const [successMsg, setSuccessMsg] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   const update = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }))
+  const updateForgot = (k: string, v: string) => {
+    setForgotForm((f) => ({ ...f, [k]: v }))
+    setError('')
+  }
 
   async function handleOwnerSignIn(e: React.FormEvent) {
     e.preventDefault()
     setError('')
+    setSuccessMsg('')
     setLoading(true)
     const res = await signIn('credentials', {
       email: form.email.trim(),
@@ -28,7 +51,7 @@ export default function AuthPage() {
     })
     setLoading(false)
     if (res?.error) {
-      setError('Invalid email or password. Please check your credentials.')
+      setError('Invalid email or password. Please check your credentials or use Forgot Password.')
     } else {
       router.push('/dashboard')
     }
@@ -37,6 +60,7 @@ export default function AuthPage() {
   async function handleOwnerRegister(e: React.FormEvent) {
     e.preventDefault()
     setError('')
+    setSuccessMsg('')
     setLoading(true)
     try {
       const res = await fetch('/api/register', {
@@ -59,7 +83,7 @@ export default function AuthPage() {
       })
       setLoading(false)
       if (signInRes?.error) {
-        setError('Account created! Please sign in using your credentials.')
+        setSuccessMsg('Account created! Please sign in using your credentials.')
         setOwnerMode('signin')
       } else {
         router.push('/dashboard')
@@ -70,8 +94,96 @@ export default function AuthPage() {
     }
   }
 
+  async function handleLookupAccount() {
+    if (!forgotForm.identifier.trim()) {
+      setError('Please enter your email, hotel name, or property code.')
+      return
+    }
+    setError('')
+    setFindingAccount(true)
+    try {
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'lookup',
+          identifier: forgotForm.identifier.trim(),
+        }),
+      })
+      const data = await res.json()
+      if (res.ok && data.found) {
+        setDiscoveredAccount(data)
+        setSuccessMsg(`Account found: "${data.hotelName}" · Email: ${data.email}`)
+      } else {
+        setDiscoveredAccount(null)
+        setError(data.error || 'No matching account found.')
+      }
+    } catch {
+      setError('Failed to search account. Please try again.')
+    } finally {
+      setFindingAccount(false)
+    }
+  }
+
+  async function handleResetPassword(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+    setSuccessMsg('')
+
+    if (!forgotForm.identifier.trim()) {
+      setError('Please enter your registered email, hotel name, or property code.')
+      return
+    }
+
+    if (!forgotForm.newPassword || forgotForm.newPassword.length < 6) {
+      setError('New password must be at least 6 characters long.')
+      return
+    }
+
+    if (forgotForm.newPassword !== forgotForm.confirmPassword) {
+      setError('Passwords do not match. Please re-type your new password.')
+      return
+    }
+
+    setLoading(true)
+    try {
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          identifier: forgotForm.identifier.trim(),
+          newPassword: forgotForm.newPassword,
+        }),
+      })
+      const data = await res.json()
+      setLoading(false)
+
+      if (res.ok) {
+        setSuccessMsg(`Password reset successfully for ${data.email}! Signing you in...`)
+        // Auto sign in with the new password
+        const signInRes = await signIn('credentials', {
+          email: data.email,
+          password: forgotForm.newPassword,
+          redirect: false,
+        })
+        if (!signInRes?.error) {
+          router.push('/dashboard')
+        } else {
+          setForm((f) => ({ ...f, email: data.email, password: forgotForm.newPassword }))
+          setOwnerMode('signin')
+        }
+      } else {
+        setError(data.error || 'Failed to reset password.')
+      }
+    } catch {
+      setError('Network error while resetting password. Please try again.')
+      setLoading(false)
+    }
+  }
+
   async function handleDemoSignIn() {
     setError('')
+    setSuccessMsg('')
     setLoading(true)
     const res = await signIn('credentials', {
       email: 'admin@apexinn.com',
@@ -154,6 +266,7 @@ export default function AuthPage() {
               onClick={() => {
                 setAuthTab('owner')
                 setError('')
+                setSuccessMsg('')
               }}
               style={{
                 padding: '9px 12px',
@@ -179,6 +292,7 @@ export default function AuthPage() {
               onClick={() => {
                 setAuthTab('demo')
                 setError('')
+                setSuccessMsg('')
               }}
               style={{
                 padding: '9px 12px',
@@ -212,130 +326,301 @@ export default function AuthPage() {
             </div>
           )}
 
+          {successMsg && (
+            <div className="alert alert-success" style={{ marginBottom: '16px' }}>
+              <Check size={14} />
+              {successMsg}
+            </div>
+          )}
+
           {authTab === 'owner' ? (
             <div>
+              {/* Header Title */}
               <div style={{ marginBottom: '16px' }}>
-                <h2 style={{ fontSize: '18px', fontWeight: 700 }}>
-                  {ownerMode === 'signin' ? 'Sign In to Your Hotel' : 'Create Your Hotel PMS Account'}
+                <h2 style={{ fontSize: '18px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {ownerMode === 'signin' && 'Sign In to Your Hotel'}
+                  {ownerMode === 'register' && 'Create Your Hotel PMS Account'}
+                  {ownerMode === 'forgot' && (
+                    <>
+                      <KeyRound size={18} color="var(--red)" /> Account Recovery &amp; Reset Password
+                    </>
+                  )}
                 </h2>
-                <p className="auth-subtitle" style={{ fontSize: '12px' }}>
-                  {ownerMode === 'signin'
-                    ? 'Access your private hotel organization and operations.'
-                    : 'Start with a clean, dedicated environment for your hotel business.'}
+                <p className="auth-subtitle" style={{ fontSize: '12px', marginTop: '2px' }}>
+                  {ownerMode === 'signin' && 'Access your private hotel organization and operations.'}
+                  {ownerMode === 'register' && 'Start with a clean, dedicated environment for your hotel business.'}
+                  {ownerMode === 'forgot' && 'Recover access if you forgot your password or email address.'}
                 </p>
               </div>
 
-              <form onSubmit={ownerMode === 'signin' ? handleOwnerSignIn : handleOwnerRegister}>
-                {ownerMode === 'register' && (
-                  <>
-                    <div className="form-group">
-                      <label className="form-label">Your Full Name *</label>
-                      <input
-                        className="form-control"
-                        type="text"
-                        placeholder="e.g. Vikram Malhotra"
-                        value={form.name}
-                        onChange={(e) => update('name', e.target.value)}
-                        required
-                      />
+              {/* FORGOT PASSWORD / RECOVERY FORM */}
+              {ownerMode === 'forgot' ? (
+                <form onSubmit={handleResetPassword}>
+                  <div className="form-group">
+                    <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>Email, Hotel Name, or Code *</span>
+                      <button
+                        type="button"
+                        onClick={handleLookupAccount}
+                        disabled={findingAccount || !forgotForm.identifier.trim()}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--red-hover)',
+                          fontSize: '11px',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {findingAccount ? (
+                          <span className="spinner" style={{ width: 10, height: 10 }} />
+                        ) : (
+                          <Search size={11} />
+                        )}
+                        Find Account
+                      </button>
+                    </label>
+                    <input
+                      className="form-control"
+                      type="text"
+                      placeholder="e.g. owner@hotel.com, Metro Inn Rooms, or BLR3396"
+                      value={forgotForm.identifier}
+                      onChange={(e) => updateForgot('identifier', e.target.value)}
+                      required
+                      autoFocus
+                    />
+                    <div style={{ fontSize: '11px', color: 'var(--text-3)', marginTop: '4px' }}>
+                      Forgot your email? Enter your Hotel Name, Phone, or Property Code.
                     </div>
+                  </div>
 
-                    <div className="form-group">
-                      <label className="form-label">Hotel / Business Name *</label>
-                      <input
-                        className="form-control"
-                        type="text"
-                        placeholder="e.g. Grand Apex Resort &amp; Spa"
-                        value={form.hotelName}
-                        onChange={(e) => update('hotelName', e.target.value)}
-                        required
-                      />
-                    </div>
-                  </>
-                )}
-
-                <div className="form-group">
-                  <label className="form-label">Email Address *</label>
-                  <input
-                    className="form-control"
-                    type="email"
-                    placeholder="owner@yourhotel.com"
-                    value={form.email}
-                    onChange={(e) => update('email', e.target.value)}
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Password *</label>
-                  <input
-                    className="form-control"
-                    type="password"
-                    placeholder="••••••••"
-                    value={form.password}
-                    onChange={(e) => update('password', e.target.value)}
-                    required
-                    minLength={6}
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  className="btn btn-red"
-                  style={{
-                    width: '100%',
-                    justifyContent: 'center',
-                    padding: '11px',
-                    marginTop: '8px',
-                    fontSize: '14px',
-                  }}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <span className="spinner" style={{ width: 16, height: 16 }} />
-                  ) : ownerMode === 'signin' ? (
-                    'Sign In to Hotel PMS'
-                  ) : (
-                    'Create Account & Launch PMS'
-                  )}
-                </button>
-              </form>
-
-              <div className="auth-link" style={{ marginTop: '16px', textAlign: 'center', fontSize: '13px' }}>
-                {ownerMode === 'signin' ? (
-                  <>
-                    New hotel owner?{' '}
-                    <a
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        setOwnerMode('register')
-                        setError('')
+                  {discoveredAccount && (
+                    <div
+                      style={{
+                        background: 'rgba(34, 197, 94, 0.08)',
+                        border: '1px solid rgba(34, 197, 94, 0.25)',
+                        borderRadius: 'var(--radius-sm)',
+                        padding: '10px 12px',
+                        marginBottom: '14px',
+                        fontSize: '12px',
+                        color: 'var(--green)',
                       }}
-                      style={{ color: 'var(--red)', fontWeight: 600 }}
                     >
-                      Create your hotel account
-                    </a>
-                  </>
-                ) : (
-                  <>
-                    Already have an account?{' '}
-                    <a
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault()
+                      <div style={{ fontWeight: 700 }}>✓ Verified Hotel Account</div>
+                      <div style={{ color: 'var(--text-2)', marginTop: '2px' }}>
+                        {discoveredAccount.hotelName} ({discoveredAccount.propertyCode}) · Registered Email:{' '}
+                        <strong style={{ color: '#ffffff' }}>{discoveredAccount.email}</strong>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="form-group">
+                    <label className="form-label">New Password *</label>
+                    <input
+                      className="form-control"
+                      type="password"
+                      placeholder="At least 6 characters"
+                      value={forgotForm.newPassword}
+                      onChange={(e) => updateForgot('newPassword', e.target.value)}
+                      required
+                      minLength={6}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Confirm New Password *</label>
+                    <input
+                      className="form-control"
+                      type="password"
+                      placeholder="Re-type new password"
+                      value={forgotForm.confirmPassword}
+                      onChange={(e) => updateForgot('confirmPassword', e.target.value)}
+                      required
+                      minLength={6}
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="btn btn-red"
+                    style={{
+                      width: '100%',
+                      justifyContent: 'center',
+                      padding: '11px',
+                      marginTop: '8px',
+                      fontSize: '14px',
+                      fontWeight: 600,
+                    }}
+                    disabled={loading}
+                  >
+                    {loading ? <span className="spinner" style={{ width: 16, height: 16 }} /> : 'Reset Password & Sign In'}
+                  </button>
+
+                  <div style={{ marginTop: '16px', textAlign: 'center' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
                         setOwnerMode('signin')
                         setError('')
+                        setSuccessMsg('')
                       }}
-                      style={{ color: 'var(--red)', fontWeight: 600 }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--text-2)',
+                        fontSize: '13px',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
                     >
-                      Sign in here
-                    </a>
-                  </>
-                )}
-              </div>
+                      <ArrowLeft size={13} /> Back to Sign In
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                /* SIGN IN & REGISTER FORM */
+                <form onSubmit={ownerMode === 'signin' ? handleOwnerSignIn : handleOwnerRegister}>
+                  {ownerMode === 'register' && (
+                    <>
+                      <div className="form-group">
+                        <label className="form-label">Your Full Name *</label>
+                        <input
+                          className="form-control"
+                          type="text"
+                          placeholder="e.g. Vikram Malhotra"
+                          value={form.name}
+                          onChange={(e) => update('name', e.target.value)}
+                          required
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Hotel / Business Name *</label>
+                        <input
+                          className="form-control"
+                          type="text"
+                          placeholder="e.g. Grand Apex Resort &amp; Spa"
+                          value={form.hotelName}
+                          onChange={(e) => update('hotelName', e.target.value)}
+                          required
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  <div className="form-group">
+                    <label className="form-label">Email Address *</label>
+                    <input
+                      className="form-control"
+                      type="email"
+                      placeholder="owner@yourhotel.com"
+                      value={form.email}
+                      onChange={(e) => update('email', e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <label className="form-label" style={{ margin: 0 }}>Password *</label>
+                      {ownerMode === 'signin' && (
+                        <a
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            setOwnerMode('forgot')
+                            setForgotForm((f) => ({ ...f, identifier: form.email }))
+                            setError('')
+                            setSuccessMsg('')
+                          }}
+                          style={{
+                            fontSize: '12px',
+                            color: 'var(--red-hover)',
+                            textDecoration: 'none',
+                            fontWeight: 500,
+                          }}
+                        >
+                          Forgot password?
+                        </a>
+                      )}
+                    </div>
+                    <input
+                      className="form-control"
+                      type="password"
+                      placeholder="••••••••"
+                      value={form.password}
+                      onChange={(e) => update('password', e.target.value)}
+                      required
+                      minLength={6}
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="btn btn-red"
+                    style={{
+                      width: '100%',
+                      justifyContent: 'center',
+                      padding: '11px',
+                      marginTop: '8px',
+                      fontSize: '14px',
+                    }}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <span className="spinner" style={{ width: 16, height: 16 }} />
+                    ) : ownerMode === 'signin' ? (
+                      'Sign In to Hotel PMS'
+                    ) : (
+                      'Create Account & Launch PMS'
+                    )}
+                  </button>
+
+                  <div className="auth-link" style={{ marginTop: '16px', textAlign: 'center', fontSize: '13px' }}>
+                    {ownerMode === 'signin' ? (
+                      <>
+                        New hotel owner?{' '}
+                        <a
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            setOwnerMode('register')
+                            setError('')
+                            setSuccessMsg('')
+                          }}
+                          style={{ color: 'var(--red)', fontWeight: 600 }}
+                        >
+                          Create your hotel account
+                        </a>
+                      </>
+                    ) : (
+                      <>
+                        Already have an account?{' '}
+                        <a
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            setOwnerMode('signin')
+                            setError('')
+                            setSuccessMsg('')
+                          }}
+                          style={{ color: 'var(--red)', fontWeight: 600 }}
+                        >
+                          Sign in here
+                        </a>
+                      </>
+                    )}
+                  </div>
+                </form>
+              )}
             </div>
           ) : (
+            /* LIVE DEMO TAB */
             <div>
               <div style={{ marginBottom: '16px' }}>
                 <h2 style={{ fontSize: '18px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -361,7 +646,7 @@ export default function AuthPage() {
                 <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: '4px' }}>
                   Demo Account Info:
                 </div>
-                <div>• Pre-populated with 12 sample properties and active room inventory</div>
+                <div>• Pre-populated with sample properties and active room inventory</div>
                 <div>• Allows testing bookings, check-in, payments, and reporting</div>
                 <div>• Changes made here are isolated to the demo tenant</div>
               </div>
