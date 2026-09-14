@@ -102,6 +102,7 @@ export async function GET(req: NextRequest) {
         },
         payments: true,
         invoices: true,
+        property: true,
       },
       orderBy: { checkIn: 'asc' },
     })
@@ -436,6 +437,7 @@ export async function POST(req: NextRequest) {
         },
         payments: true,
         invoices: true,
+        property: true,
       },
     })
 

@@ -36,6 +36,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       bookingRooms: { include: { room: { include: { category: true } } } },
       invoices: { orderBy: { generatedAt: 'desc' } },
       statusLogs: { orderBy: { createdAt: 'desc' } },
+      property: true,
     },
   })
 
@@ -303,6 +304,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       bookingRooms: { include: { room: { include: { category: true } } } },
       invoices: { orderBy: { generatedAt: 'desc' } },
       statusLogs: { orderBy: { createdAt: 'desc' } },
+      property: true,
     },
   })
 

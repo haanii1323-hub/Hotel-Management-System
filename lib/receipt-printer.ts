@@ -24,13 +24,23 @@ export function printReceiptDocument({
 }: PrintReceiptOptions) {
   if (typeof window === 'undefined') return
 
-  const hotelName = property?.name || 'APEX INN HOTEL'
-  const hotelAddress = property?.address
-    ? `${property.address}, ${property.city || ''} ${property.state || ''}`
-    : `${property?.city || 'Bangalore'}, India`
-  const hotelPhone = property?.phone || '+91 80 4112 3396'
-  const hotelEmail = property?.email || 'stay@apexinn.com'
-  const propertyCode = property?.code || 'BLR'
+  const hotelName = property?.name || booking?.property?.name || 'Hotel'
+  const addressParts = [
+    property?.address || booking?.property?.address,
+    property?.city || booking?.property?.city,
+    property?.state || booking?.property?.state,
+    property?.country || booking?.property?.country,
+  ].filter(Boolean)
+  const hotelAddress = addressParts.length > 0 ? addressParts.join(', ') : ''
+  const hotelPhone = property?.phone || booking?.property?.phone || ''
+  const hotelEmail = property?.email || booking?.property?.email || ''
+  const propertyCode = property?.code || booking?.property?.code || ''
+  const hotelLogo =
+    property?.coverImage ||
+    property?.logo ||
+    booking?.property?.coverImage ||
+    booking?.property?.logo ||
+    ''
 
   const guestName = booking?.guest?.name || 'Guest'
   const guestPhone = booking?.guest?.phone || '—'
@@ -280,9 +290,18 @@ export function printReceiptDocument({
     <table class="header-table">
       <tr>
         <td style="vertical-align: top;">
-          <div class="hotel-name">${hotelName}</div>
-          <div class="hotel-sub">${hotelAddress} · Code: ${propertyCode}</div>
-          <div class="hotel-sub">Phone: ${hotelPhone} · Email: ${hotelEmail}</div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            ${
+              hotelLogo
+                ? `<img src="${hotelLogo}" alt="${hotelName}" style="width: 44px; height: 44px; border-radius: 6px; object-fit: cover; border: 1px solid #e5e7eb;" />`
+                : ''
+            }
+            <div>
+              <div class="hotel-name">${hotelName}</div>
+              ${hotelAddress || propertyCode ? `<div class="hotel-sub">${[hotelAddress, propertyCode ? `Code: ${propertyCode}` : ''].filter(Boolean).join(' · ')}</div>` : ''}
+              ${hotelPhone || hotelEmail ? `<div class="hotel-sub">${[hotelPhone ? `Phone: ${hotelPhone}` : '', hotelEmail ? `Email: ${hotelEmail}` : ''].filter(Boolean).join(' · ')}</div>` : ''}
+            </div>
+          </div>
         </td>
         <td style="vertical-align: top;">
           <div class="receipt-title">${title}</div>
@@ -419,7 +438,7 @@ export function printReceiptDocument({
 
     <!-- Footer -->
     <div class="footer-note">
-      This is a computer-generated receipt issued by APEX INN PMS. Thank you for staying with us!
+      This is a computer-generated receipt issued for ${hotelName}. Thank you for staying with us!
     </div>
   </div>
 </body>

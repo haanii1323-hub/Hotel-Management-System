@@ -94,6 +94,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       payments: true,
       invoices: true,
       statusLogs: true,
+      property: true,
     },
   })
 

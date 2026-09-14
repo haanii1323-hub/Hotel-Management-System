@@ -7,6 +7,7 @@ import useSWR from 'swr'
 import { QRCodeSVG } from 'qrcode.react'
 import { calculateBookingFinancials, fmtDate, fmtCurrency } from '@/lib/financials'
 import { printReceiptDocument } from '@/lib/receipt-printer'
+import { useProperty } from '@/context/PropertyContext'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -18,8 +19,9 @@ interface Props {
 }
 
 export default function InvoiceModal({ booking, collected: overrideCollected, balance: overrideBalance, onClose }: Props) {
-  const property = booking.property || {}
-  const propertyId = booking.propertyId || ''
+  const { currentProperty } = useProperty()
+  const property = booking.property || currentProperty || {}
+  const propertyId = booking.propertyId || property.id || ''
 
   const { data: config } = useSWR(
     propertyId ? `/api/payment-config?propertyId=${propertyId}` : null,
@@ -46,6 +48,22 @@ export default function InvoiceModal({ booking, collected: overrideCollected, ba
     })
   }
 
+  const addressDetails = [
+    property.address,
+    property.city,
+    property.state,
+    property.code ? `Code: ${property.code}` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
+  const contactDetails = [
+    property.phone ? `Phone: ${property.phone}` : '',
+    property.email ? `Email: ${property.email}` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
   return (
     <div
       className="modal-overlay receipt-modal-overlay"
@@ -58,16 +76,27 @@ export default function InvoiceModal({ booking, collected: overrideCollected, ba
         {/* Receipt Header */}
         <div className="invoice-header">
           <div className="invoice-logo">
-            <img
-              src="/logo.png"
-              alt="APEX INN"
-              style={{ width: 38, height: 38, borderRadius: 6, objectFit: 'cover' }}
-            />
+            {property.coverImage || property.logo ? (
+              <img
+                src={property.coverImage || property.logo}
+                alt={property.name || 'Hotel'}
+                style={{ width: 40, height: 40, borderRadius: 6, objectFit: 'cover' }}
+              />
+            ) : (
+              <img
+                src="/logo.png"
+                alt="Logo"
+                style={{ width: 38, height: 38, borderRadius: 6, objectFit: 'cover' }}
+              />
+            )}
             <div>
-              <div className="invoice-brand">{property.name || 'APEX INN HOTEL'}</div>
-              <div style={{ fontSize: '11px', color: 'var(--text-2)' }}>
-                {property.address ? `${property.address}, ` : ''}{property.city || 'Bangalore'} · Code: {property.code}
-              </div>
+              <div className="invoice-brand">{property.name || 'Hotel'}</div>
+              {addressDetails && (
+                <div style={{ fontSize: '11px', color: 'var(--text-2)' }}>{addressDetails}</div>
+              )}
+              {contactDetails && (
+                <div style={{ fontSize: '10.5px', color: 'var(--text-3)', marginTop: '2px' }}>{contactDetails}</div>
+              )}
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
