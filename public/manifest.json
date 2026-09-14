@@ -1,6 +1,6 @@
 {
-  "name": "APEX INN — Hotel Management System",
-  "short_name": "APEX INN",
+  "name": "Hotel Management System",
+  "short_name": "Hotel PMS",
   "description": "Real-Time Hotel Property Management System for room reservations, billing, and performance analytics.",
   "start_url": "/dashboard",
   "scope": "/",

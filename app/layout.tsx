@@ -11,8 +11,8 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-  title: 'APEX INN — Hotel Management System',
-  description: 'The front desk, the ledger and the rate card — on one screen. APEX INN is the admin console for your property.',
+  title: 'Hotel Management System',
+  description: 'Hotel Property Management System for room reservations, billing, guest folios, and live property analytics.',
   keywords: 'hotel management, property management system, PMS, hotel software',
   manifest: '/manifest.json',
   icons: {
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'APEX INN',
+    title: 'Hotel PMS',
   },
 }
 

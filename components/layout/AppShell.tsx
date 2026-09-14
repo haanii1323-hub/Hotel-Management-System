@@ -61,6 +61,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      if (currentProperty?.name) {
+        document.title = `${currentProperty.name} — Hotel Management System`
+      } else {
+        document.title = 'Hotel Management System'
+      }
+    }
+  }, [currentProperty?.name])
+
   const currencySymbol = currentProperty?.currencySymbol || '₹'
   const formatMoney = (amount: number) => `${currencySymbol}${Number(amount || 0).toLocaleString('en-IN')}`
 
@@ -68,15 +78,59 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     <div className="app-shell">
       {/* Desktop Sidebar */}
       <aside className="sidebar">
-        <div className="sidebar-logo">
-          <img
-            src="/logo.png"
-            alt="APEX INN"
-            style={{ width: 34, height: 34, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }}
-          />
-          <div className="sidebar-logo-text">
-            <span className="brand">APEX INN</span>
-            <span className="sub">Hotel Platform</span>
+        <div className="sidebar-logo" style={{ gap: '10px' }}>
+          {currentProperty?.coverImage || currentProperty?.logo ? (
+            <img
+              src={currentProperty.coverImage || currentProperty.logo || ''}
+              alt={currentProperty.name}
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                objectFit: 'cover',
+                flexShrink: 0,
+                border: '1px solid var(--border)',
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                background: 'linear-gradient(135deg, #e53e3e 0%, #991b1b 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#fff',
+                fontWeight: 800,
+                fontSize: '13px',
+                flexShrink: 0,
+                boxShadow: '0 2px 8px rgba(229, 62, 62, 0.35)',
+              }}
+            >
+              {currentProperty?.name ? currentProperty.name.slice(0, 2).toUpperCase() : 'HM'}
+            </div>
+          )}
+          <div className="sidebar-logo-text" style={{ minWidth: 0 }}>
+            <span
+              className="brand"
+              style={{
+                fontSize: '13.5px',
+                fontWeight: 700,
+                lineHeight: 1.2,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                display: 'block',
+              }}
+              title={currentProperty?.name || 'Hotel Management System'}
+            >
+              {currentProperty?.name || 'Hotel Management System'}
+            </span>
+            <span className="sub" style={{ fontSize: '10.5px', color: 'var(--text-3)' }}>
+              {currentProperty?.code ? `${currentProperty.code} · Hotel PMS` : 'Hotel Management System'}
+            </span>
           </div>
         </div>
 

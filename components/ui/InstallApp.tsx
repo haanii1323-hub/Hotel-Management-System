@@ -197,7 +197,7 @@ export function InstallAppModal({ onClose }: { onClose: () => void }) {
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <h3 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text)' }}>APEX INN</h3>
+                <h3 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text)' }}>Hotel Management System</h3>
                 <span
                   style={{
                     fontSize: '10px',
@@ -241,7 +241,7 @@ export function InstallAppModal({ onClose }: { onClose: () => void }) {
               </div>
               <h4 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text)' }}>App Already Installed!</h4>
               <p style={{ fontSize: '13px', color: 'var(--text-2)', marginTop: '6px' }}>
-                APEX INN is installed on your device. You can launch it directly from your Dock, Applications, or Home Screen.
+                The Hotel Management System app is installed on your device. You can launch it directly from your Dock, Applications, or Home Screen.
               </p>
               <button
                 className="btn btn-red"
@@ -350,7 +350,7 @@ export function InstallAppModal({ onClose }: { onClose: () => void }) {
                         3
                       </span>
                       <span>
-                        Tap <strong style={{ color: 'var(--text)' }}>Add</strong> in the top right to complete installation.
+                        Tap <strong style={{ color: 'var(--text)' }}>&quot;Add&quot;</strong> in the top right to complete installation.
                       </span>
                     </div>
                   </div>
@@ -369,7 +369,7 @@ export function InstallAppModal({ onClose }: { onClose: () => void }) {
                         fontWeight: 600,
                       }}
                     >
-                      <Download size={16} /> Install APEX INN App Now
+                      <Download size={16} /> Install Hotel PMS App Now
                     </button>
                   ) : (
                     <div>
@@ -424,7 +424,7 @@ export function InstallAppButton({
       <button
         onClick={handleClick}
         className={`install-icon-btn ${className}`}
-        title={isInstalled ? "APEX INN App (Installed)" : "Install APEX INN App"}
+        title={isInstalled ? "Hotel PMS App (Installed)" : "Install Hotel PMS App"}
         aria-label="Install App"
       >
         {isInstalled ? <Check size={16} color="var(--green)" /> : <Download size={16} />}
@@ -437,7 +437,7 @@ export function InstallAppButton({
       <button
         onClick={handleClick}
         className={`landing-install-pill ${className}`}
-        title="Install APEX INN App"
+        title="Install Hotel PMS App"
       >
         {isInstalled ? <Check size={14} color="var(--green)" /> : <Download size={14} />}
         <span>{isInstalled ? 'App Active' : 'Install App'}</span>
@@ -455,7 +455,7 @@ export function InstallAppButton({
           {isInstalled ? <MonitorCheck size={16} /> : <Download size={15} />}
         </div>
         <div className="sidebar-install-text">
-          <div className="install-title">{isInstalled ? 'APEX INN App' : 'Install App'}</div>
+          <div className="install-title">{isInstalled ? 'Hotel PMS App' : 'Install App'}</div>
           <div className="install-sub" style={isInstalled ? { color: 'var(--green)' } : undefined}>
             {isInstalled ? 'Running PMS App' : 'Standalone PMS'}
           </div>
@@ -478,7 +478,7 @@ export function InstallAppButton({
     <button
       onClick={handleClick}
       className={`btn btn-install ${className}`}
-      title="Install APEX INN App on your device"
+      title="Install Hotel PMS App on your device"
     >
       {isInstalled ? <Check size={14} color="var(--green)" /> : <Download size={14} />}
       <span>{isInstalled ? 'App Installed' : 'Install App'}</span>

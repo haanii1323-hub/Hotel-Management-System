@@ -459,7 +459,7 @@ export default function PaymentSettingsTab() {
                 <label className="form-label">Business / Payee Display Name</label>
                 <input
                   className="form-control"
-                  placeholder="e.g. Grand Apex Inn Hospitality"
+                  placeholder="e.g. Royal Orchid Hospitality"
                   value={form.upiDisplayName}
                   onChange={(e) => update('upiDisplayName', e.target.value)}
                 />

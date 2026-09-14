@@ -207,13 +207,23 @@ export default function AuthPage() {
 
       {/* Left panel */}
       <div className="auth-left">
-        <div className="auth-left-logo">
-          <img
-            src="/logo.png"
-            alt="APEX INN"
-            style={{ width: 42, height: 42, borderRadius: 10, objectFit: 'cover' }}
-          />
-          <span>APEX INN</span>
+        <div className="auth-left-logo" style={{ gap: '10px' }}>
+          <div
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 8,
+              background: 'linear-gradient(135deg, #e53e3e 0%, #b91c1c 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              boxShadow: '0 2px 10px rgba(229, 62, 62, 0.4)',
+            }}
+          >
+            <Hotel size={22} />
+          </div>
+          <span style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '-0.3px' }}>Hotel Management System</span>
         </div>
 
         <div className="auth-left-content">
@@ -627,7 +637,7 @@ export default function AuthPage() {
                   <Sparkles size={18} color="#e5c06e" /> Live Demo Environment
                 </h2>
                 <p className="auth-subtitle" style={{ fontSize: '12px' }}>
-                  Explore APEX INN with pre-loaded demonstration properties (Metro Inn Rooms &amp; Sahasra Hotel).
+                  Explore the Hotel Management System with pre-loaded demonstration properties (Metro Inn Rooms &amp; Sahasra Hotel).
                 </p>
               </div>
 

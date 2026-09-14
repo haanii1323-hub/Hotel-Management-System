@@ -4,8 +4,8 @@ import type { Metadata } from 'next'
 import { InstallAppButton } from '@/components/ui/InstallApp'
 
 export const metadata: Metadata = {
-  title: 'APEX INN — Every room, every rupee, in real time',
-  description: 'APEX INN is the admin console for your property — bookings, room inventory, nightly pricing, guest history and revenue trends, live on every screen at once.',
+  title: 'Hotel Management System — Every room, every rupee, in real time',
+  description: 'Hotel Management System is the complete admin console for your property — bookings, room inventory, nightly pricing, guest history and revenue trends, live on every screen at once.',
 }
 
 export default function LandingPage() {
@@ -13,13 +13,23 @@ export default function LandingPage() {
     <div className="landing">
       {/* Nav */}
       <nav className="landing-nav">
-        <div className="landing-logo">
-          <img
-            src="/logo.png"
-            alt="APEX INN"
-            style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover' }}
-          />
-          <span>APEX INN</span>
+        <div className="landing-logo" style={{ gap: '10px' }}>
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 8,
+              background: 'linear-gradient(135deg, #e53e3e 0%, #b91c1c 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              boxShadow: '0 2px 10px rgba(229, 62, 62, 0.4)',
+            }}
+          >
+            <Hotel size={20} />
+          </div>
+          <span>Hotel Management System</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <InstallAppButton variant="landing-badge" />
@@ -30,11 +40,11 @@ export default function LandingPage() {
       {/* Hero */}
       <div className="landing-hero">
         <div className="landing-tag">
-          <span>●</span> Hotel Operating System
+          <span>●</span> Hotel Management System
         </div>
         <h1 className="landing-h1">Every room, every rupee,<br />in real time.</h1>
         <p className="landing-desc">
-          APEX INN is the admin console for your property — bookings, room inventory, nightly pricing, guest history and revenue trends, live on every screen at once.
+          The complete admin console for your property — bookings, room inventory, nightly pricing, guest history and revenue trends, live on every screen at once.
         </p>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px', flexWrap: 'wrap' }}>
           <Link href="/auth" className="btn btn-red" style={{ fontSize: '15px', padding: '12px 28px' }}>
