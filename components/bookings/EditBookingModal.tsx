@@ -11,6 +11,7 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 export const BOOKING_SOURCES = [
   'GOMMT',
+  'OYO',
   'B.COM',
   'AIRBNB',
   'BREVISTAY',

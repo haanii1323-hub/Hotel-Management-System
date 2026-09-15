@@ -70,6 +70,7 @@ function nights(checkIn: string, checkOut: string) {
 const SOURCES = [
   'All',
   'GOMMT',
+  'OYO',
   'B.COM',
   'AIRBNB',
   'BREVISTAY',
