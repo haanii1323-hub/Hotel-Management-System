@@ -133,11 +133,11 @@ export default function DelayedAlertsPopup() {
           <div
             onClick={() => setIsExpanded(true)}
             style={{
-              background: 'rgba(18, 22, 28, 0.88)',
+              background: 'var(--card)',
               backdropFilter: 'blur(16px)',
               WebkitBackdropFilter: 'blur(16px)',
-              border: '1px solid rgba(239, 68, 68, 0.35)',
-              boxShadow: '0 12px 36px -4px rgba(0,0,0,0.7), 0 0 20px -2px rgba(239, 68, 68, 0.25)',
+              border: '1px solid rgba(239, 68, 68, 0.45)',
+              boxShadow: 'var(--shadow-lg), 0 0 20px -2px rgba(239, 68, 68, 0.25)',
               borderRadius: '9999px',
               padding: '8px 14px 8px 10px',
               display: 'flex',
@@ -175,7 +175,7 @@ export default function DelayedAlertsPopup() {
                   height: '9px',
                   borderRadius: '50%',
                   background: '#22c55e',
-                  border: '1.5px solid #111827',
+                  border: '1.5px solid var(--card)',
                 }}
               />
             </div>
@@ -183,16 +183,16 @@ export default function DelayedAlertsPopup() {
             {/* Label */}
             <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: '#f8fafc', letterSpacing: '-0.2px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.2px' }}>
                   {totalDelayed} Pending {totalDelayed === 1 ? 'Action' : 'Actions'}
                 </span>
                 <span
                   style={{
                     fontSize: '10px',
                     fontWeight: 800,
-                    background: 'rgba(239, 68, 68, 0.2)',
-                    color: '#f87171',
-                    border: '1px solid rgba(239, 68, 68, 0.4)',
+                    background: 'rgba(239, 68, 68, 0.15)',
+                    color: 'var(--red)',
+                    border: '1px solid rgba(239, 68, 68, 0.35)',
                     borderRadius: '10px',
                     padding: '1px 6px',
                   }}
@@ -200,7 +200,7 @@ export default function DelayedAlertsPopup() {
                   Overdue
                 </span>
               </div>
-              <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-2)', marginTop: '2px' }}>
                 {delayedCheckins.length > 0 && `${delayedCheckins.length} check-in`}
                 {delayedCheckins.length > 0 && delayedCheckouts.length > 0 && ' · '}
                 {delayedCheckouts.length > 0 && `${delayedCheckouts.length} checkout`}
@@ -214,11 +214,12 @@ export default function DelayedAlertsPopup() {
                 width: '24px',
                 height: '24px',
                 borderRadius: '50%',
-                background: 'rgba(255, 255, 255, 0.08)',
+                background: 'var(--card-2)',
+                border: '1px solid var(--border)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#cbd5e1',
+                color: 'var(--text-2)',
               }}
             >
               <ChevronUp size={14} />
@@ -230,11 +231,11 @@ export default function DelayedAlertsPopup() {
              ==================================================================== */
           <div
             style={{
-              background: 'rgba(15, 18, 24, 0.94)',
+              background: 'var(--card)',
               backdropFilter: 'blur(24px)',
               WebkitBackdropFilter: 'blur(24px)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              boxShadow: '0 24px 60px -12px rgba(0, 0, 0, 0.8), 0 0 1px 1px rgba(255, 255, 255, 0.08)',
+              border: '1px solid var(--border-2)',
+              boxShadow: 'var(--shadow-lg)',
               borderRadius: '16px',
               overflow: 'hidden',
               animation: 'scaleInCard 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
@@ -244,11 +245,11 @@ export default function DelayedAlertsPopup() {
             <div
               style={{
                 padding: '14px 18px',
-                borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                borderBottom: '1px solid var(--border)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                background: 'rgba(255, 255, 255, 0.02)',
+                background: 'var(--card-2)',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -268,10 +269,10 @@ export default function DelayedAlertsPopup() {
                   <AlertCircle size={17} />
                 </div>
                 <div>
-                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#f8fafc', letterSpacing: '-0.2px' }}>
+                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.2px' }}>
                     Front Desk Overdue Alerts
                   </div>
-                  <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '1px' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--text-2)', marginTop: '1px' }}>
                     Pending manual check-ins &amp; check-outs
                   </div>
                 </div>
@@ -288,7 +289,7 @@ export default function DelayedAlertsPopup() {
                     border: 'none',
                     borderRadius: '6px',
                     padding: '6px',
-                    color: '#94a3b8',
+                    color: 'var(--text-2)',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
@@ -308,7 +309,7 @@ export default function DelayedAlertsPopup() {
                     border: 'none',
                     borderRadius: '6px',
                     padding: '6px',
-                    color: '#94a3b8',
+                    color: 'var(--text-2)',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
@@ -329,7 +330,7 @@ export default function DelayedAlertsPopup() {
                 alignItems: 'center',
                 gap: '6px',
                 padding: '10px 18px 6px',
-                borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                borderBottom: '1px solid var(--border)',
               }}
             >
               <button
@@ -342,8 +343,8 @@ export default function DelayedAlertsPopup() {
                   fontSize: '11.5px',
                   fontWeight: 600,
                   cursor: 'pointer',
-                  background: activeTab === 'all' ? 'rgba(255, 255, 255, 0.12)' : 'transparent',
-                  color: activeTab === 'all' ? '#fff' : '#94a3b8',
+                  background: activeTab === 'all' ? 'var(--card-hover)' : 'transparent',
+                  color: activeTab === 'all' ? 'var(--text)' : 'var(--text-2)',
                   transition: 'all 0.15s ease',
                 }}
               >
@@ -360,8 +361,8 @@ export default function DelayedAlertsPopup() {
                     fontSize: '11.5px',
                     fontWeight: 600,
                     cursor: 'pointer',
-                    background: activeTab === 'checkin' ? 'rgba(239, 68, 68, 0.2)' : 'transparent',
-                    color: activeTab === 'checkin' ? '#f87171' : '#94a3b8',
+                    background: activeTab === 'checkin' ? 'rgba(239, 68, 68, 0.15)' : 'transparent',
+                    color: activeTab === 'checkin' ? 'var(--red)' : 'var(--text-2)',
                     transition: 'all 0.15s ease',
                   }}
                 >
@@ -379,8 +380,8 @@ export default function DelayedAlertsPopup() {
                     fontSize: '11.5px',
                     fontWeight: 600,
                     cursor: 'pointer',
-                    background: activeTab === 'checkout' ? 'rgba(245, 158, 11, 0.2)' : 'transparent',
-                    color: activeTab === 'checkout' ? '#fbbf24' : '#94a3b8',
+                    background: activeTab === 'checkout' ? 'rgba(245, 158, 11, 0.15)' : 'transparent',
+                    color: activeTab === 'checkout' ? 'var(--amber)' : 'var(--text-2)',
                     transition: 'all 0.15s ease',
                   }}
                 >
@@ -401,8 +402,8 @@ export default function DelayedAlertsPopup() {
                     <div
                       key={item.id}
                       style={{
-                        background: 'rgba(255, 255, 255, 0.03)',
-                        border: '1px solid rgba(255, 255, 255, 0.07)',
+                        background: 'var(--card-2)',
+                        border: '1px solid var(--border)',
                         borderRadius: '10px',
                         padding: '12px 14px',
                         display: 'flex',
@@ -423,7 +424,7 @@ export default function DelayedAlertsPopup() {
                               background: isCheckin
                                 ? 'rgba(239, 68, 68, 0.12)'
                                 : 'rgba(245, 158, 11, 0.12)',
-                              color: isCheckin ? '#f87171' : '#fbbf24',
+                              color: isCheckin ? 'var(--red)' : 'var(--amber)',
                               border: isCheckin
                                 ? '1px solid rgba(239, 68, 68, 0.25)'
                                 : '1px solid rgba(245, 158, 11, 0.25)',
@@ -438,10 +439,10 @@ export default function DelayedAlertsPopup() {
                             {item.guestName ? item.guestName.slice(0, 2).toUpperCase() : 'GU'}
                           </div>
                           <div>
-                            <div style={{ fontSize: '13px', fontWeight: 700, color: '#f1f5f9' }}>
+                            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>
                               {item.guestName}
                             </div>
-                            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '1px' }}>
+                            <div style={{ fontSize: '11px', color: 'var(--text-2)', marginTop: '1px' }}>
                               {item.bookingRef} · {item.roomCategory} ({item.assignedRooms})
                             </div>
                           </div>
@@ -455,7 +456,7 @@ export default function DelayedAlertsPopup() {
                             padding: '3px 8px',
                             borderRadius: '6px',
                             background: isCheckin ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                            color: isCheckin ? '#f87171' : '#fbbf24',
+                            color: isCheckin ? 'var(--red)' : 'var(--amber)',
                             border: isCheckin
                               ? '1px solid rgba(239, 68, 68, 0.3)'
                               : '1px solid rgba(245, 158, 11, 0.3)',
@@ -477,17 +478,17 @@ export default function DelayedAlertsPopup() {
                           alignItems: 'center',
                           justifyContent: 'space-between',
                           paddingTop: '8px',
-                          borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+                          borderTop: '1px solid var(--border)',
                         }}
                       >
                         <div style={{ fontSize: '11.5px' }}>
                           {item.balance > 0 ? (
-                            <span style={{ color: '#fbbf24', fontWeight: 600 }}>
+                            <span style={{ color: 'var(--amber)', fontWeight: 600 }}>
                               Balance: {currencySymbol}
                               {item.balance.toLocaleString('en-IN')}
                             </span>
                           ) : (
-                            <span style={{ color: '#4ade80', fontWeight: 600 }}>
+                            <span style={{ color: 'var(--green)', fontWeight: 600 }}>
                               Fully Settled
                             </span>
                           )}
@@ -501,9 +502,9 @@ export default function DelayedAlertsPopup() {
                               setIsExpanded(false)
                             }}
                             style={{
-                              background: 'rgba(255, 255, 255, 0.06)',
-                              border: '1px solid rgba(255, 255, 255, 0.1)',
-                              color: '#cbd5e1',
+                              background: 'var(--card)',
+                              border: '1px solid var(--border)',
+                              color: 'var(--text)',
                               borderRadius: '6px',
                               padding: '4px 9px',
                               fontSize: '11px',

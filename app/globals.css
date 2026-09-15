@@ -289,6 +289,176 @@
   background: rgba(0, 0, 0, 0.25);
 }
 
+/* Specific Light Theme Typography & Component Overrides */
+[data-theme="light"] {
+  color-scheme: light;
+}
+
+[data-theme="light"] h1,
+[data-theme="light"] h2,
+[data-theme="light"] h3,
+[data-theme="light"] h4,
+[data-theme="light"] h5,
+[data-theme="light"] h6,
+[data-theme="light"] strong,
+[data-theme="light"] b,
+[data-theme="light"] .channel-name,
+[data-theme="light"] .channel-amount,
+[data-theme="light"] .section-title,
+[data-theme="light"] .drawer-title,
+[data-theme="light"] .modal-title,
+[data-theme="light"] .pricing-card-name,
+[data-theme="light"] .room-number,
+[data-theme="light"] .metric-value,
+[data-theme="light"] .perf-stat-value,
+[data-theme="light"] .outstanding-guest-name,
+[data-theme="light"] .invoice-brand,
+[data-theme="light"] .invoice-val,
+[data-theme="light"] .invoice-table td,
+[data-theme="light"] .invoice-total-row.bold,
+[data-theme="light"] .search-result-name,
+[data-theme="light"] .tab,
+[data-theme="light"] .tab:hover,
+[data-theme="light"] .tab.active,
+[data-theme="light"] .sidebar-install-text .install-title,
+[data-theme="light"] .counter-val,
+[data-theme="light"] .upi-amount,
+[data-theme="light"] .bill-row span,
+[data-theme="light"] .booking-meta,
+[data-theme="light"] .booking-card-body-item {
+  color: var(--text);
+}
+
+[data-theme="light"] select option {
+  background: #ffffff;
+  color: #0f172a;
+}
+
+[data-theme="light"] .channel-bar-wrap {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .filter-mode-pill {
+  background: #ffffff;
+  color: var(--text-2);
+  border-color: var(--border);
+}
+
+[data-theme="light"] .filter-mode-pill:hover {
+  background: #f1f5f9;
+  color: var(--text);
+}
+
+[data-theme="light"] .filter-mode-pill.active {
+  background: rgba(225, 29, 72, 0.1);
+  color: var(--red);
+  border-color: var(--red);
+}
+
+[data-theme="light"] .preset-btn {
+  background: #ffffff;
+  color: var(--text-2);
+  border-color: var(--border);
+}
+
+[data-theme="light"] .preset-btn:hover {
+  background: #f1f5f9;
+  color: var(--text);
+}
+
+[data-theme="light"] .preset-btn.active {
+  background: rgba(225, 29, 72, 0.1);
+  color: var(--red);
+  border-color: var(--red);
+}
+
+[data-theme="light"] .outstanding-card {
+  background: #ffffff;
+  border-color: var(--border);
+}
+
+[data-theme="light"] .outstanding-card:hover {
+  background: #f8fafc;
+  border-color: var(--border-2);
+}
+
+[data-theme="light"] .pricing-rate-input,
+[data-theme="light"] .room-status-select,
+[data-theme="light"] .date-input-group input[type="date"],
+[data-theme="light"] .date-input-group input[type="month"],
+[data-theme="light"] .date-filter input[type="date"] {
+  background: #ffffff;
+  color: var(--text);
+  border-color: var(--border);
+}
+
+[data-theme="light"] .date-input-group input[type="date"]::-webkit-calendar-picker-indicator,
+[data-theme="light"] .date-input-group input[type="month"]::-webkit-calendar-picker-indicator,
+[data-theme="light"] .date-filter input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: none;
+}
+
+[data-theme="light"] .counter {
+  background: #ffffff;
+  border-color: var(--border);
+}
+
+[data-theme="light"] .counter-btn:hover {
+  background: #f1f5f9;
+  color: var(--text);
+}
+
+[data-theme="light"] .counter-val {
+  border-left-color: var(--border);
+  border-right-color: var(--border);
+}
+
+[data-theme="light"] .upi-block {
+  background: #f8fafc;
+  border-color: var(--border);
+}
+
+[data-theme="light"] .modal {
+  background: #ffffff;
+  border-color: var(--border);
+  box-shadow: var(--shadow-lg);
+  color: var(--text);
+}
+
+[data-theme="light"] .drawer-header,
+[data-theme="light"] .drawer-footer {
+  background: rgba(255, 255, 255, 0.95);
+}
+
+[data-theme="light"] .toast {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: var(--border-2);
+  color: var(--text);
+  box-shadow: var(--shadow-lg);
+}
+
+[data-theme="light"] .sidebar-install-widget {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: var(--border);
+}
+
+[data-theme="light"] .sidebar-install-widget:hover {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: var(--border-2);
+}
+
+[data-theme="light"] .empty-state {
+  background: #f8fafc;
+  border-color: var(--border);
+  color: var(--text-2);
+}
+
+[data-theme="light"] .performance-stats-grid,
+[data-theme="light"] .category-stat-card {
+  background: #f8fafc;
+  border-color: var(--border);
+}
+
 html, body {
   background: var(--bg);
   background-image: 
@@ -362,7 +532,7 @@ input, select, textarea { font-family: inherit; }
 .sidebar-logo-text .brand {
   font-size: 14px;
   font-weight: 800;
-  color: #ffffff;
+  color: var(--text);
   letter-spacing: 0.8px;
 }
 
@@ -398,13 +568,13 @@ input, select, textarea { font-family: inherit; }
 
 .nav-item:hover {
   background: rgba(255, 255, 255, 0.05);
-  color: #ffffff;
+  color: var(--text);
   transform: translateX(2px);
 }
 
 .nav-item.active {
   background: linear-gradient(90deg, rgba(225, 29, 72, 0.18) 0%, rgba(225, 29, 72, 0.03) 100%);
-  color: #ffffff;
+  color: var(--text);
   border-left: 3px solid var(--red);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
 }
@@ -507,7 +677,7 @@ input, select, textarea { font-family: inherit; }
 .user-info .user-code {
   font-size: 11px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text);
   letter-spacing: 0.5px;
   display: flex;
   align-items: center;
@@ -593,7 +763,7 @@ input, select, textarea { font-family: inherit; }
 .btn-ghost:hover { 
   background: rgba(255, 255, 255, 0.08); 
   border-color: var(--border-2); 
-  color: #ffffff; 
+  color: var(--text); 
 }
 
 .btn-sm {
@@ -615,7 +785,7 @@ input, select, textarea { font-family: inherit; }
 }
 
 .btn-icon:hover { 
-  color: #ffffff; 
+  color: var(--text); 
   border-color: var(--border-2); 
   background: rgba(255, 255, 255, 0.08); 
 }
@@ -701,7 +871,7 @@ input, select, textarea { font-family: inherit; }
 .kpi-value {
   font-size: 28px;
   font-weight: 800;
-  color: #ffffff;
+  color: var(--text);
   line-height: 1;
   letter-spacing: -0.5px;
 }
@@ -717,7 +887,7 @@ input, select, textarea { font-family: inherit; }
 .page-title {
   font-size: 26px;
   font-weight: 800;
-  color: #ffffff;
+  color: var(--text);
   letter-spacing: -0.5px;
 }
 
@@ -812,7 +982,7 @@ input, select, textarea { font-family: inherit; }
 .booking-guest .name {
   font-size: 14px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text);
 }
 
 .booking-guest .ref {
@@ -825,7 +995,7 @@ input, select, textarea { font-family: inherit; }
 .booking-meta { font-size: 13px; color: var(--text); font-weight: 600; }
 .booking-meta .sub { font-size: 11px; color: var(--text-2); margin-top: 2px; font-weight: 400; }
 
-.booking-amount .total { font-size: 15px; font-weight: 800; color: #ffffff; }
+.booking-amount .total { font-size: 15px; font-weight: 800; color: var(--text); }
 .booking-amount .balance { font-size: 12px; margin-top: 2px; font-weight: 600; }
 .booking-amount .balance.pending { color: var(--amber-hover); }
 .booking-amount .balance.paid { color: var(--green-hover); }
@@ -845,7 +1015,7 @@ input, select, textarea { font-family: inherit; }
 .section-title {
   font-size: 16px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text);
   letter-spacing: -0.2px;
 }
 
@@ -888,10 +1058,10 @@ input, select, textarea { font-family: inherit; }
   border-radius: 6px 6px 0 0;
 }
 
-.tab:hover { color: #ffffff; background: rgba(255, 255, 255, 0.03); }
+.tab:hover { color: var(--text); background: rgba(255, 255, 255, 0.03); }
 
 .tab.active {
-  color: #ffffff;
+  color: var(--text);
   border-bottom-color: var(--red);
   background: rgba(225, 29, 72, 0.08);
 }
@@ -930,7 +1100,7 @@ input, select, textarea { font-family: inherit; }
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 10px 14px;
-  color: #ffffff;
+  color: var(--text);
   font-size: 13.5px;
   outline: none;
   transition: all 0.2s;
@@ -946,7 +1116,7 @@ input, select, textarea { font-family: inherit; }
 .form-control:disabled { opacity: 0.5; cursor: not-allowed; }
 
 select.form-control { cursor: pointer; }
-select.form-control option { background: #0f1218; color: #ffffff; }
+select.form-control option { background: #0f1218; color: var(--text); }
 
 textarea.form-control { resize: vertical; min-height: 80px; }
 
@@ -996,7 +1166,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   z-index: 10;
 }
 
-.drawer-title { font-size: 20px; font-weight: 800; color: #ffffff; }
+.drawer-title { font-size: 20px; font-weight: 800; color: var(--text); }
 .drawer-subtitle { font-size: 12px; color: var(--text-2); margin-top: 4px; font-weight: 500; }
 
 .drawer-body { padding: 24px; flex: 1; }
@@ -1043,14 +1213,14 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   transition: all 0.15s;
 }
 
-.counter-btn:hover { background: rgba(255, 255, 255, 0.08); color: #ffffff; }
+.counter-btn:hover { background: rgba(255, 255, 255, 0.08); color: var(--text); }
 
 .counter-val {
   min-width: 40px;
   text-align: center;
   font-size: 14px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text);
   border-left: 1px solid var(--border);
   border-right: 1px solid var(--border);
   padding: 8px 0;
@@ -1094,7 +1264,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .modal-title {
   font-size: 20px;
   font-weight: 800;
-  color: #ffffff;
+  color: var(--text);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1174,7 +1344,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 
 .upi-details { flex: 1; }
 .upi-amount-label { font-size: 11px; color: var(--text-2); font-weight: 500; }
-.upi-amount { font-size: 22px; font-weight: 800; color: #ffffff; }
+.upi-amount { font-size: 22px; font-weight: 800; color: var(--text); }
 .upi-id-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
 .upi-id { font-size: 13px; color: var(--text-2); font-weight: 600; }
 .upi-payee { font-size: 11px; color: var(--text-3); margin-top: 2px; }
@@ -1547,10 +1717,10 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 
 .channel-row:last-child { border-bottom: none; }
 
-.channel-name { font-size: 13px; font-weight: 700; color: #ffffff; min-width: 110px; }
+.channel-name { font-size: 13px; font-weight: 700; color: var(--text); min-width: 110px; }
 .channel-bar-wrap { flex: 1; background: rgba(255,255,255,0.06); border-radius: 6px; height: 8px; overflow: hidden; }
 .channel-bar { height: 8px; background: var(--red-gradient); border-radius: 6px; transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1); }
-.channel-amount { font-size: 13.5px; font-weight: 800; color: #ffffff; min-width: 85px; text-align: right; }
+.channel-amount { font-size: 13.5px; font-weight: 800; color: var(--text); min-width: 85px; text-align: right; }
 .channel-pct { font-size: 11.5px; color: var(--text-2); min-width: 40px; text-align: right; font-weight: 600; }
 
 /* Outstanding Balances Cards */
@@ -1581,7 +1751,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .outstanding-guest-name {
   font-size: 14px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1636,7 +1806,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .pricing-card-name {
   font-size: 17px;
   font-weight: 800;
-  color: #ffffff;
+  color: var(--text);
   margin-bottom: 4px;
 }
 
@@ -1664,7 +1834,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 8px 14px;
-  color: #ffffff;
+  color: var(--text);
   font-size: 22px;
   font-weight: 800;
   width: 150px;
@@ -1700,7 +1870,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .room-number {
   font-size: 14px;
   font-weight: 800;
-  color: #ffffff;
+  color: var(--text);
   margin-bottom: 4px;
 }
 
@@ -1716,7 +1886,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 6px 10px;
-  color: #ffffff;
+  color: var(--text);
   font-size: 12px;
   font-weight: 600;
   outline: none;
@@ -1772,7 +1942,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 7px 12px;
-  color: #ffffff;
+  color: var(--text);
   font-size: 13px;
   outline: none;
 }
@@ -1803,7 +1973,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 
 .preset-btn:hover {
   background: rgba(255, 255, 255, 0.08);
-  color: #ffffff;
+  color: var(--text);
 }
 
 .preset-btn.active {
@@ -1854,7 +2024,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .metric-value {
   font-size: 24px;
   font-weight: 800;
-  color: #ffffff;
+  color: var(--text);
   letter-spacing: -0.5px;
 }
 
@@ -1891,7 +2061,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .perf-stat-value {
   font-size: 18px;
   font-weight: 800;
-  color: #ffffff;
+  color: var(--text);
 }
 
 .perf-stat-desc {
@@ -2019,7 +2189,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   padding: 14px 18px;
   font-size: 13px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text);
   min-width: 260px;
   max-width: 360px;
   display: flex;
@@ -2062,7 +2232,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   box-shadow: var(--shadow-glow);
 }
 
-.invoice-brand { font-size: 16px; font-weight: 800; color: #ffffff; }
+.invoice-brand { font-size: 16px; font-weight: 800; color: var(--text); }
 .invoice-number { font-size: 12px; color: var(--text-2); font-weight: 600; }
 
 .invoice-body { padding: 22px 26px; }
@@ -2074,15 +2244,15 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 }
 
 .invoice-label { font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 700; }
-.invoice-val { font-size: 13.5px; color: #ffffff; margin-top: 3px; }
+.invoice-val { font-size: 13.5px; color: var(--text); margin-top: 3px; }
 
 .invoice-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
 .invoice-table th { font-size: 11px; color: var(--text-3); text-align: left; padding: 8px 0; border-bottom: 1px solid var(--border); text-transform: uppercase; letter-spacing: 0.5px; }
-.invoice-table td { font-size: 13.5px; color: #ffffff; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.invoice-table td { font-size: 13.5px; color: var(--text); padding: 10px 0; border-bottom: 1px solid var(--border); }
 
 .invoice-totals { margin-top: 10px; }
 .invoice-total-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13.5px; }
-.invoice-total-row.bold { font-weight: 800; font-size: 16px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); color: #ffffff; }
+.invoice-total-row.bold { font-weight: 800; font-size: 16px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); color: var(--text); }
 
 /* ===== PRINT STYLES FOR RECEIPTS & INVOICES (STRICT SINGLE PAGE) ===== */
 @page {
@@ -2328,7 +2498,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 
 .search-result-item:hover { background: rgba(255, 255, 255, 0.06); }
 .search-result-item + .search-result-item { border-top: 1px solid var(--border); }
-.search-result-name { font-size: 13.5px; font-weight: 700; color: #ffffff; }
+.search-result-name { font-size: 13.5px; font-weight: 700; color: var(--text); }
 .search-result-meta { font-size: 11px; color: var(--text-2); margin-top: 2px; }
 
 /* ===== DATE FILTER ===== */
@@ -2345,7 +2515,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 8px 12px;
-  color: #ffffff;
+  color: var(--text);
   font-size: 13px;
   outline: none;
 }
@@ -2491,7 +2661,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   .booking-card-name {
     font-size: 16px;
     font-weight: 800;
-    color: #ffffff;
+    color: var(--text);
     line-height: 1.25;
   }
 
@@ -2513,7 +2683,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 
   .booking-card-body-item {
     font-size: 13px;
-    color: #ffffff;
+    color: var(--text);
     font-weight: 600;
   }
 
@@ -2534,7 +2704,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   .booking-card-total {
     font-size: 18px;
     font-weight: 800;
-    color: #ffffff;
+    color: var(--text);
   }
 
   .booking-card-balance {
@@ -2824,7 +2994,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .sidebar-install-text .install-title {
   font-size: 12px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text);
 }
 
 .sidebar-install-text .install-sub {

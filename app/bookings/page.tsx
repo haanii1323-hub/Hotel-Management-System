@@ -1095,7 +1095,7 @@ function BookingsContent() {
                             >
                               <Calendar size={13} />
                             </div>
-                            <div style={{ fontWeight: 700, fontSize: '13.5px', color: '#fff' }}>
+                            <div style={{ fontWeight: 700, fontSize: '13.5px', color: 'var(--text)' }}>
                               {group.formattedDate}
                             </div>
                             {group.isToday && (

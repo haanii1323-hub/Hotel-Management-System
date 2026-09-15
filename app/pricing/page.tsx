@@ -408,7 +408,7 @@ export default function PricingPage() {
                     </div>
                   ) : (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ fontWeight: 700, fontSize: '14.5px', color: '#ffffff' }}>{cat.name}</span>
+                      <span style={{ fontWeight: 700, fontSize: '14.5px', color: 'var(--text)' }}>{cat.name}</span>
                       <button
                         className="btn-icon"
                         style={{ padding: '2px 4px', border: 'none', background: 'none', color: 'var(--text-3)' }}
