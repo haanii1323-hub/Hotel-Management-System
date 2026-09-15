@@ -91,6 +91,9 @@ export async function GET(req: NextRequest) {
       ]
     }
 
+    const isCompleted = status === 'Completed' || status === 'CheckedOut'
+    const orderBy: any = isCompleted ? { checkOut: 'desc' } : { checkIn: 'asc' }
+
     const bookings = await prisma.booking.findMany({
       where,
       include: {
@@ -104,7 +107,7 @@ export async function GET(req: NextRequest) {
         invoices: true,
         property: true,
       },
-      orderBy: { checkIn: 'asc' },
+      orderBy,
     })
 
     return NextResponse.json(bookings)

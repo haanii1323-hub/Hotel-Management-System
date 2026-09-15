@@ -10,13 +10,17 @@ import {
   CheckCircle2,
   Clock,
   Calendar,
+  CalendarDays,
   Filter,
   Plus,
   RefreshCw,
   X,
   Pencil,
+  DollarSign,
+  Layers,
+  ArrowRight,
 } from 'lucide-react'
-import { format } from 'date-fns'
+import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isValid, parseISO } from 'date-fns'
 import NewBookingDrawer from '@/components/bookings/NewBookingDrawer'
 import BookingDetailsModal from '@/components/bookings/BookingDetailsModal'
 import CheckInModal from '@/components/bookings/CheckInModal'
@@ -331,6 +335,16 @@ function BookingsContent() {
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('All')
   const [sourceFilter, setSourceFilter] = useState('All')
+
+  // Date Filter State for Checkouts & Completed
+  type DatePreset = 'all' | 'today' | 'yesterday' | 'thisWeek' | 'thisMonth' | 'custom'
+  type CompletedSubFilter = 'all' | 'checkedOut' | 'noShow' | 'cancelled'
+
+  const [datePreset, setDatePreset] = useState<DatePreset>('all')
+  const [customFrom, setCustomFrom] = useState(format(subDays(new Date(), 29), 'yyyy-MM-dd'))
+  const [customTo, setCustomTo] = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [completedSubFilter, setCompletedSubFilter] = useState<CompletedSubFilter>('all')
+
   const [showNewBooking, setShowNewBooking] = useState(false)
   const [selectedBooking, setSelectedBooking] = useState<any>(null)
   const [checkinBooking, setCheckinBooking] = useState<any>(null)
@@ -408,6 +422,11 @@ function BookingsContent() {
 
   const now = new Date()
   const todayDateStr = format(now, 'yyyy-MM-dd')
+  const yesterdayDateStr = format(subDays(now, 1), 'yyyy-MM-dd')
+  const startOfWeekStr = format(startOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd')
+  const endOfWeekStr = format(endOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd')
+  const startOfMonthStr = format(startOfMonth(now), 'yyyy-MM-dd')
+  const endOfMonthStr = format(endOfMonth(now), 'yyyy-MM-dd')
 
   const arrivingToday = (upcoming || []).filter((b: any) => {
     const ciStr = getDateString(b.checkIn)
@@ -427,9 +446,104 @@ function BookingsContent() {
     return coStr > todayDateStr
   })
 
-  const checkedOut = (completed || []).filter((b: any) => b.status === 'CheckedOut')
-  const noShow = (completed || []).filter((b: any) => b.status === 'NoShow')
-  const cancelled = (completed || []).filter((b: any) => b.status === 'Cancelled')
+  // Date filtering helper
+  function filterByDate(list: any[], dateField: 'checkOut' | 'checkIn' = 'checkOut') {
+    if (datePreset === 'all') return list || []
+    return (list || []).filter((b: any) => {
+      const dStr = getDateString(b[dateField] || b.checkOut)
+      if (!dStr) return false
+      if (datePreset === 'today') return dStr === todayDateStr
+      if (datePreset === 'yesterday') return dStr === yesterdayDateStr
+      if (datePreset === 'thisWeek') return dStr >= startOfWeekStr && dStr <= endOfWeekStr
+      if (datePreset === 'thisMonth') return dStr >= startOfMonthStr && dStr <= endOfMonthStr
+      if (datePreset === 'custom') {
+        if (customFrom && customTo) return dStr >= customFrom && dStr <= customTo
+        if (customFrom) return dStr >= customFrom
+        if (customTo) return dStr <= customTo
+      }
+      return true
+    })
+  }
+
+  const rawCheckedOut = (completed || []).filter((b: any) => b.status === 'CheckedOut')
+  const rawNoShow = (completed || []).filter((b: any) => b.status === 'NoShow')
+  const rawCancelled = (completed || []).filter((b: any) => b.status === 'Cancelled')
+
+  const filteredCheckedOut = filterByDate(rawCheckedOut, 'checkOut')
+  const filteredNoShow = filterByDate(rawNoShow, 'checkOut')
+  const filteredCancelled = filterByDate(rawCancelled, 'checkOut')
+
+  // Date-wise Grouping structure
+  interface DateGroup {
+    dateStr: string
+    formattedDate: string
+    isToday: boolean
+    isYesterday: boolean
+    bookings: any[]
+    roomCount: number
+    roomNights: number
+    totalRevenue: number
+    collectedAmount: number
+  }
+
+  function groupBookingsByDate(list: any[], dateField: 'checkOut' | 'checkIn' = 'checkOut'): DateGroup[] {
+    const map = new Map<string, any[]>()
+    for (const b of list) {
+      const dStr = getDateString(b[dateField] || b.checkOut) || 'unknown'
+      if (!map.has(dStr)) {
+        map.set(dStr, [])
+      }
+      map.get(dStr)!.push(b)
+    }
+
+    // Sort descending (newest date first)
+    const sortedDates = Array.from(map.keys()).sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))
+
+    return sortedDates.map((dateStr) => {
+      const items = map.get(dateStr) || []
+      const parsed = parseBookingDate(dateStr)
+      const isToday = dateStr === todayDateStr
+      const isYesterday = dateStr === yesterdayDateStr
+
+      let formattedDate = 'Date not set'
+      if (parsed) {
+        if (isToday) {
+          formattedDate = `Today · ${format(parsed, 'EEE, dd MMM yyyy')}`
+        } else if (isYesterday) {
+          formattedDate = `Yesterday · ${format(parsed, 'EEE, dd MMM yyyy')}`
+        } else {
+          formattedDate = format(parsed, 'EEEE, dd MMM yyyy')
+        }
+      }
+
+      const totalRevenue = items.reduce((s, b) => s + (b.totalAmount || 0), 0)
+      const collectedAmount = items.reduce(
+        (s, b) =>
+          s +
+          (b.payments?.reduce(
+            (ps: number, p: any) => ps + (p.status !== 'Pending' ? p.amount : 0),
+            0
+          ) || 0),
+        0
+      )
+
+      return {
+        dateStr,
+        formattedDate,
+        isToday,
+        isYesterday,
+        bookings: items,
+        roomCount: countRooms(items),
+        roomNights: roomNights(items),
+        totalRevenue,
+        collectedAmount,
+      }
+    })
+  }
+
+  const checkedOutGroups = groupBookingsByDate(filteredCheckedOut, 'checkOut')
+  const noShowGroups = groupBookingsByDate(filteredNoShow, 'checkOut')
+  const cancelledGroups = groupBookingsByDate(filteredCancelled, 'checkOut')
 
   function countRooms(list: any[]): number {
     return (list || []).reduce(
@@ -439,7 +553,7 @@ function BookingsContent() {
   }
 
   function roomNights(list: any[]) {
-    return list.reduce(
+    return (list || []).reduce(
       (s: number, b: any) => s + nights(b.checkIn, b.checkOut) * (b.numRooms || 1),
       0
     )
@@ -447,7 +561,13 @@ function BookingsContent() {
 
   const isLoading =
     tab === 'Upcoming' ? loadingUpcoming : tab === 'InHouse' ? loadingInhouse : loadingCompleted
-  const hasActiveFilters = Boolean(search.trim() || categoryFilter !== 'All' || sourceFilter !== 'All')
+  const hasActiveFilters = Boolean(
+    search.trim() ||
+      categoryFilter !== 'All' ||
+      sourceFilter !== 'All' ||
+      (tab === 'Completed' && datePreset !== 'all') ||
+      (tab === 'Completed' && completedSubFilter !== 'all')
+  )
 
   return (
     <AppShell>
@@ -679,66 +799,447 @@ function BookingsContent() {
 
         {/* COMPLETED TAB */}
         {tab === 'Completed' && (
-          <>
-            <div className="section-header">
-              <div className="section-title">Checked out ({countRooms(checkedOut)})</div>
-              <div className="section-meta">Booked room nights: {roomNights(checkedOut)}</div>
-            </div>
-            {isLoading && !completed ? (
-              <div className="skeleton" style={{ height: 60, marginBottom: 8 }} />
-            ) : checkedOut.length === 0 ? (
-              <div className="empty-state">
-                {hasActiveFilters ? 'No checked-out records matching filter.' : 'No checked out stays recorded.'}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {/* Top Toolbar: Date Presets & Sub Filters */}
+            <div
+              style={{
+                background: 'var(--card)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                padding: '14px 16px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+              }}
+            >
+              {/* Row 1: Date Range Presets */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '10px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <span
+                    style={{
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      color: 'var(--text-2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      marginRight: '2px',
+                    }}
+                  >
+                    <CalendarDays size={14} color="var(--red)" /> Checkout Date:
+                  </span>
+
+                  {(
+                    [
+                      { key: 'all', label: 'All Time' },
+                      { key: 'today', label: 'Today' },
+                      { key: 'yesterday', label: 'Yesterday' },
+                      { key: 'thisWeek', label: 'This Week' },
+                      { key: 'thisMonth', label: 'This Month' },
+                      { key: 'custom', label: 'Custom Dates' },
+                    ] as const
+                  ).map((p) => {
+                    const isActive = datePreset === p.key
+                    return (
+                      <button
+                        key={p.key}
+                        type="button"
+                        onClick={() => setDatePreset(p.key)}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: '20px',
+                          border: isActive ? '1px solid var(--red)' : '1px solid var(--border)',
+                          background: isActive ? 'var(--red)' : 'var(--card-2)',
+                          color: isActive ? '#fff' : 'var(--text-2)',
+                          fontSize: '12px',
+                          fontWeight: isActive ? 700 : 500,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        {p.label}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {/* Sub Filter: Status */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                  {(
+                    [
+                      { key: 'all', label: 'All', count: filteredCheckedOut.length + filteredNoShow.length + filteredCancelled.length },
+                      { key: 'checkedOut', label: 'Checked Out', count: countRooms(filteredCheckedOut) },
+                      { key: 'noShow', label: 'No Show', count: countRooms(filteredNoShow) },
+                      { key: 'cancelled', label: 'Cancelled', count: countRooms(filteredCancelled) },
+                    ] as const
+                  ).map((sf) => {
+                    const isActive = completedSubFilter === sf.key
+                    return (
+                      <button
+                        key={sf.key}
+                        type="button"
+                        onClick={() => setCompletedSubFilter(sf.key)}
+                        style={{
+                          padding: '5px 10px',
+                          borderRadius: '6px',
+                          border: isActive ? '1px solid var(--border-glow)' : '1px solid transparent',
+                          background: isActive ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+                          color: isActive ? '#fff' : 'var(--text-3)',
+                          fontSize: '11.5px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        {sf.label} ({sf.count})
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
-            ) : (
-              checkedOut.map((b: any) => (
-                <BookingCard
-                  key={b.id}
-                  b={b}
-                  currencySymbol={currencySymbol}
-                  onSelect={setSelectedBooking}
-                  onCheckin={setCheckinBooking}
-                  onCheckout={setCheckoutBooking}
-                />
-              ))
+
+              {/* Row 2: Custom Date Inputs (when 'custom' preset is active) */}
+              {datePreset === 'custom' && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    paddingTop: '10px',
+                    borderTop: '1px solid var(--border)',
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <label style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--text-2)' }}>From:</label>
+                    <input
+                      type="date"
+                      className="form-control"
+                      style={{ padding: '4px 8px', fontSize: '12px', width: 'auto', background: 'var(--card-2)' }}
+                      value={customFrom}
+                      onChange={(e) => setCustomFrom(e.target.value)}
+                      max={customTo}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <label style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--text-2)' }}>To:</label>
+                    <input
+                      type="date"
+                      className="form-control"
+                      style={{ padding: '4px 8px', fontSize: '12px', width: 'auto', background: 'var(--card-2)' }}
+                      value={customTo}
+                      onChange={(e) => setCustomTo(e.target.value)}
+                      min={customFrom}
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => {
+                      setCustomFrom(format(subDays(new Date(), 29), 'yyyy-MM-dd'))
+                      setCustomTo(todayDateStr)
+                    }}
+                    style={{ fontSize: '11px', padding: '4px 8px' }}
+                  >
+                    Reset Range
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Quick KPI Strip for Completed / Checked Out */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                gap: '10px',
+              }}
+            >
+              <div className="kpi-card" style={{ padding: '12px 14px' }}>
+                <div className="kpi-label">Checked Out Stays</div>
+                <div className="kpi-value" style={{ fontSize: '20px' }}>
+                  {filteredCheckedOut.length}
+                </div>
+              </div>
+              <div className="kpi-card" style={{ padding: '12px 14px' }}>
+                <div className="kpi-label">Rooms Checked Out</div>
+                <div className="kpi-value" style={{ fontSize: '20px', color: 'var(--blue)' }}>
+                  {countRooms(filteredCheckedOut)}
+                </div>
+              </div>
+              <div className="kpi-card" style={{ padding: '12px 14px' }}>
+                <div className="kpi-label">Total Room Nights</div>
+                <div className="kpi-value" style={{ fontSize: '20px', color: 'var(--text)' }}>
+                  {roomNights(filteredCheckedOut)}
+                </div>
+              </div>
+              <div className="kpi-card" style={{ padding: '12px 14px' }}>
+                <div className="kpi-label">Total Value Settled</div>
+                <div className="kpi-value" style={{ fontSize: '20px', color: 'var(--green)' }}>
+                  {currencySymbol}
+                  {filteredCheckedOut
+                    .reduce((s: number, b: any) => s + (b.totalAmount || 0), 0)
+                    .toLocaleString('en-IN')}
+                </div>
+              </div>
+            </div>
+
+            {/* Loading state */}
+            {isLoading && !completed ? (
+              <div className="skeleton" style={{ height: 120, borderRadius: 'var(--radius)' }} />
+            ) : null}
+
+            {/* CHECKED OUT SECTION - Grouped Date-Wise */}
+            {(completedSubFilter === 'all' || completedSubFilter === 'checkedOut') && (
+              <div>
+                <div className="section-header" style={{ marginBottom: '8px' }}>
+                  <div className="section-title">
+                    Checked out ({countRooms(filteredCheckedOut)} Rooms · {filteredCheckedOut.length} Bookings)
+                  </div>
+                  <div className="section-meta">
+                    {datePreset === 'all'
+                      ? 'All historical checkouts'
+                      : datePreset === 'today'
+                      ? 'Checkouts completed today'
+                      : datePreset === 'yesterday'
+                      ? 'Checkouts completed yesterday'
+                      : datePreset === 'thisWeek'
+                      ? 'Checkouts completed this week'
+                      : datePreset === 'thisMonth'
+                      ? 'Checkouts completed this month'
+                      : `Checkouts between ${customFrom} and ${customTo}`}
+                  </div>
+                </div>
+
+                {filteredCheckedOut.length === 0 ? (
+                  <div
+                    className="empty-state"
+                    style={{
+                      background: 'var(--card)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius)',
+                      padding: '32px 16px',
+                      textAlign: 'center',
+                    }}
+                  >
+                    <div style={{ color: 'var(--text-2)', marginBottom: '8px', fontSize: '13px' }}>
+                      {hasActiveFilters
+                        ? 'No check-outs match your selected date or search filter.'
+                        : 'No checked out stays recorded for this period.'}
+                    </div>
+                    {datePreset !== 'all' && (
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => setDatePreset('all')}
+                        style={{ fontSize: '11px', marginTop: '4px' }}
+                      >
+                        View All Time Check-outs
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  /* Render Each Date Group Separately */
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    {checkedOutGroups.map((group) => (
+                      <div key={group.dateStr} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {/* Date Group Header */}
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '9px 14px',
+                            background: group.isToday
+                              ? 'linear-gradient(90deg, rgba(34, 197, 94, 0.12) 0%, var(--card) 100%)'
+                              : group.isYesterday
+                              ? 'linear-gradient(90deg, rgba(245, 158, 11, 0.12) 0%, var(--card) 100%)'
+                              : 'var(--card-2)',
+                            border: `1px solid ${
+                              group.isToday
+                                ? 'rgba(34, 197, 94, 0.35)'
+                                : group.isYesterday
+                                ? 'rgba(245, 158, 11, 0.3)'
+                                : 'var(--border)'
+                            }`,
+                            borderRadius: 'var(--radius-sm)',
+                            flexWrap: 'wrap',
+                            gap: '8px',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div
+                              style={{
+                                width: '26px',
+                                height: '26px',
+                                borderRadius: '6px',
+                                background: group.isToday
+                                  ? 'rgba(34, 197, 94, 0.2)'
+                                  : group.isYesterday
+                                  ? 'rgba(245, 158, 11, 0.2)'
+                                  : 'rgba(255, 255, 255, 0.08)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: group.isToday ? '#4ade80' : group.isYesterday ? '#fbbf24' : '#cbd5e1',
+                              }}
+                            >
+                              <Calendar size={13} />
+                            </div>
+                            <div style={{ fontWeight: 700, fontSize: '13.5px', color: '#fff' }}>
+                              {group.formattedDate}
+                            </div>
+                            {group.isToday && (
+                              <span className="badge badge-green" style={{ fontSize: '10px', padding: '1px 6px' }}>
+                                Today
+                              </span>
+                            )}
+                            {group.isYesterday && (
+                              <span className="badge badge-amber" style={{ fontSize: '10px', padding: '1px 6px' }}>
+                                Yesterday
+                              </span>
+                            )}
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '12px', flexWrap: 'wrap' }}>
+                            <span style={{ color: 'var(--text-2)', fontWeight: 600 }}>
+                              {group.roomCount} Room{group.roomCount !== 1 ? 's' : ''} ({group.roomNights} Night{group.roomNights !== 1 ? 's' : ''})
+                            </span>
+                            <span
+                              style={{
+                                background: 'rgba(34, 197, 94, 0.14)',
+                                color: '#4ade80',
+                                border: '1px solid rgba(34, 197, 94, 0.3)',
+                                padding: '2px 8px',
+                                borderRadius: '6px',
+                                fontWeight: 700,
+                                fontSize: '11.5px',
+                              }}
+                            >
+                              {currencySymbol}{group.totalRevenue.toLocaleString('en-IN')}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* List of bookings for this checkout date */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          {group.bookings.map((b: any) => (
+                            <BookingCard
+                              key={b.id}
+                              b={b}
+                              currencySymbol={currencySymbol}
+                              onSelect={setSelectedBooking}
+                              onCheckin={setCheckinBooking}
+                              onCheckout={setCheckoutBooking}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
 
-            {noShow.length > 0 && (
-              <>
-                <div className="section-header" style={{ marginTop: '24px' }}>
-                  <div className="section-title">No show ({countRooms(noShow)})</div>
+            {/* NO SHOW SECTION - Grouped Date-Wise */}
+            {(completedSubFilter === 'all' || completedSubFilter === 'noShow') && filteredNoShow.length > 0 && (
+              <div style={{ marginTop: '16px' }}>
+                <div className="section-header" style={{ marginBottom: '8px' }}>
+                  <div className="section-title">No Show ({countRooms(filteredNoShow)})</div>
                 </div>
-                {noShow.map((b: any) => (
-                  <BookingCard
-                    key={b.id}
-                    b={b}
-                    currencySymbol={currencySymbol}
-                    onSelect={setSelectedBooking}
-                    onCheckin={setCheckinBooking}
-                    onCheckout={setCheckoutBooking}
-                  />
-                ))}
-              </>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {noShowGroups.map((group) => (
+                    <div key={group.dateStr} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '8px 14px',
+                          background: 'var(--card-2)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius-sm)',
+                        }}
+                      >
+                        <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-2)' }}>
+                          {group.formattedDate}
+                        </div>
+                        <div style={{ fontSize: '11.5px', color: 'var(--text-3)' }}>
+                          {group.roomCount} Room{group.roomCount !== 1 ? 's' : ''}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {group.bookings.map((b: any) => (
+                          <BookingCard
+                            key={b.id}
+                            b={b}
+                            currencySymbol={currencySymbol}
+                            onSelect={setSelectedBooking}
+                            onCheckin={setCheckinBooking}
+                            onCheckout={setCheckoutBooking}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
 
-            {cancelled.length > 0 && (
-              <>
-                <div className="section-header" style={{ marginTop: '24px' }}>
-                  <div className="section-title">Cancelled ({countRooms(cancelled)})</div>
+            {/* CANCELLED SECTION - Grouped Date-Wise */}
+            {(completedSubFilter === 'all' || completedSubFilter === 'cancelled') && filteredCancelled.length > 0 && (
+              <div style={{ marginTop: '16px' }}>
+                <div className="section-header" style={{ marginBottom: '8px' }}>
+                  <div className="section-title">Cancelled ({countRooms(filteredCancelled)})</div>
                 </div>
-                {cancelled.map((b: any) => (
-                  <BookingCard
-                    key={b.id}
-                    b={b}
-                    currencySymbol={currencySymbol}
-                    onSelect={setSelectedBooking}
-                    onCheckin={setCheckinBooking}
-                    onCheckout={setCheckoutBooking}
-                  />
-                ))}
-              </>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {cancelledGroups.map((group) => (
+                    <div key={group.dateStr} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '8px 14px',
+                          background: 'var(--card-2)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius-sm)',
+                        }}
+                      >
+                        <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-2)' }}>
+                          {group.formattedDate}
+                        </div>
+                        <div style={{ fontSize: '11.5px', color: 'var(--text-3)' }}>
+                          {group.roomCount} Room{group.roomCount !== 1 ? 's' : ''}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {group.bookings.map((b: any) => (
+                          <BookingCard
+                            key={b.id}
+                            b={b}
+                            currencySymbol={currencySymbol}
+                            onSelect={setSelectedBooking}
+                            onCheckin={setCheckinBooking}
+                            onCheckout={setCheckoutBooking}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
-          </>
+          </div>
         )}
       </div>
 

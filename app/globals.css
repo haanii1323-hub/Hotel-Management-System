@@ -560,7 +560,7 @@ input, select, textarea { font-family: inherit; }
 
 .booking-desktop-view {
   display: grid;
-  grid-template-columns: 210px 1fr 1fr 150px 1fr 90px;
+  grid-template-columns: minmax(180px, 230px) 150px 160px 140px 1fr;
   align-items: center;
   gap: 14px;
   padding: 16px 18px;
