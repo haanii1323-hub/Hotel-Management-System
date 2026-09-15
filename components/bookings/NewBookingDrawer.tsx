@@ -145,20 +145,6 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
     return rooms.filter((r) => selectedRoomIds.includes(r.id))
   }, [rooms, selectedRoomIds])
 
-  // Set default room selection once available rooms load
-  useEffect(() => {
-    if (rooms.length > 0 && selectedRoomIds.length === 0) {
-      const firstAvailable = rooms.find((r) => r.isAvailable)
-      if (firstAvailable) {
-        setSelectedRoomIds([firstAvailable.id])
-        setCustomRoomRates((prev) => ({
-          ...prev,
-          [firstAvailable.id]: Number(firstAvailable.category?.nightlyRate) || 2500,
-        }))
-      }
-    }
-  }, [rooms, selectedRoomIds.length])
-
   // Debounced lookup for returning guests by name or phone
   useEffect(() => {
     const query = guestSearchQuery.trim()
