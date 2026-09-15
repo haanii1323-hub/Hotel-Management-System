@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
-import { BarChart3, BookOpen, DollarSign, Home, LogOut, TrendingUp, Users, Settings } from 'lucide-react'
+import { BarChart3, BookOpen, DollarSign, Home, LogOut, TrendingUp, Users, Settings, History } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
@@ -18,6 +18,7 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json())
 const NAV = [
   { href: '/dashboard', label: 'Growth', icon: Home },
   { href: '/bookings', label: 'Bookings', icon: BookOpen },
+  { href: '/history', label: 'History', icon: History },
   { href: '/pricing', label: 'Pricing & Rooms', icon: DollarSign },
   { href: '/guests', label: 'Guest Directory', icon: Users },
   { href: '/earnings', label: 'Earnings', icon: TrendingUp },
