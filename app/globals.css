@@ -52,6 +52,243 @@
   --shadow-glow: 0 0 20px rgba(225, 29, 72, 0.35);
 }
 
+/* ==========================================================================
+   LIGHT THEME DESIGN SYSTEM (Clean, Crisp & Luxury)
+   ========================================================================== */
+[data-theme="light"] {
+  --bg: #f8fafc;
+  --bg-2: #f1f5f9;
+  --card: #ffffff;
+  --card-2: #f8fafc;
+  --card-hover: #f1f5f9;
+  --border: #e2e8f0;
+  --border-2: #cbd5e1;
+  --border-glow: rgba(225, 29, 72, 0.25);
+  
+  --red: #e11d48;
+  --red-hover: #be123c;
+  --red-gradient: linear-gradient(135deg, #f43f5e 0%, #e11d48 50%, #be123c 100%);
+  --red-dim: rgba(225, 29, 72, 0.08);
+  --red-glow: rgba(225, 29, 72, 0.15);
+  
+  --green: #16a34a;
+  --green-hover: #15803d;
+  --green-dim: rgba(22, 163, 74, 0.1);
+  
+  --amber: #d97706;
+  --amber-hover: #b45309;
+  --amber-dim: rgba(217, 119, 6, 0.1);
+  
+  --blue: #2563eb;
+  --blue-dim: rgba(37, 99, 235, 0.08);
+  
+  --purple: #7c3aed;
+  --purple-dim: rgba(124, 58, 237, 0.08);
+  
+  --text: #0f172a;
+  --text-2: #475569;
+  --text-3: #64748b;
+  
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 12px 28px -4px rgba(0, 0, 0, 0.12), 0 0 1px rgba(0, 0, 0, 0.1);
+  --shadow-glow: 0 0 16px rgba(225, 29, 72, 0.15);
+}
+
+[data-theme="light"] html,
+[data-theme="light"] body {
+  background: var(--bg);
+  background-image: 
+    radial-gradient(circle at 50% 0%, rgba(225, 29, 72, 0.03) 0%, transparent 50%),
+    radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.03) 0%, transparent 40%);
+  color: var(--text);
+}
+
+[data-theme="light"] .sidebar {
+  background: rgba(255, 255, 255, 0.95);
+  border-right: 1px solid var(--border);
+}
+
+[data-theme="light"] .topbar {
+  background: rgba(255, 255, 255, 0.9);
+  border-bottom: 1px solid var(--border);
+}
+
+[data-theme="light"] .sidebar-logo-text .brand,
+[data-theme="light"] .page-title,
+[data-theme="light"] .kpi-value,
+[data-theme="light"] .booking-guest .name,
+[data-theme="light"] .booking-amount .total,
+[data-theme="light"] .booking-card-name,
+[data-theme="light"] .booking-card-total,
+[data-theme="light"] .user-info .user-code {
+  color: var(--text);
+}
+
+[data-theme="light"] .nav-item {
+  color: var(--text-2);
+}
+
+[data-theme="light"] .nav-item:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text);
+}
+
+[data-theme="light"] .nav-item.active {
+  background: linear-gradient(90deg, rgba(225, 29, 72, 0.1) 0%, rgba(225, 29, 72, 0.02) 100%);
+  color: var(--red);
+  border-left: 3px solid var(--red);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .search-bar input {
+  background: var(--card-2);
+  color: var(--text);
+  border-color: var(--border);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .search-bar input:focus {
+  background: #ffffff;
+  border-color: var(--red);
+}
+
+[data-theme="light"] .search-results {
+  background: #ffffff;
+  border-color: var(--border-2);
+  box-shadow: var(--shadow-lg);
+}
+
+[data-theme="light"] .search-result-item:hover {
+  background: var(--bg-2);
+}
+
+[data-theme="light"] .search-result-name {
+  color: var(--text);
+}
+
+[data-theme="light"] .card,
+[data-theme="light"] .kpi-card {
+  background: #ffffff;
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+[data-theme="light"] .card:hover,
+[data-theme="light"] .kpi-card:hover {
+  border-color: var(--border-2);
+  box-shadow: var(--shadow-md);
+}
+
+[data-theme="light"] .booking-row {
+  background: #ffffff;
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+[data-theme="light"] .booking-row:hover {
+  background: #f8fafc;
+  border-color: var(--border-2);
+  box-shadow: var(--shadow-md);
+}
+
+[data-theme="light"] .modal-backdrop {
+  background: rgba(15, 23, 42, 0.45);
+}
+
+[data-theme="light"] .modal-box {
+  background: #ffffff;
+  border-color: var(--border);
+  box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.15);
+  color: var(--text);
+}
+
+[data-theme="light"] .drawer-overlay {
+  background: rgba(15, 23, 42, 0.45);
+}
+
+[data-theme="light"] .drawer {
+  background: #ffffff;
+  border-left-color: var(--border);
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.12);
+  color: var(--text);
+}
+
+[data-theme="light"] .form-control,
+[data-theme="light"] input,
+[data-theme="light"] select,
+[data-theme="light"] textarea {
+  background: #f8fafc;
+  color: var(--text);
+  border-color: var(--border);
+}
+
+[data-theme="light"] .form-control:focus,
+[data-theme="light"] input:focus,
+[data-theme="light"] select:focus,
+[data-theme="light"] textarea:focus {
+  background: #ffffff;
+  border-color: var(--red);
+}
+
+[data-theme="light"] .btn-ghost {
+  background: #f1f5f9;
+  color: var(--text);
+  border-color: var(--border);
+}
+
+[data-theme="light"] .btn-ghost:hover {
+  background: #e2e8f0;
+  color: var(--text);
+}
+
+[data-theme="light"] .logout-btn {
+  background: #f1f5f9;
+  border-color: var(--border);
+}
+
+[data-theme="light"] .badge-gray {
+  background: rgba(100, 116, 139, 0.1);
+  color: #475569;
+  border-color: rgba(100, 116, 139, 0.2);
+}
+
+[data-theme="light"] .badge-green {
+  background: rgba(22, 163, 74, 0.1);
+  color: #15803d;
+  border-color: rgba(22, 163, 74, 0.25);
+}
+
+[data-theme="light"] .badge-amber {
+  background: rgba(217, 119, 6, 0.1);
+  color: #b45309;
+  border-color: rgba(217, 119, 6, 0.25);
+}
+
+[data-theme="light"] .badge-red {
+  background: rgba(225, 29, 72, 0.1);
+  color: #be123c;
+  border-color: rgba(225, 29, 72, 0.25);
+}
+
+[data-theme="light"] .badge-blue {
+  background: rgba(37, 99, 235, 0.1);
+  color: #1d4ed8;
+  border-color: rgba(37, 99, 235, 0.25);
+}
+
+[data-theme="light"] ::-webkit-scrollbar-track {
+  background: #f8fafc;
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
 html, body {
   background: var(--bg);
   background-image: 

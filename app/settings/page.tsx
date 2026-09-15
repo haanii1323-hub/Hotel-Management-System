@@ -11,15 +11,21 @@ import {
   Settings as SettingsIcon,
   Sliders,
   DollarSign,
+  Palette,
+  Sun,
+  Moon,
+  Check,
 } from 'lucide-react'
 import PaymentSettingsTab from '@/components/settings/PaymentSettingsTab'
 import { useProperty } from '@/context/PropertyContext'
+import { useTheme } from '@/context/ThemeContext'
+import ThemeToggle from '@/components/ui/ThemeToggle'
 import EditPropertyModal from '@/components/properties/EditPropertyModal'
 import Link from 'next/link'
 
 export default function SettingsPage() {
   const { currentProperty, properties } = useProperty()
-  const [activeTab, setActiveTab] = useState<'payment' | 'property' | 'rooms' | 'users'>('payment')
+  const [activeTab, setActiveTab] = useState<'payment' | 'property' | 'rooms' | 'users' | 'appearance'>('payment')
   const [showEditPropModal, setShowEditPropModal] = useState(false)
 
   return (
@@ -135,7 +141,29 @@ export default function SettingsPage() {
               whiteSpace: 'nowrap',
             }}
           >
-            <Users size={15} /> Users &amp; Roles
+              <Users size={15} /> Users &amp; Roles
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('appearance')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '10px 16px',
+              border: 'none',
+              background: 'none',
+              cursor: 'pointer',
+              fontSize: '13px',
+              fontWeight: 600,
+              color: activeTab === 'appearance' ? 'var(--red)' : 'var(--text-2)',
+              borderBottom: activeTab === 'appearance' ? '2px solid var(--red)' : '2px solid transparent',
+              transition: 'all 0.15s ease',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <Palette size={15} /> Appearance &amp; Theme
           </button>
         </div>
 
@@ -250,6 +278,11 @@ export default function SettingsPage() {
             </div>
           </div>
         )}
+
+        {/* TAB 5: APPEARANCE & THEME */}
+        {activeTab === 'appearance' && (
+          <AppearanceSettingsTab />
+        )}
       </div>
 
       {/* Edit Property Modal */}
@@ -261,5 +294,232 @@ export default function SettingsPage() {
         />
       )}
     </AppShell>
+  )
+}
+
+function AppearanceSettingsTab() {
+  const { theme, toggleTheme, isDark } = useTheme()
+
+  return (
+    <div style={{ maxWidth: '820px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <div className="card" style={{ padding: '24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div
+              style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '8px',
+                background: 'rgba(239, 68, 68, 0.12)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--red)',
+              }}
+            >
+              <Palette size={20} />
+            </div>
+            <div>
+              <h3 style={{ fontSize: '16px', fontWeight: 700, margin: 0 }}>Theme &amp; Display Appearance</h3>
+              <p style={{ fontSize: '12px', color: 'var(--text-3)', margin: 0, marginTop: '2px' }}>
+                Select your preferred interface color mode for hotel operations and dashboard views.
+              </p>
+            </div>
+          </div>
+
+          <ThemeToggle variant="pill" />
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginTop: '20px' }}>
+          {/* Light Theme Option Card */}
+          <div
+            onClick={() => isDark && toggleTheme()}
+            style={{
+              padding: '18px',
+              borderRadius: 'var(--radius-md)',
+              border: !isDark ? '2px solid var(--red)' : '1px solid var(--border)',
+              background: !isDark ? 'var(--card-2)' : 'transparent',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '14px',
+              position: 'relative',
+              boxShadow: !isDark ? '0 4px 16px rgba(225, 29, 72, 0.12)' : 'none',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '8px',
+                    background: '#fef3c7',
+                    color: '#d97706',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Sun size={17} />
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '14px' }}>Light Mode</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-3)' }}>Crisp paper white &amp; high contrast</div>
+                </div>
+              </div>
+
+              {!isDark ? (
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    background: 'var(--red)',
+                    color: '#fff',
+                    padding: '3px 8px',
+                    borderRadius: '9999px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                  }}
+                >
+                  <Check size={12} strokeWidth={3} /> Active
+                </span>
+              ) : (
+                <span style={{ fontSize: '12px', color: 'var(--text-3)', fontWeight: 500 }}>Select</span>
+              )}
+            </div>
+
+            {/* Light Mockup Preview */}
+            <div
+              style={{
+                borderRadius: '8px',
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
+                padding: '12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' }}>
+                <div style={{ width: '60px', height: '8px', background: '#0f172a', borderRadius: '4px' }} />
+                <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: '#e11d48' }} />
+              </div>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <div style={{ width: '30%', height: '36px', background: '#f8fafc', borderRadius: '4px', border: '1px solid #e2e8f0' }} />
+                <div style={{ width: '70%', height: '36px', background: '#f8fafc', borderRadius: '4px', border: '1px solid #e2e8f0' }} />
+              </div>
+            </div>
+          </div>
+
+          {/* Dark Theme Option Card */}
+          <div
+            onClick={() => !isDark && toggleTheme()}
+            style={{
+              padding: '18px',
+              borderRadius: 'var(--radius-md)',
+              border: isDark ? '2px solid var(--red)' : '1px solid var(--border)',
+              background: isDark ? 'var(--card-2)' : 'transparent',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '14px',
+              position: 'relative',
+              boxShadow: isDark ? '0 4px 16px rgba(225, 29, 72, 0.12)' : 'none',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '8px',
+                    background: '#1e293b',
+                    color: '#fbbf24',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Moon size={17} />
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '14px' }}>Dark Mode</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-3)' }}>Deep midnight OLED &amp; luxury gold</div>
+                </div>
+              </div>
+
+              {isDark ? (
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    background: 'var(--red)',
+                    color: '#fff',
+                    padding: '3px 8px',
+                    borderRadius: '9999px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                  }}
+                >
+                  <Check size={12} strokeWidth={3} /> Active
+                </span>
+              ) : (
+                <span style={{ fontSize: '12px', color: 'var(--text-3)', fontWeight: 500 }}>Select</span>
+              )}
+            </div>
+
+            {/* Dark Mockup Preview */}
+            <div
+              style={{
+                borderRadius: '8px',
+                background: '#090d16',
+                border: '1px solid #1e293b',
+                padding: '12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #161f30', paddingBottom: '6px' }}>
+                <div style={{ width: '60px', height: '8px', background: '#f8fafc', borderRadius: '4px' }} />
+                <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: '#e11d48' }} />
+              </div>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <div style={{ width: '30%', height: '36px', background: '#0e1626', borderRadius: '4px', border: '1px solid #1e293b' }} />
+                <div style={{ width: '70%', height: '36px', background: '#0e1626', borderRadius: '4px', border: '1px solid #1e293b' }} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div
+          style={{
+            marginTop: '24px',
+            padding: '14px 16px',
+            background: 'var(--card-2)',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--border)',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '10px',
+            fontSize: '12px',
+            color: 'var(--text-2)',
+          }}
+        >
+          <span style={{ fontSize: '14px' }}>💡</span>
+          <div>
+            <strong>Quick Access:</strong> You can also toggle between Light and Dark mode at any time using the Sun/Moon icon in the top header on any page.
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }

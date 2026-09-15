@@ -8,6 +8,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
 import { InstallAppButton } from '@/components/ui/InstallApp'
+import ThemeToggle from '@/components/ui/ThemeToggle'
 import PropertySelector from './PropertySelector'
 import DelayedAlertsPopup from '@/components/notifications/DelayedAlertsPopup'
 import { useProperty } from '@/context/PropertyContext'
@@ -213,8 +214,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             )}
           </div>
 
-          {/* Right Topbar: Property Selector & User */}
-          <div className="topbar-user" style={{ gap: '16px' }}>
+          {/* Right Topbar: Theme Toggle, Install App, Property Selector & User */}
+          <div className="topbar-user" style={{ gap: '12px' }}>
+            {/* Dark / Light Theme Toggle */}
+            <ThemeToggle />
+
             {/* Install App Button */}
             <InstallAppButton variant="button" />
 
