@@ -142,9 +142,20 @@ export default function EditBookingModal({ booking, onClose, onSuccess }: Props)
   const isSameDay = form.checkIn === form.checkOut
   const nights = calcNights()
   const numRooms = selectedRoomIds.length > 0 ? selectedRoomIds.length : booking.numRooms || 1
+  
+  // Extract add-on fees from notes
+  const notes = form.notes || booking.notes || ''
+  let addOnsTotal = 0
+  const earlyMatch = notes.match(/Early Check-in:\s*₹?(\d+(?:\.\d+)?)/i)
+  if (earlyMatch) addOnsTotal += parseFloat(earlyMatch[1])
+  const lateMatch = notes.match(/Late Checkout:\s*₹?(\d+(?:\.\d+)?)/i)
+  if (lateMatch) addOnsTotal += parseFloat(lateMatch[1])
+  const mattressMatch = notes.match(/Extra Mattress\s*(?:\((\d+)×\s*₹?(\d+)\))?:\s*₹?(\d+(?:\.\d+)?)/i)
+  if (mattressMatch) addOnsTotal += parseFloat(mattressMatch[3])
+
   const subtotal = form.nightlyRate * nights * numRooms
   const discountAmount = Number(form.discount || 0)
-  const total = Math.max(0, subtotal - discountAmount)
+  const total = Math.max(0, subtotal + addOnsTotal - discountAmount)
 
   function validate() {
     const e: Record<string, string> = {}

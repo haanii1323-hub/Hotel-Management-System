@@ -249,12 +249,38 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
   }
 
-  // Recalculate totals (GST removed: taxAmount = 0)
+  // Recalculate totals with add-ons preservation (GST removed: taxAmount = 0)
   const nights = Math.max(1, Math.round((newCheckOut.getTime() - newCheckIn.getTime()) / 86400000))
   const subtotal = newNightlyRate * nights * newNumRooms
   const taxAmount = customTax !== undefined ? Number(customTax) : 0
   const discountAmount = customDiscount !== undefined ? Number(customDiscount) : booking.discountAmount || 0
-  const totalAmount = Math.max(0, subtotal + taxAmount - discountAmount)
+
+  // Parse add-on fees (Early check-in, Late checkout, Extra mattress)
+  const currentNotes = notes !== undefined ? String(notes) : booking.notes || ''
+  let addOnsTotal = 0
+
+  if (body.earlyCheckIn !== undefined) {
+    addOnsTotal += Number(body.earlyCheckIn || 0)
+  } else {
+    const earlyMatch = currentNotes.match(/Early Check-in:\s*₹?(\d+(?:\.\d+)?)/i)
+    if (earlyMatch) addOnsTotal += parseFloat(earlyMatch[1])
+  }
+
+  if (body.lateCheckOut !== undefined) {
+    addOnsTotal += Number(body.lateCheckOut || 0)
+  } else {
+    const lateMatch = currentNotes.match(/Late Checkout:\s*₹?(\d+(?:\.\d+)?)/i)
+    if (lateMatch) addOnsTotal += parseFloat(lateMatch[1])
+  }
+
+  if (body.extraMattressCount !== undefined && body.extraMattressRate !== undefined) {
+    addOnsTotal += Number(body.extraMattressCount || 0) * Number(body.extraMattressRate || 0) * nights
+  } else {
+    const mattressMatch = currentNotes.match(/Extra Mattress\s*(?:\((\d+)×\s*₹?(\d+)\))?:\s*₹?(\d+(?:\.\d+)?)/i)
+    if (mattressMatch) addOnsTotal += parseFloat(mattressMatch[3])
+  }
+
+  const totalAmount = Math.max(0, subtotal + addOnsTotal + taxAmount - discountAmount)
 
   bookingUpdateData.taxAmount = taxAmount
   bookingUpdateData.discountAmount = discountAmount
