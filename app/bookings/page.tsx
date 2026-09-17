@@ -27,6 +27,7 @@ import CheckInModal from '@/components/bookings/CheckInModal'
 import CheckoutModal from '@/components/bookings/CheckoutModal'
 import CollectPaymentModal from '@/components/bookings/CollectPaymentModal'
 import { useToast } from '@/components/ui/Toast'
+import SourceBadge from '@/components/ui/SourceBadge'
 import { useProperty } from '@/context/PropertyContext'
 import { useRealtimeSync } from '@/lib/realtime-sync'
 
@@ -127,8 +128,9 @@ function BookingCard({
       <div className="booking-desktop-view">
         <div className="booking-guest">
           <div className="name">{b.guest?.name || 'Guest'}</div>
-          <div className="ref">
-            {b.bookingRef} · {b.source}
+          <div className="ref" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+            <span>{b.bookingRef}</span>
+            <SourceBadge source={b.source} size="xs" />
           </div>
         </div>
         <div className="booking-meta">
@@ -220,8 +222,9 @@ function BookingCard({
         <div className="booking-card-top">
           <div>
             <div className="booking-card-name">{b.guest?.name || 'Guest'}</div>
-            <div className="booking-card-ref">
-              {b.bookingRef} · {b.source}
+            <div className="booking-card-ref" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '2px' }}>
+              <span>{b.bookingRef}</span>
+              <SourceBadge source={b.source} size="xs" />
             </div>
           </div>
           <div>{statusBadge()}</div>
@@ -360,11 +363,11 @@ function BookingsContent() {
   if (sourceFilter !== 'All') q += `&source=${encodeURIComponent(sourceFilter)}`
 
   const swrConfig = {
-    refreshInterval: 3000,
+    refreshInterval: 60000,
     revalidateOnFocus: true,
     revalidateOnMount: true,
     revalidateOnReconnect: true,
-    dedupingInterval: 1000,
+    dedupingInterval: 2000,
   }
 
   const { data: upcoming, mutate: mutateUpcoming, isLoading: loadingUpcoming } = useSWR(
@@ -891,9 +894,9 @@ function BookingsContent() {
                         style={{
                           padding: '5px 10px',
                           borderRadius: '6px',
-                          border: isActive ? '1px solid var(--border-glow)' : '1px solid transparent',
-                          background: isActive ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-                          color: isActive ? '#fff' : 'var(--text-3)',
+                          border: isActive ? '1px solid var(--red)' : '1px solid var(--border)',
+                          background: isActive ? 'var(--red-dim)' : 'transparent',
+                          color: isActive ? 'var(--red)' : 'var(--text-2)',
                           fontSize: '11.5px',
                           fontWeight: 600,
                           cursor: 'pointer',
@@ -1084,14 +1087,15 @@ function BookingsContent() {
                                 height: '26px',
                                 borderRadius: '6px',
                                 background: group.isToday
-                                  ? 'rgba(34, 197, 94, 0.2)'
+                                  ? 'var(--green-dim)'
                                   : group.isYesterday
-                                  ? 'rgba(245, 158, 11, 0.2)'
-                                  : 'rgba(255, 255, 255, 0.08)',
+                                  ? 'var(--amber-dim)'
+                                  : 'var(--card-2)',
+                                border: '1px solid var(--border)',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                color: group.isToday ? '#4ade80' : group.isYesterday ? '#fbbf24' : '#cbd5e1',
+                                color: group.isToday ? 'var(--green)' : group.isYesterday ? 'var(--amber)' : 'var(--text-2)',
                               }}
                             >
                               <Calendar size={13} />
@@ -1282,7 +1286,6 @@ function BookingsContent() {
           booking={checkinBooking}
           onClose={() => setCheckinBooking(null)}
           onSuccess={() => {
-            setTab('InHouse')
             mutateAll()
             setCheckinBooking(null)
           }}
@@ -1294,7 +1297,6 @@ function BookingsContent() {
           booking={checkoutBooking}
           onClose={() => setCheckoutBooking(null)}
           onSuccess={() => {
-            setTab('Completed')
             mutateAll()
             setCheckoutBooking(null)
           }}

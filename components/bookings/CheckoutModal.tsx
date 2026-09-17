@@ -218,7 +218,7 @@ export default function CheckoutModal({ booking, onClose, onSuccess }: Props) {
       if (!res.ok) {
         showToast(data.error || 'Checkout failed', 'error')
       } else {
-        showToast(`${booking.guest?.name || 'Guest'} checked out. Stay completed.`, 'success')
+        showToast(`${booking.guest?.name || 'Guest'} checked out successfully!`, 'success')
         broadcastChange('CHECK_OUT', { bookingId: booking.id })
         onSuccess()
       }

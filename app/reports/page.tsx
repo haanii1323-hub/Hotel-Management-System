@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import useSWR from 'swr'
 import AppShell from '@/components/layout/AppShell'
-import { format, subDays, startOfMonth, endOfMonth } from 'date-fns'
+import { format, subDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from 'date-fns'
 import {
   BarChart,
   Bar,
@@ -13,9 +13,21 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts'
-import { Calendar, TrendingUp, DollarSign, Layers, Percent } from 'lucide-react'
+import {
+  Calendar,
+  TrendingUp,
+  DollarSign,
+  Layers,
+  Percent,
+  BedDouble,
+  PieChart as PieChartIcon,
+  BarChart2,
+  Table as TableIcon,
+  Sparkles,
+} from 'lucide-react'
 import { useProperty } from '@/context/PropertyContext'
 import { useRealtimeSync } from '@/lib/realtime-sync'
+import RoomCategoryPerformance from '@/components/reports/RoomCategoryPerformance'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -28,15 +40,22 @@ export default function ReportsPage() {
 
   const today = new Date()
   const todayStr = format(today, 'yyyy-MM-dd')
+  const yesterdayStr = format(subDays(today, 1), 'yyyy-MM-dd')
   const thirtyAgo = format(subDays(today, 29), 'yyyy-MM-dd')
 
-  const [from, setFrom] = useState(thirtyAgo)
-  const [to, setTo] = useState(todayStr)
+  const [from, setFrom] = useState(format(startOfMonth(today), 'yyyy-MM-dd'))
+  const [to, setTo] = useState(format(endOfMonth(today), 'yyyy-MM-dd'))
+  const [activePreset, setActivePreset] = useState<'today' | 'yesterday' | 'week' | 'month' | 'custom'>('month')
+  const [activeTab, setActiveTab] = useState<'categories' | 'daily' | 'sources'>('categories')
 
   let q = `from=${from}&to=${to}`
   if (propertyId) q += `&propertyId=${propertyId}`
 
-  const { data, isLoading, mutate } = useSWR(`/api/reports?${q}`, fetcher, { refreshInterval: 4000 })
+  const { data, isLoading, mutate } = useSWR(`/api/reports?${q}`, fetcher, {
+    refreshInterval: 60000,
+    revalidateOnFocus: true,
+    dedupingInterval: 2000,
+  })
 
   useRealtimeSync(() => {
     mutate()
@@ -47,21 +66,48 @@ export default function ReportsPage() {
   const occupancy = data?.occupancy ?? 0
   const roomRevenue = data?.roomRevenue ?? 0
   const arr = data?.arr ?? 0
+  const categories = data?.categories ?? []
+  const categorySummary = data?.categorySummary ?? {
+    highestRevenueCategory: 'N/A',
+    highestRevenueAmount: 0,
+    highestRevenuePercent: 0,
+    totalRoomRevenue: roomRevenue,
+    totalRoomNights: urnUsed,
+    overallArr: arr,
+    totalBookings: 0,
+  }
 
-  const occupancyRatio = srn > 0 ? Math.min(100, Math.max(0, (urnUsed / srn) * 100)) : 0
-
-  // Date range presets
-  const setPreset = (type: '7days' | '30days' | 'thisMonth') => {
-    if (type === '7days') {
+  // Date range presets required: Today, Yesterday, This Week, This Month, Custom
+  const setPreset = (type: 'today' | 'yesterday' | 'week' | 'month') => {
+    setActivePreset(type)
+    if (type === 'today') {
+      setFrom(todayStr)
+      setTo(todayStr)
+    } else if (type === 'yesterday') {
+      setFrom(yesterdayStr)
+      setTo(yesterdayStr)
+    } else if (type === 'week') {
       setFrom(format(subDays(today, 6), 'yyyy-MM-dd'))
       setTo(todayStr)
-    } else if (type === '30days') {
-      setFrom(thirtyAgo)
-      setTo(todayStr)
-    } else if (type === 'thisMonth') {
+    } else if (type === 'month') {
       setFrom(format(startOfMonth(today), 'yyyy-MM-dd'))
       setTo(format(endOfMonth(today), 'yyyy-MM-dd'))
     }
+  }
+
+  const handleCustomDateChange = (newFrom: string, newTo: string) => {
+    setActivePreset('custom')
+    setFrom(newFrom)
+    setTo(newTo)
+  }
+
+  const getDateRangeLabel = () => {
+    if (from === to) {
+      if (from === todayStr) return 'Today'
+      if (from === yesterdayStr) return 'Yesterday'
+      return format(new Date(from), 'dd MMM yyyy')
+    }
+    return `${format(new Date(from), 'dd MMM')} – ${format(new Date(to), 'dd MMM yyyy')}`
   }
 
   const CustomTooltip = ({ active, payload, label }: any) => {
@@ -79,7 +125,7 @@ export default function ReportsPage() {
         >
           <div style={{ color: 'var(--text-2)', marginBottom: '4px', fontWeight: 600 }}>{label}</div>
           {payload.map((p: any) => (
-            <div key={p.name} style={{ color: p.color || '#fff', fontWeight: 600, marginTop: '2px' }}>
+            <div key={p.name} style={{ color: p.color || 'var(--text)', fontWeight: 600, marginTop: '2px' }}>
               {p.name === 'revenue'
                 ? `Revenue: ${formatMoney(p.value)}`
                 : p.name === 'urn'
@@ -97,258 +143,417 @@ export default function ReportsPage() {
     <AppShell>
       <div className="reports-container">
         {/* Page Header */}
-        <div className="page-header">
+        <div className="page-header" style={{ marginBottom: '16px' }}>
           <div>
-            <h1 className="page-title">Performance Reports · {currentProperty?.name}</h1>
-            <div style={{ fontSize: '12px', color: 'var(--text-2)', marginTop: '2px' }}>
-              {currentProperty?.code} · {currentProperty?.city} · Real-time room revenue, URN, SRN, occupancy, and ARR
+            <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>Business Analytics · {currentProperty?.name}</span>
+            </h1>
+            <div style={{ fontSize: '12.5px', color: 'var(--text-2)', marginTop: '2px' }}>
+              {currentProperty?.code} · {currentProperty?.city} · Real-time room category performance, revenue, URN, ARR, and occupancy
             </div>
           </div>
         </div>
 
-        {/* Date Filter & Presets Toolbar */}
-        <div className="reports-filter-bar">
-          <div className="reports-date-inputs">
-            <div className="date-input-group">
-              <label>From</label>
-              <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} max={to} />
-            </div>
-            <div className="date-input-group">
-              <label>To</label>
-              <input type="date" value={to} onChange={(e) => setTo(e.target.value)} min={from} />
-            </div>
-          </div>
-
-          {/* Quick Presets */}
-          <div className="reports-presets">
+        {/* Date Filter Toolbar with Today, Yesterday, This Week, This Month, Custom Filters */}
+        <div
+          className="card"
+          style={{
+            padding: '14px 18px',
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '16px',
+            flexWrap: 'wrap',
+          }}
+        >
+          {/* Preset Buttons */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', marginRight: '4px' }}>
+              Period:
+            </span>
             <button
-              className={`preset-btn ${from === format(subDays(today, 6), 'yyyy-MM-dd') ? 'active' : ''}`}
-              onClick={() => setPreset('7days')}
+              className={`preset-btn ${activePreset === 'today' ? 'active' : ''}`}
+              onClick={() => setPreset('today')}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '6px',
+                fontSize: '12.5px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                background: activePreset === 'today' ? 'var(--red)' : 'var(--card-2)',
+                color: activePreset === 'today' ? '#17120a' : 'var(--text)',
+                border: '1px solid var(--border)',
+                transition: 'all 0.15s ease',
+              }}
             >
-              7D
+              Today
             </button>
             <button
-              className={`preset-btn ${from === thirtyAgo ? 'active' : ''}`}
-              onClick={() => setPreset('30days')}
+              className={`preset-btn ${activePreset === 'yesterday' ? 'active' : ''}`}
+              onClick={() => setPreset('yesterday')}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '6px',
+                fontSize: '12.5px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                background: activePreset === 'yesterday' ? 'var(--red)' : 'var(--card-2)',
+                color: activePreset === 'yesterday' ? '#17120a' : 'var(--text)',
+                border: '1px solid var(--border)',
+                transition: 'all 0.15s ease',
+              }}
             >
-              30D
+              Yesterday
             </button>
             <button
-              className={`preset-btn ${from === format(startOfMonth(today), 'yyyy-MM-dd') ? 'active' : ''}`}
-              onClick={() => setPreset('thisMonth')}
+              className={`preset-btn ${activePreset === 'week' ? 'active' : ''}`}
+              onClick={() => setPreset('week')}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '6px',
+                fontSize: '12.5px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                background: activePreset === 'week' ? 'var(--red)' : 'var(--card-2)',
+                color: activePreset === 'week' ? '#17120a' : 'var(--text)',
+                border: '1px solid var(--border)',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              This Week (7D)
+            </button>
+            <button
+              className={`preset-btn ${activePreset === 'month' ? 'active' : ''}`}
+              onClick={() => setPreset('month')}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '6px',
+                fontSize: '12.5px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                background: activePreset === 'month' ? 'var(--red)' : 'var(--card-2)',
+                color: activePreset === 'month' ? '#17120a' : 'var(--text)',
+                border: '1px solid var(--border)',
+                transition: 'all 0.15s ease',
+              }}
             >
               This Month
             </button>
           </div>
 
-          <div className="reports-filter-info">
-            {currentProperty?.name} ({data?.totalRooms ?? 0} Rooms)
-          </div>
-        </div>
-
-        {/* 5-Card Top Metric Row */}
-        <div className="reports-metrics">
-          {/* 1. Room Revenue */}
-          <div className="metric-card">
-            <div className="metric-label">
-              <DollarSign size={13} color="var(--text-2)" /> Room Revenue
+          {/* Custom Date Range Picker */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div className="date-input-group" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-3)' }}>From</label>
+              <input
+                type="date"
+                value={from}
+                onChange={(e) => handleCustomDateChange(e.target.value, to)}
+                max={to}
+                className="form-control"
+                style={{ height: '34px', fontSize: '12.5px', padding: '4px 8px', width: '135px' }}
+              />
             </div>
-            <div className="metric-value">{isLoading ? '—' : formatMoney(roomRevenue)}</div>
-            <div className="metric-sub">Total room booking charges</div>
-          </div>
-
-          {/* 2. URN Used */}
-          <div className="metric-card">
-            <div className="metric-label">
-              <Layers size={13} color="var(--text-2)" /> URN Used
-            </div>
-            <div className="metric-value">{isLoading ? '—' : urnUsed}</div>
-            <div className="metric-sub">Used Room Nights</div>
-          </div>
-
-          {/* 3. SRN */}
-          <div className="metric-card">
-            <div className="metric-label">
-              <Calendar size={13} color="var(--text-2)" /> SRN
-            </div>
-            <div className="metric-value">{isLoading ? '—' : srn}</div>
-            <div className="metric-sub">Sellable Room Nights</div>
-          </div>
-
-          {/* 4. Occupancy */}
-          <div className="metric-card">
-            <div className="metric-label">
-              <Percent size={13} color="var(--text-2)" /> Occupancy
-            </div>
-            <div className="metric-value" style={{ color: occupancy > 0 ? 'var(--green)' : 'var(--text)' }}>
-              {isLoading ? '—' : `${occupancy}%`}
-            </div>
-            <div className="metric-sub">URN ÷ SRN × 100</div>
-          </div>
-
-          {/* 5. ARR */}
-          <div className="metric-card">
-            <div className="metric-label">
-              <TrendingUp size={13} color="var(--text-2)" /> ARR
-            </div>
-            <div className="metric-value" style={{ color: 'var(--green)' }}>
-              {isLoading ? '—' : formatMoney(arr)}
-            </div>
-            <div className="metric-sub">Average Room Rate</div>
-          </div>
-        </div>
-
-        {/* Performance Summary Card */}
-        <div className="card" style={{ marginBottom: '20px' }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: '16px',
-              flexWrap: 'wrap',
-              gap: '8px',
-            }}
-          >
-            <div>
-              <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>
-                Hotel Performance Summary · {currentProperty?.code}
-              </div>
-              <div style={{ fontSize: '12px', color: 'var(--text-2)', marginTop: '2px' }}>
-                Operational efficiency and room night realization
-              </div>
-            </div>
-            <div>
-              <span className="badge badge-green" style={{ fontSize: '12px', padding: '5px 12px' }}>
-                {occupancy}% Realized Occupancy
-              </span>
-            </div>
-          </div>
-
-          {/* 4 Performance Stat Blocks */}
-          <div className="performance-stats-grid">
-            <div className="perf-stat-block">
-              <div className="perf-stat-label">URN Used</div>
-              <div className="perf-stat-value">{isLoading ? '—' : `${urnUsed} nights`}</div>
-              <div className="perf-stat-desc">Rooms sold × nights</div>
-            </div>
-            <div className="perf-stat-block">
-              <div className="perf-stat-label">SRN Capacity</div>
-              <div className="perf-stat-value">{isLoading ? '—' : `${srn} nights`}</div>
-              <div className="perf-stat-desc">Sellable inventory</div>
-            </div>
-            <div className="perf-stat-block">
-              <div className="perf-stat-label">Occupancy Rate</div>
-              <div className="perf-stat-value" style={{ color: occupancy > 0 ? 'var(--green)' : 'var(--text)' }}>
-                {isLoading ? '—' : `${occupancy}%`}
-              </div>
-              <div className="perf-stat-desc">Actual room utilization</div>
-            </div>
-            <div className="perf-stat-block">
-              <div className="perf-stat-label">Average Room Rate (ARR)</div>
-              <div className="perf-stat-value" style={{ color: 'var(--green)' }}>
-                {isLoading ? '—' : formatMoney(arr)}
-              </div>
-              <div className="perf-stat-desc">Revenue per sold night</div>
-            </div>
-          </div>
-
-          {/* Visual Comparison Progress Bar */}
-          <div style={{ padding: '0 4px', marginTop: '14px' }}>
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                fontSize: '12px',
-                marginBottom: '8px',
-                flexWrap: 'wrap',
-                gap: '6px',
-              }}
-            >
-              <span style={{ color: 'var(--text-2)' }}>
-                Used Room Nights: <strong style={{ color: 'var(--text)' }}>{urnUsed}</strong> / {srn}
-              </span>
-              <span style={{ color: 'var(--text-2)' }}>
-                Available Capacity: <strong style={{ color: 'var(--text)' }}>{Math.max(0, srn - urnUsed)} nights</strong>
-              </span>
-              <span style={{ fontWeight: 600, color: 'var(--red)' }}>Occupancy: {occupancy}%</span>
-            </div>
-            <div
-              style={{
-                width: '100%',
-                height: '8px',
-                background: 'var(--card-2)',
-                borderRadius: '4px',
-                overflow: 'hidden',
-              }}
-            >
-              <div
-                style={{
-                  width: `${occupancyRatio}%`,
-                  height: '100%',
-                  background: 'var(--red)',
-                  borderRadius: '4px',
-                  transition: 'width 0.4s ease',
-                }}
+            <div className="date-input-group" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-3)' }}>To</label>
+              <input
+                type="date"
+                value={to}
+                onChange={(e) => handleCustomDateChange(from, e.target.value)}
+                min={from}
+                className="form-control"
+                style={{ height: '34px', fontSize: '12.5px', padding: '4px 8px', width: '135px' }}
               />
             </div>
           </div>
         </div>
 
-        {/* Daily Breakdown Table */}
-        {data?.dailyBreakdown && data.dailyBreakdown.length > 0 && (
-          <div className="card" style={{ marginBottom: '20px', minWidth: 0 }}>
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '16px',
-                flexWrap: 'wrap',
-                gap: '8px',
-              }}
-            >
-              <div>
-                <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>Daily Performance Log</div>
-                <div style={{ fontSize: '12px', color: 'var(--text-2)', marginTop: '2px' }}>
-                  Detailed day-by-day URN, SRN, and realized revenue
+        {/* Analytics Section Switcher Tabs */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            marginBottom: '20px',
+            borderBottom: '1px solid var(--border)',
+            paddingBottom: '12px',
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setActiveTab('categories')}
+            style={{
+              padding: '8px 18px',
+              borderRadius: '8px',
+              border: 'none',
+              background: activeTab === 'categories' ? 'var(--card)' : 'transparent',
+              color: activeTab === 'categories' ? 'var(--red)' : 'var(--text-2)',
+              fontWeight: 700,
+              fontSize: '13.5px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              borderBottom: activeTab === 'categories' ? '2px solid var(--red)' : '2px solid transparent',
+              boxShadow: activeTab === 'categories' ? 'var(--shadow-sm)' : 'none',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <BedDouble size={16} />
+            <span>Room Category Business</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('daily')}
+            style={{
+              padding: '8px 18px',
+              borderRadius: '8px',
+              border: 'none',
+              background: activeTab === 'daily' ? 'var(--card)' : 'transparent',
+              color: activeTab === 'daily' ? 'var(--red)' : 'var(--text-2)',
+              fontWeight: 700,
+              fontSize: '13.5px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              borderBottom: activeTab === 'daily' ? '2px solid var(--red)' : '2px solid transparent',
+              boxShadow: activeTab === 'daily' ? 'var(--shadow-sm)' : 'none',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <BarChart2 size={16} />
+            <span>Daily Revenue &amp; Occupancy Trend</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('sources')}
+            style={{
+              padding: '8px 18px',
+              borderRadius: '8px',
+              border: 'none',
+              background: activeTab === 'sources' ? 'var(--card)' : 'transparent',
+              color: activeTab === 'sources' ? 'var(--red)' : 'var(--text-2)',
+              fontWeight: 700,
+              fontSize: '13.5px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              borderBottom: activeTab === 'sources' ? '2px solid var(--red)' : '2px solid transparent',
+              boxShadow: activeTab === 'sources' ? 'var(--shadow-sm)' : 'none',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <PieChartIcon size={16} />
+            <span>Booking Channels</span>
+          </button>
+        </div>
+
+        {/* ========================================================================= */}
+        {/* TAB 1: ROOM CATEGORY BUSINESS ANALYTICS */}
+        {/* ========================================================================= */}
+        {activeTab === 'categories' && (
+          <RoomCategoryPerformance
+            categories={categories}
+            summary={categorySummary}
+            currencySymbol={currencySymbol}
+            isLoading={isLoading}
+            dateRangeLabel={getDateRangeLabel()}
+          />
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 2: DAILY REVENUE & OCCUPANCY TREND */}
+        {/* ========================================================================= */}
+        {activeTab === 'daily' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {/* Top Metrics Row */}
+            <div className="reports-metrics">
+              <div className="metric-card">
+                <div className="metric-label">
+                  <DollarSign size={13} color="var(--text-2)" /> Room Revenue
                 </div>
+                <div className="metric-value">{isLoading ? '—' : formatMoney(roomRevenue)}</div>
+                <div className="metric-sub">Total room booking charges</div>
+              </div>
+
+              <div className="metric-card">
+                <div className="metric-label">
+                  <Layers size={13} color="var(--text-2)" /> URN Used
+                </div>
+                <div className="metric-value">{isLoading ? '—' : urnUsed}</div>
+                <div className="metric-sub">Used Room Nights</div>
+              </div>
+
+              <div className="metric-card">
+                <div className="metric-label">
+                  <Calendar size={13} color="var(--text-2)" /> SRN
+                </div>
+                <div className="metric-value">{isLoading ? '—' : srn}</div>
+                <div className="metric-sub">Sellable Room Nights ({data?.totalRooms || 0} Rooms)</div>
+              </div>
+
+              <div className="metric-card">
+                <div className="metric-label">
+                  <Percent size={13} color="var(--text-2)" /> Occupancy
+                </div>
+                <div
+                  className="metric-value"
+                  style={{
+                    color: occupancy > 100 ? 'var(--red)' : occupancy > 0 ? 'var(--green)' : 'var(--text)',
+                  }}
+                >
+                  {isLoading ? '—' : `${occupancy}%`}
+                </div>
+                <div className="metric-sub">
+                  {data?.overbookedRoomNights > 0 ? (
+                    <span style={{ color: 'var(--red)', fontWeight: 600 }}>
+                      Overbooked: +{data.overbookedRoomNights} RN
+                    </span>
+                  ) : (
+                    'URN ÷ SRN × 100'
+                  )}
+                </div>
+              </div>
+
+              <div className="metric-card">
+                <div className="metric-label">
+                  <TrendingUp size={13} color="var(--text-2)" /> ARR
+                </div>
+                <div className="metric-value" style={{ color: 'var(--green)' }}>
+                  {isLoading ? '—' : formatMoney(arr)}
+                </div>
+                <div className="metric-sub">Average Room Rate</div>
               </div>
             </div>
 
-            <div className="table-responsive">
-              <table className="reports-table">
+            {/* Daily Revenue Bar Chart */}
+            <div className="card">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <div>
+                  <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>
+                    Daily Revenue Realization ({currencySymbol})
+                  </h3>
+                  <div style={{ fontSize: '12px', color: 'var(--text-3)', marginTop: '2px' }}>
+                    Revenue distributed across each night of guest stays
+                  </div>
+                </div>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-2)' }}>
+                  {getDateRangeLabel()}
+                </div>
+              </div>
+
+              <div style={{ width: '100%', height: 280 }}>
+                {isLoading ? (
+                  <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-3)' }}>
+                    Loading chart data...
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={data?.dailyBreakdown ?? []} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                      <XAxis dataKey="displayDate" stroke="var(--text-3)" fontSize={11} tickLine={false} />
+                      <YAxis stroke="var(--text-3)" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(val) => `₹${val}`} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Bar dataKey="revenue" fill="var(--red)" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </div>
+
+            {/* Daily Occupancy Trend Chart */}
+            <div className="card">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <div>
+                  <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>
+                    Daily Occupied Rooms (URN)
+                  </h3>
+                  <div style={{ fontSize: '12px', color: 'var(--text-3)', marginTop: '2px' }}>
+                    Rooms occupied per day vs Total Capacity ({data?.totalRooms ?? 0} Rooms)
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ width: '100%', height: 260 }}>
+                {isLoading ? (
+                  <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-3)' }}>
+                    Loading chart data...
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={data?.dailyBreakdown ?? []} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                      <XAxis dataKey="displayDate" stroke="var(--text-3)" fontSize={11} tickLine={false} />
+                      <YAxis stroke="var(--text-3)" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Bar dataKey="occupiedRooms" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 3: BOOKING CHANNELS / SOURCES */}
+        {/* ========================================================================= */}
+        {activeTab === 'sources' && (
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div
+              style={{
+                padding: '16px 20px',
+                borderBottom: '1px solid var(--border)',
+                background: 'var(--card-2)',
+              }}
+            >
+              <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>
+                Booking Channel Breakdown
+              </h3>
+              <div style={{ fontSize: '12px', color: 'var(--text-3)', marginTop: '2px' }}>
+                Revenue contribution by OTA platforms and direct reservations
+              </div>
+            </div>
+
+            <div style={{ overflowX: 'auto' }}>
+              <table className="table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
                 <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th style={{ textAlign: 'right' }}>URN</th>
-                    <th style={{ textAlign: 'right' }}>SRN</th>
-                    <th style={{ textAlign: 'right' }}>Occupancy</th>
-                    <th style={{ textAlign: 'right' }}>Room Revenue</th>
-                    <th style={{ textAlign: 'right' }}>ARR</th>
+                  <tr style={{ background: 'var(--card-2)', color: 'var(--text-3)', fontSize: '11.5px', textTransform: 'uppercase' }}>
+                    <th style={{ padding: '12px 18px' }}>Source Channel</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'right' }}>Total Bookings</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'right' }}>Revenue Generated</th>
+                    <th style={{ padding: '12px 18px', textAlign: 'right' }}>Share %</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {data.dailyBreakdown.map((d: any) => (
-                    <tr key={d.date}>
-                      <td style={{ fontWeight: 600, color: 'var(--text)' }}>{d.displayDate} ({d.dayName})</td>
-                      <td style={{ textAlign: 'right', color: 'var(--text)' }}>{d.urn}</td>
-                      <td style={{ textAlign: 'right', color: 'var(--text-2)' }}>{d.srn}</td>
-                      <td
-                        style={{
-                          textAlign: 'right',
-                          fontWeight: 600,
-                          color: d.occupancy > 0 ? 'var(--green)' : 'var(--text-2)',
-                        }}
-                      >
-                        {d.occupancy}%
+                  {!data?.sources || data.sources.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} style={{ padding: '30px', textAlign: 'center', color: 'var(--text-3)' }}>
+                        No booking channel data in this date range
                       </td>
-                      <td style={{ textAlign: 'right', fontWeight: 600, color: 'var(--text)' }}>
-                        {formatMoney(d.revenue)}
-                      </td>
-                      <td style={{ textAlign: 'right', color: 'var(--green)' }}>{formatMoney(d.arr)}</td>
                     </tr>
-                  ))}
+                  ) : (
+                    data.sources.map((s: any) => {
+                      const share = roomRevenue > 0 ? ((s.revenue / roomRevenue) * 100).toFixed(1) : '0'
+                      return (
+                        <tr key={s.name} style={{ borderBottom: '1px solid var(--border)' }}>
+                          <td style={{ padding: '14px 18px', fontWeight: 700, color: 'var(--text)' }}>{s.name}</td>
+                          <td style={{ padding: '14px 16px', textAlign: 'right', fontWeight: 600 }}>{s.bookings}</td>
+                          <td style={{ padding: '14px 16px', textAlign: 'right', fontWeight: 800, color: 'var(--text)' }}>
+                            {formatMoney(s.revenue)}
+                          </td>
+                          <td style={{ padding: '14px 18px', textAlign: 'right', fontWeight: 700, color: 'var(--red)' }}>
+                            {share}%
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
                 </tbody>
               </table>
             </div>

@@ -30,6 +30,7 @@ import { format, parseISO } from 'date-fns'
 import { useProperty } from '@/context/PropertyContext'
 import InvoiceModal from '@/components/bookings/InvoiceModal'
 import BookingDetailsModal from '@/components/bookings/BookingDetailsModal'
+import SourceBadge from '@/components/ui/SourceBadge'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -567,14 +568,13 @@ export default function BookingHistoryPage() {
                           </span>
                         </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '12px', color: 'var(--text-3)', marginTop: '3px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-3)', marginTop: '4px', flexWrap: 'wrap' }}>
                           {booking.guest?.phone && (
                             <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                               <Phone size={11} /> {booking.guest.phone}
                             </span>
                           )}
-                          <span style={{ color: 'var(--text-3)' }}>•</span>
-                          <span>{booking.source || 'Walk inn'}</span>
+                          <SourceBadge source={booking.source} size="xs" />
                         </div>
                       </div>
                     </div>

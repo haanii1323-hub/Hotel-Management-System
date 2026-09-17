@@ -68,7 +68,7 @@ export default function CheckInModal({ booking, onClose, onSuccess }: Props) {
       if (!res.ok) {
         showToast(data.error || 'Check-in failed', 'error')
       } else {
-        showToast(`${booking.guest.name} checked in successfully!`, 'success')
+        showToast(`${booking.guest?.name || 'Guest'} checked in successfully!`, 'success')
         broadcastChange('CHECK_IN', { bookingId: booking.id })
         onSuccess()
       }

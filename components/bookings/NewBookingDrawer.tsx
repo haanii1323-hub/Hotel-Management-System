@@ -855,12 +855,12 @@ export default function NewBookingDrawer({ onClose, onSuccess }: Props) {
                           ? '2px solid var(--red)'
                           : isAvail
                           ? '1px solid var(--border)'
-                          : '1px solid rgba(255, 255, 255, 0.05)',
+                          : '1px solid var(--border)',
                         background: isSelected
                           ? 'var(--red-dim)'
                           : isAvail
                           ? 'var(--card-2)'
-                          : 'rgba(255, 255, 255, 0.02)',
+                          : 'var(--bg-2)',
                         cursor: isAvail || isSelected ? 'pointer' : 'not-allowed',
                         opacity: isAvail || isSelected ? 1 : 0.5,
                         display: 'flex',

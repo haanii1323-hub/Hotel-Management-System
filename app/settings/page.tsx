@@ -17,6 +17,7 @@ import {
   Check,
 } from 'lucide-react'
 import PaymentSettingsTab from '@/components/settings/PaymentSettingsTab'
+import DataSafetyTab from '@/components/settings/DataSafetyTab'
 import { useProperty } from '@/context/PropertyContext'
 import { useTheme } from '@/context/ThemeContext'
 import ThemeToggle from '@/components/ui/ThemeToggle'
@@ -25,7 +26,7 @@ import Link from 'next/link'
 
 export default function SettingsPage() {
   const { currentProperty, properties } = useProperty()
-  const [activeTab, setActiveTab] = useState<'payment' | 'property' | 'rooms' | 'users' | 'appearance'>('payment')
+  const [activeTab, setActiveTab] = useState<'payment' | 'property' | 'rooms' | 'users' | 'appearance' | 'backup'>('payment')
   const [showEditPropModal, setShowEditPropModal] = useState(false)
 
   return (
@@ -165,10 +166,35 @@ export default function SettingsPage() {
           >
             <Palette size={15} /> Appearance &amp; Theme
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('backup')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '10px 16px',
+              border: 'none',
+              background: 'none',
+              cursor: 'pointer',
+              fontSize: '13px',
+              fontWeight: 600,
+              color: activeTab === 'backup' ? 'var(--red)' : 'var(--text-2)',
+              borderBottom: activeTab === 'backup' ? '2px solid var(--red)' : '2px solid transparent',
+              transition: 'all 0.15s ease',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <ShieldCheck size={15} /> Data Safety &amp; Backup
+          </button>
         </div>
 
         {/* TAB 1: PAYMENT SETTINGS */}
         {activeTab === 'payment' && <PaymentSettingsTab />}
+
+        {/* TAB 6: DATA SAFETY & BACKUP */}
+        {activeTab === 'backup' && <DataSafetyTab />}
 
         {/* TAB 2: PROPERTY PROFILE */}
         {activeTab === 'property' && (

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { format } from 'date-fns'
 
 export async function GET(req: NextRequest) {
   try {
@@ -21,26 +22,58 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'asc' },
     })
 
+    const todayStr = format(new Date(), 'yyyy-MM-dd')
+
     let totalProperties = properties.length
-    let totalRooms = 0
-    let totalOccupied = 0
+    let totalPhysicalRooms = 0
+    let totalSellableRooms = 0
+    let totalBookedRooms = 0
     let totalAvailable = 0
     let totalRevenue = 0
     let totalBookings = 0
 
     const propertySummaries = properties.map((p) => {
-      const pRooms = p.rooms.length
-      const pOccupied = p.rooms.filter((r) => r.status === 'Occupied').length
-      const pAvailable = p.rooms.filter((r) => r.status === 'Available').length
+      const pTotalRooms = p.rooms.length
+      const outOfOrder = p.rooms.filter(
+        (r) => r.status === 'Maintenance' || r.status === 'OutOfOrder'
+      ).length
+      const pSellable = Math.max(0, pTotalRooms - outOfOrder)
+
+      // Count active bookings for today (Upcoming/Confirmed or CheckedIn)
+      const activeBookingsToday = p.bookings.filter((b) => {
+        const isEligible = b.status === 'Upcoming' || b.status === 'CheckedIn'
+        if (!isEligible) return false
+
+        const checkInStr = format(new Date(b.checkIn), 'yyyy-MM-dd')
+        const checkOutStr = format(new Date(b.checkOut), 'yyyy-MM-dd')
+
+        if (checkInStr === checkOutStr) {
+          return checkInStr === todayStr
+        }
+        return checkInStr <= todayStr && todayStr < checkOutStr
+      })
+
+      const pBooked = activeBookingsToday.reduce((sum, b) => sum + (b.numRooms || 1), 0)
+      const pAvailable = pSellable - pBooked
+      const isOverbooked = pBooked > pSellable
+      const overbookedRooms = Math.max(0, pBooked - pSellable)
+
+      // Uncapped occupancy %
+      const pOccupancy =
+        pSellable > 0 ? Number(((pBooked / pSellable) * 100).toFixed(1)) : 0
+
       const pBookings = p.bookings.length
       const pRevenue = p.bookings.reduce((sum, b) => {
-        const collected = b.payments.reduce((pSum, pay) => pSum + (pay.status !== 'Pending' ? pay.amount : 0), 0)
+        const collected = b.payments.reduce(
+          (pSum, pay) => pSum + (pay.status !== 'Pending' ? pay.amount : 0),
+          0
+        )
         return sum + collected
       }, 0)
-      const pOccupancy = pRooms > 0 ? Math.round((pOccupied / pRooms) * 100) : 0
 
-      totalRooms += pRooms
-      totalOccupied += pOccupied
+      totalPhysicalRooms += pTotalRooms
+      totalSellableRooms += pSellable
+      totalBookedRooms += pBooked
       totalAvailable += pAvailable
       totalRevenue += pRevenue
       totalBookings += pBookings
@@ -53,23 +86,32 @@ export async function GET(req: NextRequest) {
         coverImage: p.coverImage,
         currencySymbol: p.currencySymbol,
         taxRate: p.taxRate,
-        totalRooms: pRooms,
-        occupiedRooms: pOccupied,
+        totalRooms: pTotalRooms,
+        sellableRooms: pSellable,
+        occupiedRooms: pBooked,
         availableRooms: pAvailable,
+        isOverbooked,
+        overbookedRooms,
         totalRevenue: pRevenue,
         totalBookings: pBookings,
         occupancyRate: pOccupancy,
       }
     })
 
-    const overallOccupancy = totalRooms > 0 ? Math.round((totalOccupied / totalRooms) * 100) : 0
+    const overallOccupancy =
+      totalSellableRooms > 0
+        ? Number(((totalBookedRooms / totalSellableRooms) * 100).toFixed(1))
+        : 0
 
     return NextResponse.json({
       portfolio: {
         totalProperties,
-        totalRooms,
-        totalOccupied,
+        totalRooms: totalPhysicalRooms,
+        sellableRooms: totalSellableRooms,
+        totalOccupied: totalBookedRooms,
         totalAvailable,
+        isOverbooked: totalBookedRooms > totalSellableRooms,
+        overbookedRooms: Math.max(0, totalBookedRooms - totalSellableRooms),
         totalRevenue,
         totalBookings,
         overallOccupancy,

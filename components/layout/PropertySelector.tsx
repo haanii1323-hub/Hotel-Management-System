@@ -21,7 +21,7 @@ import EditPropertyModal from '@/components/properties/EditPropertyModal'
 import AllPropertiesModal from '@/components/properties/AllPropertiesModal'
 import CheckInModal from '@/components/bookings/CheckInModal'
 import CheckoutModal from '@/components/bookings/CheckoutModal'
-import { broadcastChange } from '@/lib/realtime-sync'
+import { broadcastChange, useRealtimeSync } from '@/lib/realtime-sync'
 import useSWR from 'swr'
 import { useRouter } from 'next/navigation'
 
@@ -31,11 +31,12 @@ export default function PropertySelector() {
   const router = useRouter()
   const { currentProperty, properties, switchProperty, isSwitching } = useProperty()
   const [open, setOpen] = useState(false)
-  const [showNotifications, setShowNotifications] = useState(false)
   const [search, setSearch] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [editingProperty, setEditingProperty] = useState<any | null>(null)
   const [showOverviewModal, setShowOverviewModal] = useState(false)
+  const [showNotifications, setShowNotifications] = useState(false)
   const [checkInBooking, setCheckInBooking] = useState<any | null>(null)
   const [checkoutBooking, setCheckoutBooking] = useState<any | null>(null)
 
@@ -47,8 +48,16 @@ export default function PropertySelector() {
   const { data: notifData, mutate: refreshNotifications } = useSWR(
     propertyId ? `/api/notifications?propertyId=${propertyId}` : '/api/notifications',
     fetcher,
-    { refreshInterval: 5000 }
+    {
+      refreshInterval: 60000,
+      revalidateOnFocus: true,
+      dedupingInterval: 2000,
+    }
   )
+
+  useRealtimeSync(() => {
+    refreshNotifications()
+  })
 
   const notifCount = notifData?.totalCount || 0
   const notifications = notifData?.notifications || []

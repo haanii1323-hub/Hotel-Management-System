@@ -8,6 +8,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import { calculateBookingFinancials, fmtDate, fmtCurrency } from '@/lib/financials'
 import { printReceiptDocument } from '@/lib/receipt-printer'
 import { useProperty } from '@/context/PropertyContext'
+import SourceBadge from '@/components/ui/SourceBadge'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -123,7 +124,10 @@ export default function InvoiceModal({ booking, collected: overrideCollected, ba
             <div>
               <div className="invoice-label">Reservation Details</div>
               <div className="invoice-val" style={{ fontWeight: 600 }}>{booking.bookingRef}</div>
-              <div className="invoice-val">Source: <strong>{booking.source}</strong></div>
+              <div className="invoice-val" style={{ display: 'flex', alignItems: 'center', gap: '6px', margin: '3px 0' }}>
+                <span>Source:</span>
+                <SourceBadge source={booking.source} size="xs" />
+              </div>
               <div className="invoice-val">
                 Stay: {fmtDate(booking.checkIn)} → {fmtDate(booking.checkOut)}
                 {fin.isSameDay ? ' (Same-day 1D)' : ` (${fin.nights}N)`}

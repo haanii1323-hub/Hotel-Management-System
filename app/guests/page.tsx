@@ -7,6 +7,7 @@ import { format } from 'date-fns'
 import { Search, Plus, UserPlus, Phone, Mail, MapPin, Calendar, Clock, X, BedDouble } from 'lucide-react'
 import { useProperty } from '@/context/PropertyContext'
 import { useToast } from '@/components/ui/Toast'
+import SourceBadge from '@/components/ui/SourceBadge'
 import { broadcastChange, useRealtimeSync } from '@/lib/realtime-sync'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -34,8 +35,9 @@ export default function GuestsPage() {
   if (search.trim()) q += `${q ? '&' : '?'}search=${encodeURIComponent(search.trim())}`
 
   const { data: guests, isLoading, mutate } = useSWR(`/api/guests${q}`, fetcher, {
-    refreshInterval: 4000,
+    refreshInterval: 60000,
     revalidateOnFocus: true,
+    dedupingInterval: 2000,
   })
 
   useRealtimeSync(() => {
@@ -216,9 +218,12 @@ export default function GuestsPage() {
                             gap: '8px',
                           }}
                         >
-                          <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                             <span style={{ fontWeight: 700, color: 'var(--text)' }}>{b.bookingRef}</span>
-                            <span style={{ color: 'var(--text-3)', marginLeft: '8px' }}>· {b.source} · {b.roomCategory}</span>
+                            <span style={{ color: 'var(--border-2)' }}>·</span>
+                            <SourceBadge source={b.source} size="xs" />
+                            <span style={{ color: 'var(--border-2)' }}>·</span>
+                            <span style={{ color: 'var(--text-2)' }}>{b.roomCategory}</span>
                           </div>
 
                           <div style={{ color: 'var(--text-2)' }}>

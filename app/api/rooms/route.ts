@@ -186,3 +186,54 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message || 'Failed to create room' }, { status: 500 })
   }
 }
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    const { propertyId } = await getTenantContext(req, session?.user as any)
+    if (!propertyId) {
+      return NextResponse.json({ error: 'Unauthorized or no property selected' }, { status: 401 })
+    }
+
+    const body = await req.json()
+    const updates: Array<{ id: string; status?: string }> = Array.isArray(body.updates)
+      ? body.updates
+      : body.id
+      ? [body]
+      : []
+
+    if (!updates.length) {
+      return NextResponse.json({ error: 'No room updates provided' }, { status: 400 })
+    }
+
+    const results = []
+    for (const u of updates) {
+      if (!u.id) continue
+      const room = await prisma.room.findFirst({ where: { id: u.id, propertyId } })
+      if (!room) continue
+
+      if (u.status && u.status !== room.status) {
+        const updated = await prisma.room.update({
+          where: { id: room.id },
+          data: { status: u.status },
+          include: { category: true },
+        })
+        await prisma.roomStatusLog.create({
+          data: {
+            roomId: room.id,
+            oldStatus: room.status,
+            newStatus: u.status,
+            changedBy: session?.user?.id,
+          },
+        })
+        results.push(updated)
+      }
+    }
+
+    return NextResponse.json({ success: true, count: results.length, rooms: results })
+  } catch (error: any) {
+    console.error('Error batch updating rooms:', error)
+    return NextResponse.json({ error: error.message || 'Failed to update rooms' }, { status: 500 })
+  }
+}
+

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import useSWR from 'swr'
 import AppShell from '@/components/layout/AppShell'
-import { Check, Plus, Trash2, BedDouble, Pencil, X, Tag } from 'lucide-react'
+import { Check, Plus, Trash2, BedDouble, Pencil, X, Tag, RotateCcw, AlertCircle } from 'lucide-react'
 import { useToast } from '@/components/ui/Toast'
 import { useProperty } from '@/context/PropertyContext'
 import { broadcastChange, useRealtimeSync } from '@/lib/realtime-sync'
@@ -29,13 +29,18 @@ export default function PricingPage() {
   const { data: categories, mutate: mutateCategories } = useSWR(
     propertyId ? `/api/categories?propertyId=${propertyId}` : '/api/categories',
     fetcher,
-    { refreshInterval: 5000 }
+    { revalidateOnFocus: false }
   )
   const { data: rooms, mutate: mutateRooms } = useSWR(
     propertyId ? `/api/rooms?propertyId=${propertyId}` : '/api/rooms',
     fetcher,
-    { refreshInterval: 5000 }
+    { revalidateOnFocus: false }
   )
+
+  // Pending room status changes (smooth, zero-refresh, batch update)
+  const [pendingStatusMap, setPendingStatusMap] = useState<Record<string, string>>({})
+  const [savingStatus, setSavingStatus] = useState(false)
+  const pendingCount = Object.keys(pendingStatusMap).length
 
   // Rate editing
   const [editRate, setEditRate] = useState<Record<string, number>>({})
@@ -73,6 +78,100 @@ export default function PricingPage() {
     mutateCategories()
     mutateRooms()
   })
+
+  function handleRoomStatusSelect(roomId: string, originalStatus: string, newStatus: string) {
+    setPendingStatusMap((prev) => {
+      if (newStatus === originalStatus) {
+        const next = { ...prev }
+        delete next[roomId]
+        return next
+      }
+      return { ...prev, [roomId]: newStatus }
+    })
+  }
+
+  async function applyPendingStatuses() {
+    const entries = Object.entries(pendingStatusMap)
+    if (entries.length === 0) return
+
+    setSavingStatus(true)
+    const updates = entries.map(([id, status]) => ({ id, status }))
+
+    // Optimistically update local SWR cache immediately with zero refresh
+    if (rooms) {
+      const optimisticRooms = rooms.map((r: any) =>
+        pendingStatusMap[r.id] ? { ...r, status: pendingStatusMap[r.id] } : r
+      )
+      mutateRooms(optimisticRooms, false)
+    }
+
+    try {
+      const res = await fetch('/api/rooms', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ updates }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        showToast(
+          `Updated ${entries.length} room status${entries.length > 1 ? 'es' : ''} successfully!`,
+          'success'
+        )
+        setPendingStatusMap({})
+        broadcastChange('ROOM_UPDATED', { updates })
+        mutateRooms()
+      } else {
+        showToast(data.error || 'Failed to update room statuses', 'error')
+        mutateRooms()
+      }
+    } catch {
+      showToast('Network error while updating room statuses', 'error')
+      mutateRooms()
+    } finally {
+      setSavingStatus(false)
+    }
+  }
+
+  function discardPendingStatuses() {
+    setPendingStatusMap({})
+    showToast('Reset all unsaved room status changes')
+  }
+
+  async function applySingleRoomStatus(roomId: string, originalStatus: string, newStatus: string) {
+    if (newStatus === originalStatus) return
+
+    // Optimistically update
+    if (rooms) {
+      const optimisticRooms = rooms.map((r: any) =>
+        r.id === roomId ? { ...r, status: newStatus } : r
+      )
+      mutateRooms(optimisticRooms, false)
+    }
+    setPendingStatusMap((prev) => {
+      const next = { ...prev }
+      delete next[roomId]
+      return next
+    })
+
+    try {
+      const res = await fetch(`/api/rooms/${roomId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      })
+      if (res.ok) {
+        showToast(`Room status updated to ${newStatus}`, 'success')
+        broadcastChange('ROOM_UPDATED', { roomId, status: newStatus })
+        mutateRooms()
+      } else {
+        showToast('Failed to update room status', 'error')
+        mutateRooms()
+      }
+    } catch {
+      showToast('Network error while updating room', 'error')
+      mutateRooms()
+    }
+  }
 
   async function saveRate(cat: any) {
     const rate = editRate[cat.id]
@@ -482,9 +581,27 @@ export default function PricingPage() {
           gap: '10px',
         }}
       >
-        <h2 style={{ fontSize: '18px', fontWeight: 700 }}>
-          Room Inventory ({rooms?.length || 0} Rooms in {currentProperty?.code})
-        </h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <h2 style={{ fontSize: '18px', fontWeight: 700 }}>
+            Room Inventory ({rooms?.length || 0} Rooms in {currentProperty?.code})
+          </h2>
+          {pendingCount > 0 && (
+            <button
+              className="btn btn-red btn-sm"
+              onClick={applyPendingStatuses}
+              disabled={savingStatus}
+              style={{ gap: '6px', fontSize: '12px', padding: '6px 14px' }}
+            >
+              {savingStatus ? (
+                <span className="spinner" style={{ width: 13, height: 13 }} />
+              ) : (
+                <Check size={13} />
+              )}
+              Apply Changes ({pendingCount})
+            </button>
+          )}
+        </div>
+
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <input
             className="form-control"
@@ -532,47 +649,187 @@ export default function PricingPage() {
               {cat.nightlyRate}/night
             </div>
             <div className="room-inventory-grid">
-              {catRooms.map((room: any) => (
-                <div key={room.id} className={`room-card ${statusClass[room.status] || 'available'}`}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <div className="room-number">{room.number}</div>
-                      <div className="room-category-label">{room.category?.name || cat.name}</div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-                      <button
-                        className="btn-icon"
-                        style={{ padding: '4px', border: 'none', background: 'none', color: 'var(--text-3)' }}
-                        onClick={() => startEditingRoom(room)}
-                        title="Edit room number & details"
-                      >
-                        <Pencil size={13} />
-                      </button>
-                      <button
-                        className="btn-icon"
-                        style={{ padding: '4px', border: 'none', background: 'none', color: 'var(--text-3)' }}
-                        onClick={() => deleteRoom(room.id, room.number)}
-                        title="Remove room"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </div>
-                  <select
-                    className="room-status-select"
-                    value={room.status}
-                    onChange={(e) => updateRoomStatus(room.id, e.target.value)}
+              {catRooms.map((room: any) => {
+                const effectiveStatus = pendingStatusMap[room.id] || room.status
+                const isModified = pendingStatusMap[room.id] !== undefined && pendingStatusMap[room.id] !== room.status
+
+                return (
+                  <div
+                    key={room.id}
+                    className={`room-card ${statusClass[effectiveStatus] || 'available'} ${
+                      isModified ? 'room-card-pending' : ''
+                    }`}
                   >
-                    {STATUSES.map((s) => (
-                      <option key={s}>{s}</option>
-                    ))}
-                  </select>
-                </div>
-              ))}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <div className="room-number">{room.number}</div>
+                        <div className="room-category-label">{room.category?.name || cat.name}</div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                        <button
+                          className="btn-icon"
+                          style={{ padding: '4px', border: 'none', background: 'none', color: 'var(--text-3)' }}
+                          onClick={() => startEditingRoom(room)}
+                          title="Edit room number & details"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          className="btn-icon"
+                          style={{ padding: '4px', border: 'none', background: 'none', color: 'var(--text-3)' }}
+                          onClick={() => deleteRoom(room.id, room.number)}
+                          title="Remove room"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <select
+                      className="room-status-select"
+                      value={effectiveStatus}
+                      onChange={(e) => handleRoomStatusSelect(room.id, room.status, e.target.value)}
+                    >
+                      {STATUSES.map((s) => (
+                        <option key={s}>{s}</option>
+                      ))}
+                    </select>
+
+                    {isModified && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          marginTop: '8px',
+                          padding: '3px 8px',
+                          background: 'rgba(245, 158, 11, 0.1)',
+                          border: '1px solid rgba(245, 158, 11, 0.3)',
+                          borderRadius: '4px',
+                          fontSize: '11px',
+                        }}
+                      >
+                        <span style={{ color: 'var(--amber)', fontWeight: 600 }}>
+                          Unsaved: {effectiveStatus}
+                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <button
+                            type="button"
+                            className="btn-icon"
+                            style={{
+                              padding: '2px',
+                              border: 'none',
+                              background: 'none',
+                              color: 'var(--green)',
+                              cursor: 'pointer',
+                            }}
+                            onClick={() => applySingleRoomStatus(room.id, room.status, effectiveStatus)}
+                            title="Save this room now"
+                          >
+                            <Check size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-icon"
+                            style={{
+                              padding: '2px',
+                              border: 'none',
+                              background: 'none',
+                              color: 'var(--text-3)',
+                              cursor: 'pointer',
+                            }}
+                            onClick={() => {
+                              setPendingStatusMap((prev) => {
+                                const next = { ...prev }
+                                delete next[room.id]
+                                return next
+                              })
+                            }}
+                            title="Cancel change"
+                          >
+                            <X size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
         )
       })}
+
+      {/* Sticky / Floating Action Bar for Unsaved Status Changes */}
+      {pendingCount > 0 && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '24px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'var(--card)',
+            border: '1px solid var(--border-glow, rgba(225, 29, 72, 0.4))',
+            boxShadow: 'var(--shadow-lg, 0 12px 32px rgba(0, 0, 0, 0.65))',
+            borderRadius: '30px',
+            padding: '8px 18px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '16px',
+            zIndex: 1000,
+            animation: 'floatSlideUp 0.2s ease forwards',
+            backdropFilter: 'blur(16px)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 600 }}>
+            <span
+              style={{
+                background: 'var(--red)',
+                color: '#ffffff',
+                borderRadius: '50%',
+                minWidth: '22px',
+                height: '22px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '11.5px',
+                fontWeight: 800,
+              }}
+            >
+              {pendingCount}
+            </span>
+            <span style={{ color: 'var(--text)' }}>
+              {pendingCount} room status{pendingCount > 1 ? 'es' : ''} modified
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={discardPendingStatuses}
+              disabled={savingStatus}
+              style={{ borderRadius: '20px', padding: '6px 14px', fontSize: '12px' }}
+            >
+              <RotateCcw size={12} /> Discard
+            </button>
+            <button
+              type="button"
+              className="btn btn-red btn-sm"
+              onClick={applyPendingStatuses}
+              disabled={savingStatus}
+              style={{ borderRadius: '20px', padding: '6px 18px', fontSize: '12px', gap: '6px' }}
+            >
+              {savingStatus ? (
+                <span className="spinner" style={{ width: 14, height: 14 }} />
+              ) : (
+                <Check size={14} />
+              )}
+              Update Room Statuses
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Edit Room Modal */}
       {editingRoom && (

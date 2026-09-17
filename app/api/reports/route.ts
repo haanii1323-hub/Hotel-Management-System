@@ -5,6 +5,8 @@ import { authOptions } from '@/lib/auth'
 import { getTenantContext } from '@/lib/property-helper'
 import { eachDayOfInterval, format, startOfMonth, endOfMonth, isValid } from 'date-fns'
 
+export const dynamic = 'force-dynamic'
+
 function parseDateParam(d: string | null): Date | null {
   if (!d) return null
   const match = d.match(/^(\d{4})-(\d{2})-(\d{2})/)
@@ -18,6 +20,17 @@ function parseDateParam(d: string | null): Date | null {
   const dt = new Date(d)
   return isValid(dt) ? dt : null
 }
+
+const CATEGORY_COLORS = [
+  '#e5c06e', // Luxury Gold
+  '#10b981', // Emerald
+  '#3b82f6', // Sapphire Blue
+  '#8b5cf6', // Amethyst Purple
+  '#f43f5e', // Rose
+  '#f59e0b', // Amber
+  '#06b6d4', // Cyan
+  '#ec4899', // Pink
+]
 
 export async function GET(req: NextRequest) {
   try {
@@ -33,6 +46,16 @@ export async function GET(req: NextRequest) {
         arr: 0,
         daily: [],
         sources: [],
+        categories: [],
+        categorySummary: {
+          highestRevenueCategory: 'N/A',
+          highestRevenueAmount: 0,
+          highestRevenuePercent: 0,
+          totalRoomRevenue: 0,
+          totalRoomNights: 0,
+          overallArr: 0,
+          totalBookings: 0,
+        },
       })
     }
 
@@ -53,7 +76,15 @@ export async function GET(req: NextRequest) {
       to = temp
     }
 
-    const rooms = await prisma.room.findMany({ where: { propertyId } })
+    // Fetch rooms and configured categories for this property
+    const [rooms, dbCategories] = await Promise.all([
+      prisma.room.findMany({ where: { propertyId } }),
+      prisma.roomCategory.findMany({
+        where: { propertyId },
+        include: { rooms: true },
+      }),
+    ])
+
     const totalRooms = rooms.length
 
     // Days in interval
@@ -77,7 +108,15 @@ export async function GET(req: NextRequest) {
         ],
       },
       include: {
-        bookingRooms: true,
+        bookingRooms: {
+          include: {
+            room: {
+              include: {
+                category: true,
+              },
+            },
+          },
+        },
         payments: true,
       },
     })
@@ -88,6 +127,26 @@ export async function GET(req: NextRequest) {
 
     const sourceMap: Record<string, { count: number; revenue: number }> = {}
 
+    // Initialize Category Map with all configured categories
+    const categoryMap: Record<string, {
+      name: string
+      availableRooms: number
+      bookingsCount: number
+      roomNights: number
+      revenue: number
+    }> = {}
+
+    dbCategories.forEach((cat) => {
+      const roomCount = cat.rooms?.length || cat.totalRooms || 0
+      categoryMap[cat.name] = {
+        name: cat.name,
+        availableRooms: roomCount,
+        bookingsCount: 0,
+        roomNights: 0,
+        revenue: 0,
+      }
+    })
+
     // Daily breakdown map
     const dailyMap: Record<string, { date: string; occupiedRooms: number; revenue: number }> = {}
     days.forEach((d) => {
@@ -95,11 +154,37 @@ export async function GET(req: NextRequest) {
       dailyMap[k] = { date: k, occupiedRooms: 0, revenue: 0 }
     })
 
+    const countedCategoryBookings = new Set<string>()
+
     for (const b of bookings) {
-      const bCheckIn = new Date(b.checkIn)
-      const bCheckOut = new Date(b.checkOut)
-      const bRooms = Math.max(1, b.numRooms || b.bookingRooms.length || 1)
-      const bNightly = b.nightlyRate || (b.totalAmount / Math.max(1, Math.round((bCheckOut.getTime() - bCheckIn.getTime()) / 86400000)))
+      const bCheckIn = parseDateParam(format(new Date(b.checkIn), 'yyyy-MM-dd')) || new Date(b.checkIn)
+      const bCheckOut = parseDateParam(format(new Date(b.checkOut), 'yyyy-MM-dd')) || new Date(b.checkOut)
+      const bRooms = Math.max(1, b.numRooms || b.bookingRooms?.length || 1)
+      const stayNights = Math.max(1, Math.round((bCheckOut.getTime() - bCheckIn.getTime()) / 86400000))
+      const bNightly = b.nightlyRate || (b.totalAmount / stayNights)
+
+      // Identify Category: From assigned room's category or booking.roomCategory field
+      const catName =
+        b.bookingRooms?.[0]?.room?.category?.name ||
+        b.roomCategory ||
+        'Standard'
+
+      if (!categoryMap[catName]) {
+        categoryMap[catName] = {
+          name: catName,
+          availableRooms: 0,
+          bookingsCount: 0,
+          roomNights: 0,
+          revenue: 0,
+        }
+      }
+
+      // Count unique booking for this category
+      const bookingKey = `${b.id}-${catName}`
+      if (!countedCategoryBookings.has(bookingKey)) {
+        categoryMap[catName].bookingsCount += 1
+        countedCategoryBookings.add(bookingKey)
+      }
 
       // Track source
       const src = b.source || 'Direct'
@@ -107,10 +192,20 @@ export async function GET(req: NextRequest) {
       sourceMap[src].count += 1
       sourceMap[src].revenue += b.totalAmount
 
+      const inTime = bCheckIn.getTime()
+      const outTime = bCheckOut.getTime()
+
       for (const d of days) {
-        if (d >= bCheckIn && d < bCheckOut) {
+        const currTime = d.getTime()
+        const isOccupying = inTime === outTime ? inTime === currTime : (currTime >= inTime && currTime < outTime)
+
+        if (isOccupying) {
           urnUsed += bRooms
           roomRevenue += bNightly * bRooms
+
+          categoryMap[catName].roomNights += bRooms
+          categoryMap[catName].revenue += bNightly * bRooms
+
           const k = format(d, 'yyyy-MM-dd')
           if (dailyMap[k]) {
             dailyMap[k].occupiedRooms += bRooms
@@ -120,10 +215,63 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const occupancy = srn > 0 ? Math.min(100, Math.round((urnUsed / srn) * 100)) : 0
+    // Uncapped Occupancy Formula: (URN ÷ SRN) × 100
+    const occupancy = srn > 0 ? Number(((urnUsed / srn) * 100).toFixed(2)) : 0
+    const overbookedRoomNights = Math.max(0, urnUsed - srn)
     const arr = urnUsed > 0 ? Math.round(roomRevenue / urnUsed) : 0
 
-    const daily = Object.values(dailyMap)
+    // Format category metrics with occupancy %, ARR, and Revenue %
+    const categories = Object.values(categoryMap)
+      .map((cat, idx) => {
+        const catSrn = cat.availableRooms * numDays
+        const catOcc = catSrn > 0 ? Number(((cat.roomNights / catSrn) * 100).toFixed(1)) : 0
+        const catArr = cat.roomNights > 0 ? Math.round(cat.revenue / cat.roomNights) : 0
+        const catRevPercent = roomRevenue > 0 ? Number(((cat.revenue / roomRevenue) * 100).toFixed(1)) : 0
+
+        return {
+          name: cat.name,
+          bookings: cat.bookingsCount,
+          roomNights: cat.roomNights,
+          availableRooms: cat.availableRooms,
+          srn: catSrn,
+          occupancy: catOcc,
+          revenue: Math.round(cat.revenue),
+          arr: catArr,
+          revenuePercent: catRevPercent,
+          color: CATEGORY_COLORS[idx % CATEGORY_COLORS.length],
+        }
+      })
+      .sort((a, b) => b.revenue - a.revenue) // Sort by highest revenue
+
+    const highestRevenueCategory = categories.length > 0 ? categories[0] : null
+    const totalBookingsCount = categories.reduce((sum, c) => sum + c.bookings, 0)
+
+    const categorySummary = {
+      highestRevenueCategory: highestRevenueCategory?.name || 'N/A',
+      highestRevenueAmount: highestRevenueCategory?.revenue || 0,
+      highestRevenuePercent: highestRevenueCategory?.revenuePercent || 0,
+      totalRoomRevenue: Math.round(roomRevenue),
+      totalRoomNights: urnUsed,
+      overallArr: arr,
+      totalBookings: totalBookingsCount,
+    }
+
+    const daily = Object.values(dailyMap).map((d) => {
+      const dailyOcc = totalRooms > 0 ? Number(((d.occupiedRooms / totalRooms) * 100).toFixed(2)) : 0
+      const dailyArr = d.occupiedRooms > 0 ? Math.round(d.revenue / d.occupiedRooms) : 0
+      const dailyOverbooked = Math.max(0, d.occupiedRooms - totalRooms)
+      return {
+        date: d.date,
+        occupiedRooms: d.occupiedRooms,
+        urn: d.occupiedRooms,
+        srn: totalRooms,
+        occupancy: dailyOcc,
+        overbookedRooms: dailyOverbooked,
+        revenue: Math.round(d.revenue),
+        arr: dailyArr,
+      }
+    })
+
     const sources = Object.entries(sourceMap).map(([name, val]) => ({
       name,
       bookings: val.count,
@@ -142,10 +290,21 @@ export async function GET(req: NextRequest) {
       srn,
       urnUsed,
       occupancy,
+      overbookedRoomNights,
       roomRevenue,
       arr,
       daily,
+      dailyBreakdown: daily.map((d) => {
+        const dt = parseDateParam(d.date) || new Date(d.date)
+        return {
+          ...d,
+          displayDate: format(dt, 'dd MMM'),
+          dayName: format(dt, 'EEE'),
+        }
+      }),
       sources,
+      categories,
+      categorySummary,
     })
   } catch (error: any) {
     console.error('Error calculating reports:', error)

@@ -12,6 +12,7 @@ import ThemeToggle from '@/components/ui/ThemeToggle'
 import PropertySelector from './PropertySelector'
 import DelayedAlertsPopup from '@/components/notifications/DelayedAlertsPopup'
 import { useProperty } from '@/context/PropertyContext'
+import SourceBadge from '@/components/ui/SourceBadge'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -100,15 +101,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 width: 36,
                 height: 36,
                 borderRadius: 8,
-                background: 'linear-gradient(135deg, #e53e3e 0%, #991b1b 100%)',
+                background: 'linear-gradient(135deg, #e5be75 0%, #c99c42 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#fff',
+                color: '#17120a',
                 fontWeight: 800,
                 fontSize: '13px',
                 flexShrink: 0,
-                boxShadow: '0 2px 8px rgba(229, 62, 62, 0.35)',
+                boxShadow: '0 2px 8px rgba(201, 156, 66, 0.35)',
               }}
             >
               {currentProperty?.name ? currentProperty.name.slice(0, 2).toUpperCase() : 'HM'}
@@ -191,8 +192,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     >
                       <div>
                         <div className="search-result-name">{b.guest?.name}</div>
-                        <div className="search-result-meta">
-                          {b.bookingRef} · {b.source} · {b.roomCategory}
+                        <div className="search-result-meta" style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px', flexWrap: 'wrap' }}>
+                          <span>{b.bookingRef}</span>
+                          <span>·</span>
+                          <SourceBadge source={b.source} size="xs" />
+                          <span>·</span>
+                          <span>{b.roomCategory}</span>
                         </div>
                       </div>
                       <div style={{ textAlign: 'right' }}>

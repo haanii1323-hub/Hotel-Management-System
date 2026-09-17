@@ -3,7 +3,7 @@
 import useSWR, { useSWRConfig } from 'swr'
 import { useRouter } from 'next/navigation'
 import AppShell from '@/components/layout/AppShell'
-import { CalendarDays, Hotel, Percent, ArrowRight, CheckCircle2, BedDouble, Plus, Building2, Sparkles, Layers, DollarSign } from 'lucide-react'
+import { CalendarDays, Hotel, Percent, ArrowRight, CheckCircle2, BedDouble, Plus, Building2, Sparkles, Layers, DollarSign, AlertTriangle } from 'lucide-react'
 import { useState } from 'react'
 import NewBookingDrawer from '@/components/bookings/NewBookingDrawer'
 import CheckInModal from '@/components/bookings/CheckInModal'
@@ -11,6 +11,7 @@ import CheckoutModal from '@/components/bookings/CheckoutModal'
 import AddPropertyModal from '@/components/properties/AddPropertyModal'
 import { format } from 'date-fns'
 import { useProperty } from '@/context/PropertyContext'
+import SourceBadge from '@/components/ui/SourceBadge'
 import { useRealtimeSync } from '@/lib/realtime-sync'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -54,11 +55,11 @@ export default function DashboardPage() {
     propertyId ? `/api/dashboard?propertyId=${propertyId}` : '/api/dashboard',
     fetcher,
     {
-      refreshInterval: 3000,
+      refreshInterval: 60000,
       revalidateOnFocus: true,
       revalidateOnMount: true,
       revalidateOnReconnect: true,
-      dedupingInterval: 1000,
+      dedupingInterval: 2000,
     }
   )
 
@@ -84,12 +85,18 @@ export default function DashboardPage() {
 
   const kpis = data?.kpis || {
     totalProperties: 0,
+    totalPhysicalRooms: 0,
     totalRooms: 0,
+    sellableRooms: 0,
+    bookedRoomsToday: 0,
     availableRooms: 0,
     occupiedRooms: 0,
     cleaningRooms: 0,
     maintenanceRooms: 0,
     outOfServiceRooms: 0,
+    overbookedRooms: 0,
+    isOverbooked: false,
+    overbookingStatus: 'OPTIMAL',
     arrivingTodayCount: 0,
     inHouseCount: 0,
     departingTodayCount: 0,
@@ -187,7 +194,14 @@ export default function DashboardPage() {
           {/* Page Header */}
           <div className="page-header">
             <div>
-              <h1 className="page-title">{currentProperty?.name || 'Hotel Dashboard'}</h1>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <h1 className="page-title">{currentProperty?.name || 'Hotel Dashboard'}</h1>
+                {kpis.isOverbooked && (
+                  <span className="badge badge-red" style={{ fontSize: '11.5px', fontWeight: 800, letterSpacing: '0.4px' }}>
+                    OVERBOOKED (+{kpis.overbookedRooms})
+                  </span>
+                )}
+              </div>
               <div style={{ fontSize: '12px', color: 'var(--text-2)', marginTop: '2px' }}>
                 {currentProperty?.code} · {currentProperty?.city}, {currentProperty?.country}
               </div>
@@ -197,27 +211,86 @@ export default function DashboardPage() {
             </button>
           </div>
 
-          {/* Room Inventory Status Cards */}
+          {/* Overbooking Alert Banner if overbooked */}
+          {kpis.isOverbooked && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '12px 18px',
+                background: 'rgba(239, 68, 68, 0.12)',
+                border: '1px solid rgba(239, 68, 68, 0.35)',
+                borderRadius: 'var(--radius-sm)',
+                marginBottom: '16px',
+                color: 'var(--text)',
+                fontSize: '13px',
+                flexWrap: 'wrap',
+                gap: '10px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <AlertTriangle size={18} color="#ef4444" style={{ flexShrink: 0 }} />
+                <span>
+                  <strong>Overbooking Notice:</strong> {kpis.bookedRoomsToday} rooms booked against {kpis.sellableRooms || kpis.totalRooms} sellable rooms ({kpis.occupancy}% Occupancy). Overbooked by <strong style={{ color: '#ef4444' }}>{kpis.overbookedRooms} room{kpis.overbookedRooms > 1 ? 's' : ''}</strong>.
+                </span>
+              </div>
+              <span className="badge badge-red" style={{ fontWeight: 800 }}>
+                Status: {kpis.overbookingStatus}
+              </span>
+            </div>
+          )}
+
+          {/* Room Inventory & Demand Status Cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px', marginBottom: '16px' }}>
             <div className="kpi-card" style={{ padding: '12px' }}>
-              <div className="kpi-label">Total Rooms</div>
-              <div className="kpi-value" style={{ fontSize: '20px' }}>{kpis.totalRooms}</div>
+              <div className="kpi-label">Physical Rooms</div>
+              <div className="kpi-value" style={{ fontSize: '20px' }}>{kpis.totalPhysicalRooms || kpis.totalRooms}</div>
+            </div>
+            <div className="kpi-card" style={{ padding: '12px' }}>
+              <div className="kpi-label">Sellable Rooms</div>
+              <div className="kpi-value" style={{ fontSize: '20px' }}>{kpis.sellableRooms || kpis.totalRooms}</div>
+            </div>
+            <div className="kpi-card" style={{ padding: '12px' }}>
+              <div className="kpi-label">Booked Tonight</div>
+              <div className="kpi-value" style={{ fontSize: '20px', color: kpis.isOverbooked ? '#ef4444' : 'var(--text)' }}>
+                {kpis.bookedRoomsToday ?? kpis.occupiedRooms}
+              </div>
             </div>
             <div className="kpi-card" style={{ padding: '12px' }}>
               <div className="kpi-label">Available</div>
-              <div className="kpi-value" style={{ fontSize: '20px', color: 'var(--text)' }}>{kpis.availableRooms}</div>
-            </div>
-            <div className="kpi-card" style={{ padding: '12px' }}>
-              <div className="kpi-label">Occupied</div>
-              <div className="kpi-value" style={{ fontSize: '20px', color: 'var(--green)' }}>{kpis.occupiedRooms}</div>
-            </div>
-            <div className="kpi-card" style={{ padding: '12px' }}>
-              <div className="kpi-label">Cleaning</div>
-              <div className="kpi-value" style={{ fontSize: '20px', color: 'var(--amber)' }}>{kpis.cleaningRooms}</div>
+              <div
+                className="kpi-value"
+                style={{
+                  fontSize: '20px',
+                  color: kpis.availableRooms < 0 ? '#ef4444' : 'var(--text)',
+                  fontWeight: 800,
+                }}
+              >
+                {kpis.availableRooms}
+              </div>
             </div>
             <div className="kpi-card" style={{ padding: '12px' }}>
               <div className="kpi-label">Occupancy</div>
-              <div className="kpi-value" style={{ fontSize: '20px' }}>{kpis.occupancy}%</div>
+              <div
+                className="kpi-value"
+                style={{
+                  fontSize: '20px',
+                  color: kpis.occupancy > 100 ? '#ef4444' : kpis.occupancy >= 80 ? 'var(--green)' : 'var(--text)',
+                }}
+              >
+                {kpis.occupancy}%
+              </div>
+            </div>
+            {kpis.overbookedRooms > 0 && (
+              <div className="kpi-card" style={{ padding: '12px', border: '1px solid rgba(239, 68, 68, 0.35)', background: 'rgba(239, 68, 68, 0.08)' }}>
+                <div className="kpi-label" style={{ color: '#ef4444' }}>Overbooked</div>
+                <div className="kpi-value" style={{ fontSize: '20px', color: '#ef4444' }}>+{kpis.overbookedRooms}</div>
+              </div>
+            )}
+            <div className="kpi-card" style={{ padding: '12px' }}>
+              <div className="kpi-label">Cleaning</div>
+              <div className="kpi-value" style={{ fontSize: '20px', color: 'var(--amber)' }}>{kpis.cleaningRooms}</div>
             </div>
             <div className="kpi-card" style={{ padding: '12px' }}>
               <div className="kpi-label">Total Revenue</div>
@@ -263,8 +336,12 @@ export default function DashboardPage() {
                     >
                       <div>
                         <div style={{ fontWeight: 600, fontSize: '13px' }}>{b.guest?.name}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-2)' }}>
-                          {b.bookingRef} · {b.roomCategory}
+                        <div style={{ fontSize: '11px', color: 'var(--text-2)', display: 'flex', alignItems: 'center', gap: '5px', marginTop: '2px', flexWrap: 'wrap' }}>
+                          <span>{b.bookingRef}</span>
+                          <span>·</span>
+                          <SourceBadge source={b.source} size="xs" />
+                          <span>·</span>
+                          <span>{b.roomCategory}</span>
                         </div>
                       </div>
                       <button
@@ -316,8 +393,12 @@ export default function DashboardPage() {
                     >
                       <div>
                         <div style={{ fontWeight: 600, fontSize: '13px' }}>{b.guest?.name}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-2)' }}>
-                          {b.bookingRef} · {b.roomCategory}
+                        <div style={{ fontSize: '11px', color: 'var(--text-2)', display: 'flex', alignItems: 'center', gap: '5px', marginTop: '2px', flexWrap: 'wrap' }}>
+                          <span>{b.bookingRef}</span>
+                          <span>·</span>
+                          <SourceBadge source={b.source} size="xs" />
+                          <span>·</span>
+                          <span>{b.roomCategory}</span>
                         </div>
                       </div>
                       <button

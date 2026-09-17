@@ -130,11 +130,11 @@ export default function EarningsPage() {
     `/api/earnings?${queryString}`,
     fetcher,
     {
-      refreshInterval: 3000,
+      refreshInterval: 60000,
       revalidateOnFocus: true,
       revalidateOnMount: true,
       revalidateOnReconnect: true,
-      dedupingInterval: 1000,
+      dedupingInterval: 2000,
     }
   )
 

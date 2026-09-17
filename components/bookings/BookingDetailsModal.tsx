@@ -27,6 +27,7 @@ import InvoiceModal from './InvoiceModal'
 import EditBookingModal from './EditBookingModal'
 import PaymentReceiptModal from './PaymentReceiptModal'
 import { useToast } from '@/components/ui/Toast'
+import SourceBadge from '@/components/ui/SourceBadge'
 import { broadcastChange } from '@/lib/realtime-sync'
 
 import { calculateBookingFinancials, fmtCurrency } from '@/lib/financials'
@@ -214,8 +215,13 @@ export default function BookingDetailsModal({
                 </h2>
                 <span className={`badge ${currentStatus.className}`}>{currentStatus.label}</span>
               </div>
-              <div style={{ fontSize: '12px', color: 'var(--text-2)', marginTop: '2px' }}>
-                Created on {fmtDate(booking.createdAt)} · Source: <strong>{booking.source}</strong>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-2)', marginTop: '4px', flexWrap: 'wrap' }}>
+                <span>Created on {fmtDate(booking.createdAt)}</span>
+                <span style={{ color: 'var(--border-2)' }}>•</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <span>Source:</span>
+                  <SourceBadge source={booking.source} size="xs" />
+                </span>
               </div>
             </div>
 

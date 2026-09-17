@@ -34,7 +34,11 @@ export default function DelayedAlertsPopup() {
   const { data: notifData, mutate: refreshNotifications } = useSWR(
     propertyId ? `/api/notifications?propertyId=${propertyId}` : '/api/notifications',
     fetcher,
-    { refreshInterval: 6000 }
+    {
+      refreshInterval: 60000,
+      revalidateOnFocus: true,
+      dedupingInterval: 2000,
+    }
   )
 
   useRealtimeSync(() => {
@@ -584,13 +588,13 @@ export default function DelayedAlertsPopup() {
             <div
               style={{
                 padding: '9px 18px',
-                background: 'rgba(0, 0, 0, 0.25)',
-                borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+                background: 'var(--card-2)',
+                borderTop: '1px solid var(--border)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 fontSize: '11px',
-                color: '#64748b',
+                color: 'var(--text-3)',
               }}
             >
               <span>Live PMS Queue</span>
@@ -600,7 +604,7 @@ export default function DelayedAlertsPopup() {
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: '#94a3b8',
+                  color: 'var(--text-2)',
                   cursor: 'pointer',
                   fontSize: '11px',
                   textDecoration: 'underline',
@@ -676,12 +680,12 @@ export default function DelayedAlertsPopup() {
           box-shadow: 0 16px 44px -4px rgba(0,0,0,0.8), 0 0 24px -2px rgba(239, 68, 68, 0.35) !important;
         }
         .alert-item-card:hover {
-          background: rgba(255, 255, 255, 0.05) !important;
-          border-color: rgba(255, 255, 255, 0.14) !important;
+          background: var(--card-hover) !important;
+          border-color: var(--border-2) !important;
         }
         .btn-ghost-hover:hover {
-          background: rgba(255, 255, 255, 0.12) !important;
-          color: #fff !important;
+          background: var(--card-hover) !important;
+          color: var(--text) !important;
         }
         .btn-red-hover:hover {
           filter: brightness(1.1);

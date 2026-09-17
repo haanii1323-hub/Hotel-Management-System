@@ -68,11 +68,32 @@ export default function AllPropertiesModal({ onClose, onAddProperty }: Props) {
             </div>
             <div className="kpi-card" style={{ padding: '12px' }}>
               <div className="kpi-label">Available</div>
-              <div className="kpi-value" style={{ fontSize: '20px' }}>{portfolio.totalAvailable}</div>
+              <div
+                className="kpi-value"
+                style={{
+                  fontSize: '20px',
+                  color: portfolio.totalAvailable < 0 ? 'var(--red)' : 'var(--text)',
+                }}
+              >
+                {portfolio.totalAvailable}
+              </div>
             </div>
             <div className="kpi-card" style={{ padding: '12px' }}>
               <div className="kpi-label">Occupancy</div>
-              <div className="kpi-value" style={{ fontSize: '20px' }}>{portfolio.overallOccupancy}%</div>
+              <div
+                className="kpi-value"
+                style={{
+                  fontSize: '20px',
+                  color:
+                    portfolio.overallOccupancy > 100
+                      ? 'var(--red)'
+                      : portfolio.overallOccupancy > 0
+                      ? 'var(--green)'
+                      : 'var(--text)',
+                }}
+              >
+                {portfolio.overallOccupancy}%
+              </div>
             </div>
             <div className="kpi-card" style={{ padding: '12px' }}>
               <div className="kpi-label">Total Revenue</div>
@@ -151,8 +172,17 @@ export default function AllPropertiesModal({ onClose, onAddProperty }: Props) {
                             </span>
                           </td>
                           <td style={{ textAlign: 'center' }}>
-                            <span className={`badge ${p.occupancyRate > 50 ? 'badge-green' : 'badge-gray'}`}>
+                            <span
+                              className={`badge ${
+                                p.occupancyRate > 100
+                                  ? 'badge-red'
+                                  : p.occupancyRate > 50
+                                  ? 'badge-green'
+                                  : 'badge-gray'
+                              }`}
+                            >
                               {p.occupancyRate}%
+                              {p.isOverbooked && ' (Overbooked)'}
                             </span>
                           </td>
                           <td style={{ textAlign: 'right', fontWeight: 600 }}>
