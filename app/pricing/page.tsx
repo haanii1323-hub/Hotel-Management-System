@@ -570,62 +570,111 @@ export default function PricingPage() {
         </div>
       )}
 
-      {/* Room Inventory Toolbar */}
+      {/* Room Inventory Section Header & Toolbar */}
       <div
         style={{
+          background: 'var(--card)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius)',
+          padding: '16px 20px',
+          marginBottom: '20px',
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: '16px',
-          flexWrap: 'wrap',
-          gap: '10px',
+          flexDirection: 'column',
+          gap: '14px',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: 700 }}>
-            Room Inventory ({rooms?.length || 0} Rooms in {currentProperty?.code})
-          </h2>
-          {pendingCount > 0 && (
-            <button
-              className="btn btn-red btn-sm"
-              onClick={applyPendingStatuses}
-              disabled={savingStatus}
-              style={{ gap: '6px', fontSize: '12px', padding: '6px 14px' }}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <h2 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <BedDouble size={18} color="var(--red)" />
+              <span>Room Inventory &amp; Status Matrix</span>
+            </h2>
+            <span className="badge" style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--text-2)', fontSize: '11.5px' }}>
+              {rooms?.length || 0} Total Rooms
+            </span>
+            {pendingCount > 0 && (
+              <button
+                className="btn btn-red btn-sm"
+                onClick={applyPendingStatuses}
+                disabled={savingStatus}
+                style={{ gap: '6px', fontSize: '12px', padding: '5px 14px' }}
+              >
+                {savingStatus ? (
+                  <span className="spinner" style={{ width: 13, height: 13 }} />
+                ) : (
+                  <Check size={13} />
+                )}
+                Save Changes ({pendingCount})
+              </button>
+            )}
+          </div>
+
+          {/* Add Room Inline Form */}
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              className="form-control"
+              style={{ width: '130px', padding: '6px 10px', fontSize: '12px' }}
+              placeholder="Room # (e.g. 101)"
+              value={newRoomNo}
+              onChange={(e) => setNewRoomNo(e.target.value)}
+            />
+            <select
+              className="form-control"
+              style={{ width: '140px', padding: '6px 10px', fontSize: '12px' }}
+              value={newRoomCat || (categories && categories[0]?.name) || ''}
+              onChange={(e) => setNewRoomCat(e.target.value)}
             >
-              {savingStatus ? (
-                <span className="spinner" style={{ width: 13, height: 13 }} />
-              ) : (
-                <Check size={13} />
-              )}
-              Apply Changes ({pendingCount})
+              {(categories || []).map((c: any) => (
+                <option key={c.id} value={c.name}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            <button className="btn btn-red btn-sm" onClick={addRoom} disabled={addingRoom} style={{ padding: '6px 14px' }}>
+              {addingRoom ? <span className="spinner" style={{ width: 12, height: 12 }} /> : <Plus size={13} />}
+              Add Room
             </button>
-          )}
+          </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <input
-            className="form-control"
-            style={{ width: '160px' }}
-            placeholder="Room number (e.g. 101)"
-            value={newRoomNo}
-            onChange={(e) => setNewRoomNo(e.target.value)}
-          />
-          <select
-            className="form-control"
-            style={{ width: '150px' }}
-            value={newRoomCat || (categories && categories[0]?.name) || ''}
-            onChange={(e) => setNewRoomCat(e.target.value)}
-          >
-            {(categories || []).map((c: any) => (
-              <option key={c.id} value={c.name}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-          <button className="btn btn-red" onClick={addRoom} disabled={addingRoom}>
-            {addingRoom ? <span className="spinner" style={{ width: 14, height: 14 }} /> : <Plus size={14} />}
-            Add room
-          </button>
+        {/* Status Filter Chips */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', paddingTop: '6px', borderTop: '1px solid var(--border)' }}>
+          <span style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.5px', marginRight: '4px' }}>
+            Status Filter:
+          </span>
+          {['All', ...STATUSES].map((st) => {
+            const count = st === 'All' ? (rooms?.length || 0) : (rooms || []).filter((r: any) => r.status === st).length
+            return (
+              <button
+                key={st}
+                type="button"
+                className="filter-mode-pill"
+                style={{
+                  fontSize: '11.5px',
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-2)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <span>{st}</span>
+                <span style={{ opacity: 0.75, fontWeight: 700 }}>({count})</span>
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -637,17 +686,34 @@ export default function PricingPage() {
           <div key={cat.id} style={{ marginBottom: '24px' }}>
             <div
               style={{
-                fontSize: '13px',
-                fontWeight: 600,
-                color: 'var(--text-2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
                 marginBottom: '10px',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
               }}
             >
-              {cat.name} ({catRooms.length}) · {currencySymbol}
-              {cat.nightlyRate}/night
+              <div
+                style={{
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  color: 'var(--text)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                <span>{cat.name}</span>
+                <span className="badge badge-gray" style={{ fontSize: '10.5px' }}>
+                  {catRooms.length} {catRooms.length === 1 ? 'Room' : 'Rooms'}
+                </span>
+              </div>
+              <span style={{ fontSize: '12px', color: 'var(--text-3)', fontWeight: 600 }}>
+                Base Rate: {currencySymbol}{Number(cat.nightlyRate || 0).toLocaleString('en-IN')}/night
+              </span>
             </div>
+
             <div className="room-inventory-grid">
               {catRooms.map((room: any) => {
                 const effectiveStatus = pendingStatusMap[room.id] || room.status
@@ -662,8 +728,10 @@ export default function PricingPage() {
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <div>
-                        <div className="room-number">{room.number}</div>
-                        <div className="room-category-label">{room.category?.name || cat.name}</div>
+                        <div className="room-number">#{room.number}</div>
+                        <div className="room-category-label">
+                          {room.floor ? `Floor ${room.floor} · ` : ''}{room.category?.name || cat.name}
+                        </div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
                         <button
@@ -759,6 +827,7 @@ export default function PricingPage() {
           </div>
         )
       })}
+
 
       {/* Sticky / Floating Action Bar for Unsaved Status Changes */}
       {pendingCount > 0 && (
