@@ -14,7 +14,6 @@ import {
 } from 'lucide-react'
 import ThemeToggle from '@/components/ui/ThemeToggle'
 import { InstallAppButton } from '@/components/ui/InstallApp'
-import { TextRoll } from '@/components/core/text-roll'
 
 export default function LuxuryLandingPage() {
   return (
@@ -92,7 +91,7 @@ export default function LuxuryLandingPage() {
                 }}
                 className="luxury-nav-brand"
               >
-                <TextRoll duration={0.45}>HOTEL MANAGEMENT</TextRoll>
+                HOTEL MANAGEMENT
               </span>
               <span
                 style={{
@@ -264,15 +263,7 @@ export default function LuxuryLandingPage() {
               marginBottom: '16px',
             }}
           >
-            <span>
-              <TextRoll
-                duration={0.45}
-                getEnterDelay={(i) => i * 0.02}
-                getExitDelay={(i) => i * 0.02 + 0.02}
-              >
-                ALL IN ONE HOTEL MANAGEMENT SYSTEM
-              </TextRoll>
-            </span>
+            <span>ALL IN ONE HOTEL MANAGEMENT SYSTEM</span>
           </div>
 
           {/* Luxury Main Heading (Always High-Contrast White & Gold) */}
@@ -289,9 +280,7 @@ export default function LuxuryLandingPage() {
               textShadow: '0 3px 12px rgba(0,0,0,0.6)',
             }}
           >
-            <TextRoll autoPlay interval={4200} duration={0.55}>
-              Simplify Operations
-            </TextRoll>
+            Simplify Operations
             <br />
             <span
               style={{
@@ -301,15 +290,7 @@ export default function LuxuryLandingPage() {
                 fontWeight: 600,
               }}
             >
-              <TextRoll
-                autoPlay
-                interval={4200}
-                duration={0.55}
-                getEnterDelay={(i) => 0.22 + i * 0.025}
-                getExitDelay={(i) => 0.22 + i * 0.025}
-              >
-                Elevate Guest Experiences
-              </TextRoll>
+              Elevate Guest Experiences
             </span>
           </h1>
 
@@ -622,9 +603,7 @@ export default function LuxuryLandingPage() {
             letterSpacing: '-0.3px',
           }}
         >
-          <TextRoll duration={0.5}>
-            Everything You Need, In One System
-          </TextRoll>
+          Everything You Need, In One System
         </h2>
 
         <p
@@ -913,9 +892,7 @@ export default function LuxuryLandingPage() {
                 marginBottom: '10px',
               }}
             >
-              <TextRoll duration={0.5}>
-                Ready to Transform Your Hotel Operations?
-              </TextRoll>
+              Ready to Transform Your Hotel Operations?
             </h3>
 
             <p style={{ fontSize: '15px', color: '#594a37', fontWeight: 500 }}>
