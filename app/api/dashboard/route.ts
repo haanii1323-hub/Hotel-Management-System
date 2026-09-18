@@ -163,7 +163,7 @@ export async function GET(req: NextRequest) {
       ? 'HIGH'
       : 'OPTIMAL'
 
-    // 3. Revenue & Pending Payment calculations
+    // 3. Revenue calculations
     const allPayments = await prisma.payment.findMany({
       where: {
         booking: { propertyId },
@@ -182,128 +182,6 @@ export async function GET(req: NextRequest) {
       },
     })
     const collectedToday = todayPayments.reduce((s, p) => s + p.amount, 0)
-
-    // Calculate Pending / Outstanding payments across active reservations
-    let pendingPayments = 0
-    for (const b of allBookings) {
-      if (b.status !== 'Cancelled') {
-        const collectedForBooking = b.payments?.reduce(
-          (s: number, p: any) => s + (p.status !== 'Pending' ? p.amount : 0),
-          0
-        ) || 0
-        const due = Math.max(0, b.totalAmount - collectedForBooking)
-        pendingPayments += due
-      }
-    }
-
-    // 4. Room Category Performance
-    const dbCategories = await prisma.roomCategory.findMany({
-      where: { propertyId },
-      include: { rooms: true },
-    })
-
-    const categoryPerformanceMap: Record<string, {
-      name: string
-      availableRooms: number
-      bookingsCount: number
-      roomNights: number
-      revenue: number
-    }> = {}
-
-    dbCategories.forEach((cat) => {
-      categoryPerformanceMap[cat.name] = {
-        name: cat.name,
-        availableRooms: cat.rooms?.length || cat.totalRooms || 0,
-        bookingsCount: 0,
-        roomNights: 0,
-        revenue: 0,
-      }
-    })
-
-    for (const b of allBookings) {
-      if (b.status === 'Cancelled') continue
-      const catName = b.roomCategory || 'Standard'
-      if (!categoryPerformanceMap[catName]) {
-        categoryPerformanceMap[catName] = {
-          name: catName,
-          availableRooms: 0,
-          bookingsCount: 0,
-          roomNights: 0,
-          revenue: 0,
-        }
-      }
-
-      const bIn = parseBookingDate(b.checkIn)
-      const bOut = parseBookingDate(b.checkOut)
-      let rNights = 1
-      if (bIn && bOut) {
-        const diffDays = Math.round((bOut.getTime() - bIn.getTime()) / 86400000)
-        rNights = Math.max(1, diffDays)
-      }
-      const roomCount = Math.max(1, b.numRooms || b.bookingRooms?.length || 1)
-      const totalNights = rNights * roomCount
-
-      categoryPerformanceMap[catName].bookingsCount += 1
-      categoryPerformanceMap[catName].roomNights += totalNights
-      categoryPerformanceMap[catName].revenue += (b.totalAmount || 0)
-    }
-
-    const totalCategoryRevenue = Object.values(categoryPerformanceMap).reduce((s, c) => s + c.revenue, 0)
-    const categoryColors = ['#355C4A', '#3F8F68', '#5B82A6', '#D49A3A', '#D39B62', '#68736D', '#A8C4B5']
-
-    const categoryPerformance = Object.values(categoryPerformanceMap).map((cat, idx) => {
-      const arr = cat.roomNights > 0 ? Math.round(cat.revenue / cat.roomNights) : 0
-      const revenuePercent = totalCategoryRevenue > 0
-        ? Number(((cat.revenue / totalCategoryRevenue) * 100).toFixed(1))
-        : 0
-      return {
-        ...cat,
-        arr,
-        revenuePercent,
-        color: categoryColors[idx % categoryColors.length],
-      }
-    }).sort((a, b) => b.revenue - a.revenue)
-
-    // 5. Last 7 Days Revenue & Occupancy Trend
-    const trendDays: { date: string; label: string; revenue: number; occupancy: number }[] = []
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i, 12, 0, 0)
-      const dateStr = format(d, 'yyyy-MM-dd')
-      const dayLabel = format(d, 'EEE dd')
-
-      const dStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0)
-      const dEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999)
-
-      const dayPayments = allPayments.filter((p) => {
-        const pDate = new Date(p.createdAt)
-        return pDate >= dStart && pDate <= dEnd
-      })
-      const dayRev = dayPayments.reduce((s, p) => s + p.amount, 0)
-
-      let dayBooked = 0
-      for (const b of allBookings) {
-        if (b.status === 'Upcoming' || b.status === 'CheckedIn' || b.status === 'CheckedOut') {
-          const bIn = parseBookingDate(b.checkIn)
-          const bOut = parseBookingDate(b.checkOut)
-          if (bIn && bOut) {
-            const inT = new Date(bIn.getFullYear(), bIn.getMonth(), bIn.getDate(), 12, 0, 0).getTime()
-            const outT = new Date(bOut.getFullYear(), bOut.getMonth(), bOut.getDate(), 12, 0, 0).getTime()
-            const currT = d.getTime()
-            if (inT === outT ? inT === currT : (currT >= inT && currT < outT)) {
-              dayBooked += Math.max(1, b.numRooms || b.bookingRooms?.length || 1)
-            }
-          }
-        }
-      }
-      const dayOcc = sellableRooms > 0 ? Number(((dayBooked / sellableRooms) * 100).toFixed(1)) : 0
-
-      trendDays.push({
-        date: dateStr,
-        label: dayLabel,
-        revenue: dayRev,
-        occupancy: Math.min(100, dayOcc),
-      })
-    }
 
     return NextResponse.json({
       hasProperties: true,
@@ -337,19 +215,15 @@ export async function GET(req: NextRequest) {
         occupancy,
         totalRevenue,
         collectedToday,
-        pendingPayments,
       },
       arrivingToday,
       departingToday,
       inHouseBookings,
       upcomingBookings,
       recentBookings: allBookings.slice(0, 10),
-      categoryPerformance,
-      trends: trendDays,
     })
   } catch (error: any) {
     console.error('Error fetching dashboard data:', error)
     return NextResponse.json({ error: 'Failed to fetch dashboard' }, { status: 500 })
   }
 }
-

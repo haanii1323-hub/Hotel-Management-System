@@ -22,13 +22,14 @@ function parseDateParam(d: string | null): Date | null {
 }
 
 const CATEGORY_COLORS = [
-  '#355C4A', // Deep Sage
-  '#3F8F68', // Success Green
-  '#5B82A6', // Info Blue
-  '#D49A3A', // Warning Amber
-  '#D39B62', // Warm Terracotta
-  '#68736D', // Muted Gray
-  '#A8C4B5', // Soft Sage
+  '#e5c06e', // Luxury Gold
+  '#10b981', // Emerald
+  '#3b82f6', // Sapphire Blue
+  '#8b5cf6', // Amethyst Purple
+  '#f43f5e', // Rose
+  '#f59e0b', // Amber
+  '#06b6d4', // Cyan
+  '#ec4899', // Pink
 ]
 
 export async function GET(req: NextRequest) {

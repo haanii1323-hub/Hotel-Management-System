@@ -1,30 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
-import {
-  LayoutDashboard,
-  BookOpen,
-  DollarSign,
-  LogOut,
-  TrendingUp,
-  Users,
-  Settings,
-  History,
-  BedDouble,
-  BarChart3,
-  Search,
-  ChevronLeft,
-  ChevronRight,
-  Sparkles,
-  Layers,
-  Bell,
-  Building2,
-  CalendarCheck,
-  CreditCard,
-} from 'lucide-react'
+import { BarChart3, BookOpen, DollarSign, Home, LogOut, TrendingUp, Users, Settings, History } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
 import { InstallAppButton } from '@/components/ui/InstallApp'
 import ThemeToggle from '@/components/ui/ThemeToggle'
@@ -35,51 +16,15 @@ import SourceBadge from '@/components/ui/SourceBadge'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
-interface NavItem {
-  href: string
-  label: string
-  icon: any
-  badge?: string | number
-}
-
-interface NavGroup {
-  group: string
-  items: NavItem[]
-}
-
-const NAV_GROUPS: NavGroup[] = [
-  {
-    group: 'Front Desk',
-    items: [
-      { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
-      { href: '/bookings', label: 'Reservations', icon: BookOpen },
-      { href: '/pricing', label: 'Room Rack & Rates', icon: BedDouble },
-      { href: '/history', label: 'History & Logs', icon: History },
-    ],
-  },
-  {
-    group: 'Finance & CRM',
-    items: [
-      { href: '/guests', label: 'Guest Directory', icon: Users },
-      { href: '/earnings', label: 'Earnings & Cashflow', icon: TrendingUp },
-      { href: '/reports', label: 'Analytics & Reports', icon: BarChart3 },
-    ],
-  },
-  {
-    group: 'System',
-    items: [
-      { href: '/settings', label: 'Settings & Config', icon: Settings },
-    ],
-  },
-]
-
-// Flat list for mobile navigation
-const MOBILE_NAV = [
-  { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
+const NAV = [
+  { href: '/dashboard', label: 'Growth', icon: Home },
   { href: '/bookings', label: 'Bookings', icon: BookOpen },
-  { href: '/pricing', label: 'Rooms', icon: BedDouble },
-  { href: '/guests', label: 'Guests', icon: Users },
+  { href: '/history', label: 'History', icon: History },
+  { href: '/pricing', label: 'Pricing & Rooms', icon: DollarSign },
+  { href: '/guests', label: 'Guest Directory', icon: Users },
   { href: '/earnings', label: 'Earnings', icon: TrendingUp },
+  { href: '/reports', label: 'Reports', icon: BarChart3 },
+  { href: '/settings', label: 'Settings', icon: Settings },
 ]
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -90,7 +35,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const [search, setSearch] = useState('')
   const [showResults, setShowResults] = useState(false)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -134,92 +78,94 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const formatMoney = (amount: number) => `${currencySymbol}${Number(amount || 0).toLocaleString('en-IN')}`
 
   return (
-    <div className={`app-shell ${sidebarCollapsed ? 'sidebar-is-collapsed' : ''}`}>
+    <div className="app-shell">
       {/* Desktop Sidebar */}
-      <aside className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
-        <div className="sidebar-header">
-          <div className="sidebar-logo">
-            {currentProperty?.coverImage || currentProperty?.logo ? (
-              <img
-                src={currentProperty.coverImage || currentProperty.logo || ''}
-                alt={currentProperty.name}
-                className="sidebar-property-avatar"
-              />
-            ) : (
-              <div className="sidebar-logo-fallback">
-                {currentProperty?.name ? currentProperty.name.slice(0, 2).toUpperCase() : 'AP'}
-              </div>
-            )}
-            {!sidebarCollapsed && (
-              <div className="sidebar-logo-text">
-                <span className="brand" title={currentProperty?.name || 'Apex INN'}>
-                  {currentProperty?.name || 'Apex INN'}
-                </span>
-                <span className="sub">
-                  {currentProperty?.code ? `${currentProperty.code} · Hotel PMS` : 'Property Management'}
-                </span>
-              </div>
-            )}
+      <aside className="sidebar">
+        <div className="sidebar-logo" style={{ gap: '10px' }}>
+          {currentProperty?.coverImage || currentProperty?.logo ? (
+            <img
+              src={currentProperty.coverImage || currentProperty.logo || ''}
+              alt={currentProperty.name}
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                objectFit: 'cover',
+                flexShrink: 0,
+                border: '1px solid var(--border)',
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                background: 'linear-gradient(135deg, #e5be75 0%, #c99c42 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#17120a',
+                fontWeight: 800,
+                fontSize: '13px',
+                flexShrink: 0,
+                boxShadow: '0 2px 8px rgba(201, 156, 66, 0.35)',
+              }}
+            >
+              {currentProperty?.name ? currentProperty.name.slice(0, 2).toUpperCase() : 'HM'}
+            </div>
+          )}
+          <div className="sidebar-logo-text" style={{ minWidth: 0 }}>
+            <span
+              className="brand"
+              style={{
+                fontSize: '13.5px',
+                fontWeight: 700,
+                lineHeight: 1.2,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                display: 'block',
+              }}
+              title={currentProperty?.name || 'Hotel Management System'}
+            >
+              {currentProperty?.name || 'Hotel Management System'}
+            </span>
+            <span className="sub" style={{ fontSize: '10.5px', color: 'var(--text-3)' }}>
+              {currentProperty?.code ? `${currentProperty.code} · Hotel PMS` : 'Hotel Management System'}
+            </span>
           </div>
-
-          <button
-            type="button"
-            className="sidebar-toggle-btn"
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            title={sidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-            aria-label="Toggle navigation sidebar"
-          >
-            {sidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-          </button>
         </div>
 
-        {/* Grouped Sidebar Navigation */}
         <nav className="sidebar-nav">
-          {NAV_GROUPS.map((group) => (
-            <div key={group.group} className="nav-group-section">
-              {!sidebarCollapsed && (
-                <div className="nav-group-header">
-                  <span>{group.group}</span>
-                </div>
-              )}
-              {group.items.map(({ href, label, icon: Icon, badge }) => {
-                const isActive = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
-                return (
-                  <Link
-                    key={href}
-                    href={href}
-                    className={`nav-item ${isActive ? 'active' : ''}`}
-                    title={sidebarCollapsed ? label : undefined}
-                  >
-                    <Icon size={16} className="nav-icon" />
-                    {!sidebarCollapsed && <span className="nav-label">{label}</span>}
-                    {!sidebarCollapsed && badge && <span className="nav-badge">{badge}</span>}
-                  </Link>
-                )
-              })}
-            </div>
+          {NAV.map(({ href, label, icon: Icon }) => (
+            <Link key={href} href={href} className={`nav-item${pathname.startsWith(href) ? ' active' : ''}`}>
+              <Icon size={16} />
+              {label}
+            </Link>
           ))}
         </nav>
 
-        {/* Sidebar Footer Widget */}
-        {!sidebarCollapsed && (
-          <div className="sidebar-footer">
-            <InstallAppButton variant="sidebar-card" />
-          </div>
-        )}
+        {/* Sidebar Install App Widget */}
+        <div className="sidebar-footer">
+          <InstallAppButton variant="sidebar-card" />
+        </div>
       </aside>
 
       {/* Main Content Area */}
       <div className="main-content">
-        {/* Top Bar Header */}
+        {/* Top Bar */}
         <header className="topbar">
-          {/* Global Omni-Search */}
+          {/* Global Search */}
           <div className="search-bar" ref={searchRef}>
-            <Search size={15} className="search-icon" />
+            <svg className="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="8" />
+              <path d="M21 21l-4.35-4.35" />
+            </svg>
             <input
               ref={inputRef}
               type="text"
-              placeholder={`Search guests, ref #, phone or rooms in ${currentProperty?.name || 'property'}...`}
+              placeholder={`Search guests, ref IDs, rooms in ${currentProperty?.name || 'property'}...`}
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value)
@@ -228,13 +174,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               onFocus={() => setShowResults(true)}
             />
             <span className="search-shortcut-badge">⌘K</span>
-
-            {/* Live Search Results Dropdown */}
             {showResults && search.trim().length >= 1 && searchResults && searchResults.length > 0 && (
               <div className="search-results">
-                <div className="search-results-header">
-                  <span>Matching Reservations ({searchResults.length})</span>
-                </div>
                 {searchResults.map((b: any) => {
                   const collected =
                     b.payments?.reduce((s: number, p: any) => s + (p.status !== 'Pending' ? p.amount : 0), 0) || 0
@@ -249,22 +190,20 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                         setShowResults(false)
                       }}
                     >
-                      <div className="search-result-left">
-                        <div className="search-result-name">{b.guest?.name || 'Guest'}</div>
-                        <div className="search-result-meta">
-                          <span className="ref-tag">{b.bookingRef}</span>
+                      <div>
+                        <div className="search-result-name">{b.guest?.name}</div>
+                        <div className="search-result-meta" style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px', flexWrap: 'wrap' }}>
+                          <span>{b.bookingRef}</span>
                           <span>·</span>
                           <SourceBadge source={b.source} size="xs" />
                           <span>·</span>
                           <span>{b.roomCategory}</span>
                         </div>
                       </div>
-                      <div className="search-result-right">
-                        <div className="search-result-price">{formatMoney(b.totalAmount)}</div>
-                        {balance > 0 ? (
-                          <div className="search-result-due">Due: {formatMoney(balance)}</div>
-                        ) : (
-                          <div className="search-result-paid">Settled</div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 600 }}>{formatMoney(b.totalAmount)}</div>
+                        {balance > 0 && (
+                          <div style={{ fontSize: '11px', color: 'var(--amber)' }}>Balance: {formatMoney(balance)}</div>
                         )}
                       </div>
                     </div>
@@ -274,43 +213,64 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             )}
             {showResults && search.trim().length >= 1 && searchResults?.length === 0 && (
               <div className="search-results">
-                <div className="search-results-empty">
-                  No matching reservations found in {currentProperty?.name || 'this property'}.
+                <div style={{ padding: '12px 14px', color: 'var(--text-2)', fontSize: '13px' }}>
+                  No bookings found in {currentProperty?.name}
                 </div>
               </div>
             )}
           </div>
 
-          {/* Right Topbar Actions */}
-          <div className="topbar-user">
+          {/* Right Topbar: Theme Toggle, Install App, Property Selector & User */}
+          <div className="topbar-user" style={{ gap: '12px' }}>
             {/* Dark / Light Theme Toggle */}
             <ThemeToggle />
 
-            {/* Install Progressive App Button */}
+            {/* Install App Button */}
             <InstallAppButton variant="button" />
 
-            {/* Dynamic Multi-Property Switcher */}
+            {/* Dynamic Multi-Property Selector */}
             <PropertySelector />
 
-            {/* Logout / User Signout */}
-            <button
-              className="logout-btn"
-              onClick={() => signOut({ callbackUrl: '/auth' })}
-              title="Sign Out of PMS"
-              aria-label="Logout"
-            >
+            {/* Logout */}
+            <button className="logout-btn" onClick={() => signOut({ callbackUrl: '/auth' })} title="Logout">
               <LogOut size={16} />
             </button>
           </div>
         </header>
 
-        {/* Page Content with Property Switch Loading Overlay */}
-        <main className="page-content">
+        {/* Page content with switching overlay */}
+        <main className="page-content" style={{ position: 'relative' }}>
           {isSwitching && (
-            <div className="property-switching-overlay">
-              <div className="property-switching-card">
-                <span className="spinner" style={{ width: 18, height: 18 }} />
-                <span>Switching to {currentProperty?.name}...</span>
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'rgba(11, 13, 15, 0.45)',
+                backdropFilter: 'blur(2px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 100,
+              }}
+            >
+              <div
+                style={{
+                  background: 'var(--card-2)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  padding: '12px 20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  fontSize: '13px',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                }}
+              >
+                <span className="spinner" style={{ width: 16, height: 16 }} />
+                <span>Loading {currentProperty?.name}...</span>
               </div>
             </div>
           )}
@@ -319,14 +279,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* Mobile Bottom Navigation Bar */}
         <nav className="mobile-nav">
-          {MOBILE_NAV.map(({ href, label, icon: Icon }) => (
-            <Link
-              key={href}
-              href={href}
-              className={`mobile-nav-item ${pathname === href || (href !== '/dashboard' && pathname.startsWith(href)) ? 'active' : ''}`}
-            >
+          {NAV.map(({ href, label, icon: Icon }) => (
+            <Link key={href} href={href} className={`mobile-nav-item${pathname.startsWith(href) ? ' active' : ''}`}>
               <Icon size={18} />
-              <span>{label}</span>
+              <span>{label.split(' ')[0]}</span>
             </Link>
           ))}
           <InstallAppButton variant="mobile-item" />
