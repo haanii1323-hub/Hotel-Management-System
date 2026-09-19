@@ -87,9 +87,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               src={currentProperty.coverImage || currentProperty.logo || ''}
               alt={currentProperty.name}
               style={{
-                width: 34,
-                height: 34,
-                borderRadius: 6,
+                width: 36,
+                height: 36,
+                borderRadius: 8,
                 objectFit: 'cover',
                 flexShrink: 0,
                 border: '1px solid var(--border)',
@@ -98,21 +98,21 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           ) : (
             <div
               style={{
-                width: 34,
-                height: 34,
-                borderRadius: 6,
-                background: 'var(--accent)',
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                background: 'linear-gradient(135deg, #e5be75 0%, #c99c42 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#FFFFFF',
-                fontWeight: 700,
+                color: '#17120a',
+                fontWeight: 800,
                 fontSize: '13px',
                 flexShrink: 0,
-                boxShadow: '0 2px 8px rgba(124, 92, 255, 0.3)',
+                boxShadow: '0 2px 8px rgba(201, 156, 66, 0.35)',
               }}
             >
-              {currentProperty?.name ? currentProperty.name.slice(0, 2).toUpperCase() : 'AP'}
+              {currentProperty?.name ? currentProperty.name.slice(0, 2).toUpperCase() : 'HM'}
             </div>
           )}
           <div className="sidebar-logo-text" style={{ minWidth: 0 }}>

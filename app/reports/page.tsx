@@ -573,8 +573,8 @@ export default function ReportsPage() {
                     fontSize: '12px',
                     fontWeight: 700,
                     borderRadius: '6px',
-                    border: `1px solid ${sourceSortOrder === 'desc' ? 'var(--accent)' : 'var(--border)'}`,
-                    background: sourceSortOrder === 'desc' ? 'var(--accent)' : 'var(--card)',
+                    border: `1px solid ${sourceSortOrder === 'desc' ? 'var(--red)' : 'var(--border)'}`,
+                    background: sourceSortOrder === 'desc' ? 'var(--red)' : 'var(--card)',
                     color: sourceSortOrder === 'desc' ? '#ffffff' : 'var(--text-2)',
                     cursor: 'pointer',
                     display: 'inline-flex',
@@ -595,8 +595,8 @@ export default function ReportsPage() {
                     fontSize: '12px',
                     fontWeight: 700,
                     borderRadius: '6px',
-                    border: `1px solid ${sourceSortOrder === 'asc' ? 'var(--accent)' : 'var(--border)'}`,
-                    background: sourceSortOrder === 'asc' ? 'var(--accent)' : 'var(--card)',
+                    border: `1px solid ${sourceSortOrder === 'asc' ? 'var(--red)' : 'var(--border)'}`,
+                    background: sourceSortOrder === 'asc' ? 'var(--red)' : 'var(--card)',
                     color: sourceSortOrder === 'asc' ? '#ffffff' : 'var(--text-2)',
                     cursor: 'pointer',
                     display: 'inline-flex',
@@ -632,9 +632,9 @@ export default function ReportsPage() {
                         <span>Source Channel</span>
                         {sourceSortKey === 'name' ? (
                           sourceSortOrder === 'asc' ? (
-                            <ArrowUp size={13} color="var(--accent-highlight, #A78BFA)" />
+                            <ArrowUp size={13} color="var(--red)" />
                           ) : (
-                            <ArrowDown size={13} color="var(--accent-highlight, #A78BFA)" />
+                            <ArrowDown size={13} color="var(--red)" />
                           )
                         ) : (
                           <ArrowUpDown size={12} style={{ opacity: 0.35 }} />
@@ -659,9 +659,9 @@ export default function ReportsPage() {
                         <span>Total Bookings</span>
                         {sourceSortKey === 'bookings' ? (
                           sourceSortOrder === 'asc' ? (
-                            <ArrowUp size={13} color="var(--accent-highlight, #A78BFA)" />
+                            <ArrowUp size={13} color="var(--red)" />
                           ) : (
-                            <ArrowDown size={13} color="var(--accent-highlight, #A78BFA)" />
+                            <ArrowDown size={13} color="var(--red)" />
                           )
                         ) : (
                           <ArrowUpDown size={12} style={{ opacity: 0.35 }} />
@@ -686,9 +686,9 @@ export default function ReportsPage() {
                         <span>Revenue Generated</span>
                         {sourceSortKey === 'revenue' ? (
                           sourceSortOrder === 'asc' ? (
-                            <ArrowUp size={13} color="var(--accent-highlight, #A78BFA)" />
+                            <ArrowUp size={13} color="var(--red)" />
                           ) : (
-                            <ArrowDown size={13} color="var(--accent-highlight, #A78BFA)" />
+                            <ArrowDown size={13} color="var(--red)" />
                           )
                         ) : (
                           <ArrowUpDown size={12} style={{ opacity: 0.35 }} />
@@ -713,9 +713,9 @@ export default function ReportsPage() {
                         <span>Share %</span>
                         {sourceSortKey === 'share' ? (
                           sourceSortOrder === 'asc' ? (
-                            <ArrowUp size={13} color="var(--accent-highlight, #A78BFA)" />
+                            <ArrowUp size={13} color="var(--red)" />
                           ) : (
-                            <ArrowDown size={13} color="var(--accent-highlight, #A78BFA)" />
+                            <ArrowDown size={13} color="var(--red)" />
                           )
                         ) : (
                           <ArrowUpDown size={12} style={{ opacity: 0.35 }} />

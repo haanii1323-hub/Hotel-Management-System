@@ -224,13 +224,13 @@ export default function AuthPage() {
             }}
           >
             <svg width="34" height="34" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M18 3L4 10V33H32V10L18 3Z" stroke="var(--accent)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M9 13V33" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" />
-              <path d="M15 11V33" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" />
-              <path d="M21 11V33" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" />
-              <path d="M27 13V33" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" />
-              <path d="M2 33H34" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" />
-              <path d="M18 3V8" stroke="var(--accent)" strokeWidth="1.5" />
+              <path d="M18 3L4 10V33H32V10L18 3Z" stroke="#e5c06e" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M9 13V33" stroke="#e5c06e" strokeWidth="1.5" strokeLinecap="round" />
+              <path d="M15 11V33" stroke="#e5c06e" strokeWidth="1.5" strokeLinecap="round" />
+              <path d="M21 11V33" stroke="#e5c06e" strokeWidth="1.5" strokeLinecap="round" />
+              <path d="M27 13V33" stroke="#e5c06e" strokeWidth="1.5" strokeLinecap="round" />
+              <path d="M2 33H34" stroke="#e5c06e" strokeWidth="2" strokeLinecap="round" />
+              <path d="M18 3V8" stroke="#e5c06e" strokeWidth="1.5" />
             </svg>
           </div>
           <div>
@@ -428,7 +428,7 @@ export default function AuthPage() {
                 transition: 'all 0.15s ease',
               }}
             >
-              <Sparkles size={15} color="var(--accent)" /> Try Live Demo
+              <Sparkles size={15} color="#e5c06e" /> Try Live Demo
             </button>
           </div>
 
@@ -765,7 +765,7 @@ export default function AuthPage() {
             <div>
               <div style={{ marginBottom: '20px' }}>
                 <h2 style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Sparkles size={20} color="var(--accent)" /> Live Demo Environment
+                  <Sparkles size={20} color="#e5c06e" /> Live Demo Environment
                 </h2>
                 <p className="auth-subtitle" style={{ fontSize: '13px', color: 'var(--text-2)', marginTop: '4px' }}>
                   Explore the Hotel Management System with pre-loaded demonstration properties (Metro Inn Rooms &amp; Sahasra Hotel).

@@ -479,8 +479,8 @@ export default function RoomCategoryPerformance({
                   fontSize: '12px',
                   fontWeight: 700,
                   borderRadius: '6px',
-                  border: `1px solid ${sortOrder === 'desc' ? 'var(--accent)' : 'var(--border)'}`,
-                  background: sortOrder === 'desc' ? 'var(--accent)' : 'var(--card)',
+                  border: `1px solid ${sortOrder === 'desc' ? 'var(--red)' : 'var(--border)'}`,
+                  background: sortOrder === 'desc' ? 'var(--red)' : 'var(--card)',
                   color: sortOrder === 'desc' ? '#ffffff' : 'var(--text-2)',
                   cursor: 'pointer',
                   display: 'inline-flex',
@@ -501,8 +501,8 @@ export default function RoomCategoryPerformance({
                   fontSize: '12px',
                   fontWeight: 700,
                   borderRadius: '6px',
-                  border: `1px solid ${sortOrder === 'asc' ? 'var(--accent)' : 'var(--border)'}`,
-                  background: sortOrder === 'asc' ? 'var(--accent)' : 'var(--card)',
+                  border: `1px solid ${sortOrder === 'asc' ? 'var(--red)' : 'var(--border)'}`,
+                  background: sortOrder === 'asc' ? 'var(--red)' : 'var(--card)',
                   color: sortOrder === 'asc' ? '#ffffff' : 'var(--text-2)',
                   cursor: 'pointer',
                   display: 'inline-flex',
@@ -540,7 +540,7 @@ export default function RoomCategoryPerformance({
                   <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                     <span>Room Category</span>
                     {sortKey === 'name' ? (
-                      sortOrder === 'asc' ? <ArrowUp size={13} color="var(--accent-highlight, #A78BFA)" /> : <ArrowDown size={13} color="var(--accent-highlight, #A78BFA)" />
+                      sortOrder === 'asc' ? <ArrowUp size={13} color="var(--red)" /> : <ArrowDown size={13} color="var(--red)" />
                     ) : (
                       <ArrowUpDown size={12} style={{ opacity: 0.35 }} />
                     )}
@@ -561,7 +561,7 @@ export default function RoomCategoryPerformance({
                   <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
                     <span>Total Bookings</span>
                     {sortKey === 'bookings' ? (
-                      sortOrder === 'asc' ? <ArrowUp size={13} color="var(--accent-highlight, #A78BFA)" /> : <ArrowDown size={13} color="var(--accent-highlight, #A78BFA)" />
+                      sortOrder === 'asc' ? <ArrowUp size={13} color="var(--red)" /> : <ArrowDown size={13} color="var(--red)" />
                     ) : (
                       <ArrowUpDown size={12} style={{ opacity: 0.35 }} />
                     )}
@@ -582,7 +582,7 @@ export default function RoomCategoryPerformance({
                   <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
                     <span>Room Nights (URN)</span>
                     {sortKey === 'roomNights' ? (
-                      sortOrder === 'asc' ? <ArrowUp size={13} color="var(--accent-highlight, #A78BFA)" /> : <ArrowDown size={13} color="var(--accent-highlight, #A78BFA)" />
+                      sortOrder === 'asc' ? <ArrowUp size={13} color="var(--red)" /> : <ArrowDown size={13} color="var(--red)" />
                     ) : (
                       <ArrowUpDown size={12} style={{ opacity: 0.35 }} />
                     )}
@@ -603,7 +603,7 @@ export default function RoomCategoryPerformance({
                   <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
                     <span>Occupancy %</span>
                     {sortKey === 'occupancy' ? (
-                      sortOrder === 'asc' ? <ArrowUp size={13} color="var(--accent-highlight, #A78BFA)" /> : <ArrowDown size={13} color="var(--accent-highlight, #A78BFA)" />
+                      sortOrder === 'asc' ? <ArrowUp size={13} color="var(--red)" /> : <ArrowDown size={13} color="var(--red)" />
                     ) : (
                       <ArrowUpDown size={12} style={{ opacity: 0.35 }} />
                     )}
@@ -624,7 +624,7 @@ export default function RoomCategoryPerformance({
                   <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
                     <span>Total Revenue</span>
                     {sortKey === 'revenue' ? (
-                      sortOrder === 'asc' ? <ArrowUp size={13} color="var(--accent-highlight, #A78BFA)" /> : <ArrowDown size={13} color="var(--accent-highlight, #A78BFA)" />
+                      sortOrder === 'asc' ? <ArrowUp size={13} color="var(--red)" /> : <ArrowDown size={13} color="var(--red)" />
                     ) : (
                       <ArrowUpDown size={12} style={{ opacity: 0.35 }} />
                     )}
@@ -645,7 +645,7 @@ export default function RoomCategoryPerformance({
                   <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
                     <span>Average Rate (ARR)</span>
                     {sortKey === 'arr' ? (
-                      sortOrder === 'asc' ? <ArrowUp size={13} color="var(--accent-highlight, #A78BFA)" /> : <ArrowDown size={13} color="var(--accent-highlight, #A78BFA)" />
+                      sortOrder === 'asc' ? <ArrowUp size={13} color="var(--red)" /> : <ArrowDown size={13} color="var(--red)" />
                     ) : (
                       <ArrowUpDown size={12} style={{ opacity: 0.35 }} />
                     )}
@@ -667,7 +667,7 @@ export default function RoomCategoryPerformance({
                   <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
                     <span>Revenue %</span>
                     {sortKey === 'revenuePercent' ? (
-                      sortOrder === 'asc' ? <ArrowUp size={13} color="var(--accent-highlight, #A78BFA)" /> : <ArrowDown size={13} color="var(--accent-highlight, #A78BFA)" />
+                      sortOrder === 'asc' ? <ArrowUp size={13} color="var(--red)" /> : <ArrowDown size={13} color="var(--red)" />
                     ) : (
                       <ArrowUpDown size={12} style={{ opacity: 0.35 }} />
                     )}
