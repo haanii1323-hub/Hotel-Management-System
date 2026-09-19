@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useState, useMemo } from 'react'
 import {
   BarChart,
   Bar,
@@ -23,6 +23,9 @@ import {
   Layers,
   Percent,
   Sparkles,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react'
 
 export interface CategoryData {
@@ -65,6 +68,32 @@ export default function RoomCategoryPerformance({
 }: RoomCategoryPerformanceProps) {
   const formatMoney = (val: number) =>
     `${currencySymbol}${Number(val || 0).toLocaleString('en-IN')}`
+
+  // Table sorting state
+  const [sortKey, setSortKey] = useState<'name' | 'bookings' | 'roomNights' | 'occupancy' | 'revenue' | 'arr' | 'revenuePercent'>('revenue')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+
+  const toggleSort = (key: typeof sortKey) => {
+    if (sortKey === key) {
+      setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))
+    } else {
+      setSortKey(key)
+      setSortOrder(key === 'name' ? 'asc' : 'desc')
+    }
+  }
+
+  const sortedCategories = useMemo(() => {
+    if (!categories || !Array.isArray(categories)) return []
+    return [...categories].sort((a, b) => {
+      if (sortKey === 'name') {
+        const cmp = a.name.localeCompare(b.name)
+        return sortOrder === 'asc' ? cmp : -cmp
+      }
+      const aVal = Number(a[sortKey] || 0)
+      const bVal = Number(b[sortKey] || 0)
+      return sortOrder === 'asc' ? aVal - bVal : bVal - aVal
+    })
+  }, [categories, sortKey, sortOrder])
 
   // Custom Bar Chart Tooltip
   const CustomBarTooltip = ({ active, payload, label }: any) => {
@@ -424,6 +453,8 @@ export default function RoomCategoryPerformance({
             alignItems: 'center',
             justifyContent: 'space-between',
             background: 'var(--card-2)',
+            flexWrap: 'wrap',
+            gap: '12px',
           }}
         >
           <div>
@@ -434,33 +465,225 @@ export default function RoomCategoryPerformance({
               Detailed booking count, room nights sold, occupancy %, ARR, and revenue contribution
             </div>
           </div>
-          <div style={{ fontSize: '12px', color: 'var(--text-2)', fontWeight: 600 }}>
-            {categories.length} Categories Configured
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '12px', color: 'var(--text-3)', fontWeight: 600 }}>
+                Order:
+              </span>
+              <button
+                type="button"
+                onClick={() => setSortOrder('desc')}
+                style={{
+                  padding: '5px 10px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  borderRadius: '6px',
+                  border: `1px solid ${sortOrder === 'desc' ? 'var(--accent)' : 'var(--border)'}`,
+                  background: sortOrder === 'desc' ? 'var(--accent)' : 'var(--card)',
+                  color: sortOrder === 'desc' ? '#ffffff' : 'var(--text-2)',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  transition: 'all 0.15s ease',
+                }}
+                title="Sort High to Low (Descending)"
+              >
+                <ArrowDown size={13} />
+                <span>High to Low</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSortOrder('asc')}
+                style={{
+                  padding: '5px 10px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  borderRadius: '6px',
+                  border: `1px solid ${sortOrder === 'asc' ? 'var(--accent)' : 'var(--border)'}`,
+                  background: sortOrder === 'asc' ? 'var(--accent)' : 'var(--card)',
+                  color: sortOrder === 'asc' ? '#ffffff' : 'var(--text-2)',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  transition: 'all 0.15s ease',
+                }}
+                title="Sort Low to High (Ascending)"
+              >
+                <ArrowUp size={13} />
+                <span>Low to High</span>
+              </button>
+            </div>
+
+            <div style={{ fontSize: '12px', color: 'var(--text-3)', fontWeight: 600, borderLeft: '1px solid var(--border)', paddingLeft: '10px' }}>
+              {categories.length} Categories
+            </div>
           </div>
         </div>
 
         <div style={{ overflowX: 'auto' }}>
           <table className="table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
             <thead>
-              <tr style={{ background: 'var(--card-2)', color: 'var(--text-3)', fontSize: '11.5px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                <th style={{ padding: '12px 18px' }}>Room Category</th>
-                <th style={{ padding: '12px 16px', textAlign: 'right' }}>Total Bookings</th>
-                <th style={{ padding: '12px 16px', textAlign: 'right' }}>Room Nights (URN)</th>
-                <th style={{ padding: '12px 16px', textAlign: 'right' }}>Occupancy %</th>
-                <th style={{ padding: '12px 16px', textAlign: 'right' }}>Total Revenue</th>
-                <th style={{ padding: '12px 16px', textAlign: 'right' }}>Average Rate (ARR)</th>
-                <th style={{ padding: '12px 18px', textAlign: 'right', minWidth: '160px' }}>Revenue %</th>
+              <tr style={{ background: 'var(--card-2)', color: 'var(--text-3)', fontSize: '11.5px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                <th
+                  onClick={() => toggleSort('name')}
+                  style={{
+                    padding: '12px 18px',
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                    color: sortKey === 'name' ? 'var(--text)' : 'var(--text-3)',
+                  }}
+                  title="Sort by Category Name"
+                >
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <span>Room Category</span>
+                    {sortKey === 'name' ? (
+                      sortOrder === 'asc' ? <ArrowUp size={13} color="var(--accent-highlight, #A78BFA)" /> : <ArrowDown size={13} color="var(--accent-highlight, #A78BFA)" />
+                    ) : (
+                      <ArrowUpDown size={12} style={{ opacity: 0.35 }} />
+                    )}
+                  </div>
+                </th>
+
+                <th
+                  onClick={() => toggleSort('bookings')}
+                  style={{
+                    padding: '12px 16px',
+                    textAlign: 'right',
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                    color: sortKey === 'bookings' ? 'var(--text)' : 'var(--text-3)',
+                  }}
+                  title="Sort by Total Bookings"
+                >
+                  <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
+                    <span>Total Bookings</span>
+                    {sortKey === 'bookings' ? (
+                      sortOrder === 'asc' ? <ArrowUp size={13} color="var(--accent-highlight, #A78BFA)" /> : <ArrowDown size={13} color="var(--accent-highlight, #A78BFA)" />
+                    ) : (
+                      <ArrowUpDown size={12} style={{ opacity: 0.35 }} />
+                    )}
+                  </div>
+                </th>
+
+                <th
+                  onClick={() => toggleSort('roomNights')}
+                  style={{
+                    padding: '12px 16px',
+                    textAlign: 'right',
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                    color: sortKey === 'roomNights' ? 'var(--text)' : 'var(--text-3)',
+                  }}
+                  title="Sort by Room Nights (URN)"
+                >
+                  <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
+                    <span>Room Nights (URN)</span>
+                    {sortKey === 'roomNights' ? (
+                      sortOrder === 'asc' ? <ArrowUp size={13} color="var(--accent-highlight, #A78BFA)" /> : <ArrowDown size={13} color="var(--accent-highlight, #A78BFA)" />
+                    ) : (
+                      <ArrowUpDown size={12} style={{ opacity: 0.35 }} />
+                    )}
+                  </div>
+                </th>
+
+                <th
+                  onClick={() => toggleSort('occupancy')}
+                  style={{
+                    padding: '12px 16px',
+                    textAlign: 'right',
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                    color: sortKey === 'occupancy' ? 'var(--text)' : 'var(--text-3)',
+                  }}
+                  title="Sort by Occupancy %"
+                >
+                  <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
+                    <span>Occupancy %</span>
+                    {sortKey === 'occupancy' ? (
+                      sortOrder === 'asc' ? <ArrowUp size={13} color="var(--accent-highlight, #A78BFA)" /> : <ArrowDown size={13} color="var(--accent-highlight, #A78BFA)" />
+                    ) : (
+                      <ArrowUpDown size={12} style={{ opacity: 0.35 }} />
+                    )}
+                  </div>
+                </th>
+
+                <th
+                  onClick={() => toggleSort('revenue')}
+                  style={{
+                    padding: '12px 16px',
+                    textAlign: 'right',
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                    color: sortKey === 'revenue' ? 'var(--text)' : 'var(--text-3)',
+                  }}
+                  title="Sort by Total Revenue"
+                >
+                  <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
+                    <span>Total Revenue</span>
+                    {sortKey === 'revenue' ? (
+                      sortOrder === 'asc' ? <ArrowUp size={13} color="var(--accent-highlight, #A78BFA)" /> : <ArrowDown size={13} color="var(--accent-highlight, #A78BFA)" />
+                    ) : (
+                      <ArrowUpDown size={12} style={{ opacity: 0.35 }} />
+                    )}
+                  </div>
+                </th>
+
+                <th
+                  onClick={() => toggleSort('arr')}
+                  style={{
+                    padding: '12px 16px',
+                    textAlign: 'right',
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                    color: sortKey === 'arr' ? 'var(--text)' : 'var(--text-3)',
+                  }}
+                  title="Sort by Average Rate (ARR)"
+                >
+                  <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
+                    <span>Average Rate (ARR)</span>
+                    {sortKey === 'arr' ? (
+                      sortOrder === 'asc' ? <ArrowUp size={13} color="var(--accent-highlight, #A78BFA)" /> : <ArrowDown size={13} color="var(--accent-highlight, #A78BFA)" />
+                    ) : (
+                      <ArrowUpDown size={12} style={{ opacity: 0.35 }} />
+                    )}
+                  </div>
+                </th>
+
+                <th
+                  onClick={() => toggleSort('revenuePercent')}
+                  style={{
+                    padding: '12px 18px',
+                    textAlign: 'right',
+                    minWidth: '160px',
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                    color: sortKey === 'revenuePercent' ? 'var(--text)' : 'var(--text-3)',
+                  }}
+                  title="Sort by Revenue %"
+                >
+                  <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
+                    <span>Revenue %</span>
+                    {sortKey === 'revenuePercent' ? (
+                      sortOrder === 'asc' ? <ArrowUp size={13} color="var(--accent-highlight, #A78BFA)" /> : <ArrowDown size={13} color="var(--accent-highlight, #A78BFA)" />
+                    ) : (
+                      <ArrowUpDown size={12} style={{ opacity: 0.35 }} />
+                    )}
+                  </div>
+                </th>
               </tr>
             </thead>
             <tbody>
-              {categories.length === 0 ? (
+              {sortedCategories.length === 0 ? (
                 <tr>
                   <td colSpan={7} style={{ padding: '30px', textAlign: 'center', color: 'var(--text-3)' }}>
                     No room categories found for this property
                   </td>
                 </tr>
               ) : (
-                categories.map((cat, idx) => {
+                sortedCategories.map((cat, idx) => {
                   const isTop = idx === 0 && cat.revenue > 0
                   return (
                     <tr

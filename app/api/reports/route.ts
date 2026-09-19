@@ -22,14 +22,13 @@ function parseDateParam(d: string | null): Date | null {
 }
 
 const CATEGORY_COLORS = [
-  '#e5c06e', // Luxury Gold
-  '#10b981', // Emerald
-  '#3b82f6', // Sapphire Blue
-  '#8b5cf6', // Amethyst Purple
-  '#f43f5e', // Rose
-  '#f59e0b', // Amber
-  '#06b6d4', // Cyan
-  '#ec4899', // Pink
+  '#7C5CFF', // Accent Purple
+  '#35C98A', // Emerald Green
+  '#4F8CFF', // Sapphire Blue
+  '#F5B84B', // Warm Amber
+  '#A78BFA', // Purple Highlight
+  '#FF5F6D', // Crimson Coral
+  '#9AA5B1', // Slate Gray
 ]
 
 export async function GET(req: NextRequest) {
@@ -272,11 +271,13 @@ export async function GET(req: NextRequest) {
       }
     })
 
-    const sources = Object.entries(sourceMap).map(([name, val]) => ({
-      name,
-      bookings: val.count,
-      revenue: val.revenue,
-    }))
+    const sources = Object.entries(sourceMap)
+      .map(([name, val]) => ({
+        name,
+        bookings: val.count,
+        revenue: val.revenue,
+      }))
+      .sort((a, b) => b.revenue - a.revenue)
 
     return NextResponse.json({
       property: {

@@ -109,7 +109,7 @@ function BookingCard({
 
   const statusBadge = () => {
     if (b.status === 'Upcoming') return <span className="badge badge-amber">Upcoming</span>
-    if (b.status === 'CheckedIn') return <span className="badge badge-green">In-house</span>
+    if (b.status === 'CheckedIn') return <span className="badge badge-blue">In-house</span>
     if (b.status === 'CheckedOut') return <span className="badge badge-green">Checked out</span>
     if (b.status === 'NoShow') return <span className="badge badge-gray">No show</span>
     if (b.status === 'Cancelled') return <span className="badge badge-red">Cancelled</span>

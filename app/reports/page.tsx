@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import useSWR from 'swr'
 import AppShell from '@/components/layout/AppShell'
 import { format, subDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from 'date-fns'
@@ -24,6 +24,9 @@ import {
   BarChart2,
   Table as TableIcon,
   Sparkles,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react'
 import { useProperty } from '@/context/PropertyContext'
 import { useRealtimeSync } from '@/lib/realtime-sync'
@@ -48,6 +51,19 @@ export default function ReportsPage() {
   const [activePreset, setActivePreset] = useState<'today' | 'yesterday' | 'week' | 'month' | 'custom'>('month')
   const [activeTab, setActiveTab] = useState<'categories' | 'daily' | 'sources'>('categories')
 
+  // Booking channels sorting state
+  const [sourceSortKey, setSourceSortKey] = useState<'name' | 'bookings' | 'revenue' | 'share'>('revenue')
+  const [sourceSortOrder, setSourceSortOrder] = useState<'asc' | 'desc'>('desc')
+
+  const toggleSourceSort = (key: 'name' | 'bookings' | 'revenue' | 'share') => {
+    if (sourceSortKey === key) {
+      setSourceSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))
+    } else {
+      setSourceSortKey(key)
+      setSourceSortOrder(key === 'name' ? 'asc' : 'desc')
+    }
+  }
+
   let q = `from=${from}&to=${to}`
   if (propertyId) q += `&propertyId=${propertyId}`
 
@@ -60,6 +76,24 @@ export default function ReportsPage() {
   useRealtimeSync(() => {
     mutate()
   })
+
+  const sortedSources = useMemo(() => {
+    if (!data?.sources || !Array.isArray(data.sources)) return []
+    return [...data.sources].sort((a: any, b: any) => {
+      if (sourceSortKey === 'name') {
+        const cmp = String(a.name || '').localeCompare(String(b.name || ''))
+        return sourceSortOrder === 'asc' ? cmp : -cmp
+      }
+      if (sourceSortKey === 'share' || sourceSortKey === 'revenue') {
+        const aVal = Number(a.revenue || 0)
+        const bVal = Number(b.revenue || 0)
+        return sourceSortOrder === 'asc' ? aVal - bVal : bVal - aVal
+      }
+      const aVal = Number(a[sourceSortKey] || 0)
+      const bVal = Number(b[sourceSortKey] || 0)
+      return sourceSortOrder === 'asc' ? aVal - bVal : bVal - aVal
+    })
+  }, [data?.sources, sourceSortKey, sourceSortOrder])
 
   const urnUsed = data?.urnUsed ?? 0
   const srn = data?.srn ?? 0
@@ -510,40 +544,209 @@ export default function ReportsPage() {
                 padding: '16px 20px',
                 borderBottom: '1px solid var(--border)',
                 background: 'var(--card-2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '12px',
               }}
             >
-              <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>
-                Booking Channel Breakdown
-              </h3>
-              <div style={{ fontSize: '12px', color: 'var(--text-3)', marginTop: '2px' }}>
-                Revenue contribution by OTA platforms and direct reservations
+              <div>
+                <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>
+                  Booking Channel Breakdown
+                </h3>
+                <div style={{ fontSize: '12px', color: 'var(--text-3)', marginTop: '2px' }}>
+                  Revenue contribution by OTA platforms and direct reservations
+                </div>
+              </div>
+
+              {/* Order by High to Low / Low to High Quick Action Controls */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '12px', color: 'var(--text-3)', marginRight: '4px', fontWeight: 600 }}>
+                  Order:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSourceSortOrder('desc')}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    borderRadius: '6px',
+                    border: `1px solid ${sourceSortOrder === 'desc' ? 'var(--accent)' : 'var(--border)'}`,
+                    background: sourceSortOrder === 'desc' ? 'var(--accent)' : 'var(--card)',
+                    color: sourceSortOrder === 'desc' ? '#ffffff' : 'var(--text-2)',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    transition: 'all 0.15s ease',
+                  }}
+                  title="Sort High to Low (Descending)"
+                >
+                  <ArrowDown size={13} />
+                  <span>High to Low</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSourceSortOrder('asc')}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    borderRadius: '6px',
+                    border: `1px solid ${sourceSortOrder === 'asc' ? 'var(--accent)' : 'var(--border)'}`,
+                    background: sourceSortOrder === 'asc' ? 'var(--accent)' : 'var(--card)',
+                    color: sourceSortOrder === 'asc' ? '#ffffff' : 'var(--text-2)',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    transition: 'all 0.15s ease',
+                  }}
+                  title="Sort Low to High (Ascending)"
+                >
+                  <ArrowUp size={13} />
+                  <span>Low to High</span>
+                </button>
               </div>
             </div>
 
             <div style={{ overflowX: 'auto' }}>
               <table className="table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
                 <thead>
-                  <tr style={{ background: 'var(--card-2)', color: 'var(--text-3)', fontSize: '11.5px', textTransform: 'uppercase' }}>
-                    <th style={{ padding: '12px 18px' }}>Source Channel</th>
-                    <th style={{ padding: '12px 16px', textAlign: 'right' }}>Total Bookings</th>
-                    <th style={{ padding: '12px 16px', textAlign: 'right' }}>Revenue Generated</th>
-                    <th style={{ padding: '12px 18px', textAlign: 'right' }}>Share %</th>
+                  <tr style={{ background: 'var(--card-2)', color: 'var(--text-3)', fontSize: '11.5px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                    {/* Source Channel Column */}
+                    <th
+                      onClick={() => toggleSourceSort('name')}
+                      style={{
+                        padding: '12px 18px',
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                        color: sourceSortKey === 'name' ? 'var(--text)' : 'var(--text-3)',
+                        transition: 'color 0.15s ease',
+                      }}
+                      title="Sort by Source Channel Name"
+                    >
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <span>Source Channel</span>
+                        {sourceSortKey === 'name' ? (
+                          sourceSortOrder === 'asc' ? (
+                            <ArrowUp size={13} color="var(--accent-highlight, #A78BFA)" />
+                          ) : (
+                            <ArrowDown size={13} color="var(--accent-highlight, #A78BFA)" />
+                          )
+                        ) : (
+                          <ArrowUpDown size={12} style={{ opacity: 0.35 }} />
+                        )}
+                      </div>
+                    </th>
+
+                    {/* Total Bookings Column */}
+                    <th
+                      onClick={() => toggleSourceSort('bookings')}
+                      style={{
+                        padding: '12px 16px',
+                        textAlign: 'right',
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                        color: sourceSortKey === 'bookings' ? 'var(--text)' : 'var(--text-3)',
+                        transition: 'color 0.15s ease',
+                      }}
+                      title="Sort by Total Bookings (High to Low / Low to High)"
+                    >
+                      <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
+                        <span>Total Bookings</span>
+                        {sourceSortKey === 'bookings' ? (
+                          sourceSortOrder === 'asc' ? (
+                            <ArrowUp size={13} color="var(--accent-highlight, #A78BFA)" />
+                          ) : (
+                            <ArrowDown size={13} color="var(--accent-highlight, #A78BFA)" />
+                          )
+                        ) : (
+                          <ArrowUpDown size={12} style={{ opacity: 0.35 }} />
+                        )}
+                      </div>
+                    </th>
+
+                    {/* Revenue Generated Column */}
+                    <th
+                      onClick={() => toggleSourceSort('revenue')}
+                      style={{
+                        padding: '12px 16px',
+                        textAlign: 'right',
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                        color: sourceSortKey === 'revenue' ? 'var(--text)' : 'var(--text-3)',
+                        transition: 'color 0.15s ease',
+                      }}
+                      title="Sort by Revenue Generated (High to Low / Low to High)"
+                    >
+                      <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
+                        <span>Revenue Generated</span>
+                        {sourceSortKey === 'revenue' ? (
+                          sourceSortOrder === 'asc' ? (
+                            <ArrowUp size={13} color="var(--accent-highlight, #A78BFA)" />
+                          ) : (
+                            <ArrowDown size={13} color="var(--accent-highlight, #A78BFA)" />
+                          )
+                        ) : (
+                          <ArrowUpDown size={12} style={{ opacity: 0.35 }} />
+                        )}
+                      </div>
+                    </th>
+
+                    {/* Share % Column */}
+                    <th
+                      onClick={() => toggleSourceSort('share')}
+                      style={{
+                        padding: '12px 18px',
+                        textAlign: 'right',
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                        color: sourceSortKey === 'share' ? 'var(--text)' : 'var(--text-3)',
+                        transition: 'color 0.15s ease',
+                      }}
+                      title="Sort by Share % (High to Low / Low to High)"
+                    >
+                      <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
+                        <span>Share %</span>
+                        {sourceSortKey === 'share' ? (
+                          sourceSortOrder === 'asc' ? (
+                            <ArrowUp size={13} color="var(--accent-highlight, #A78BFA)" />
+                          ) : (
+                            <ArrowDown size={13} color="var(--accent-highlight, #A78BFA)" />
+                          )
+                        ) : (
+                          <ArrowUpDown size={12} style={{ opacity: 0.35 }} />
+                        )}
+                      </div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {!data?.sources || data.sources.length === 0 ? (
+                  {!sortedSources || sortedSources.length === 0 ? (
                     <tr>
                       <td colSpan={4} style={{ padding: '30px', textAlign: 'center', color: 'var(--text-3)' }}>
                         No booking channel data in this date range
                       </td>
                     </tr>
                   ) : (
-                    data.sources.map((s: any) => {
+                    sortedSources.map((s: any) => {
                       const share = roomRevenue > 0 ? ((s.revenue / roomRevenue) * 100).toFixed(1) : '0'
                       return (
-                        <tr key={s.name} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <tr
+                          key={s.name}
+                          style={{
+                            borderBottom: '1px solid var(--border)',
+                            transition: 'background 0.15s ease',
+                          }}
+                          className="hover:bg-[var(--card-hover)]"
+                        >
                           <td style={{ padding: '14px 18px', fontWeight: 700, color: 'var(--text)' }}>{s.name}</td>
-                          <td style={{ padding: '14px 16px', textAlign: 'right', fontWeight: 600 }}>{s.bookings}</td>
+                          <td style={{ padding: '14px 16px', textAlign: 'right', fontWeight: 600, color: 'var(--text)' }}>
+                            {s.bookings}
+                          </td>
                           <td style={{ padding: '14px 16px', textAlign: 'right', fontWeight: 800, color: 'var(--text)' }}>
                             {formatMoney(s.revenue)}
                           </td>

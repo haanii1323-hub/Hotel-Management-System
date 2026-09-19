@@ -185,7 +185,7 @@ export default function LuxuryLandingPage() {
               className="hover:scale-[1.04] hover:border-amber-400 active:scale-[0.98]"
             >
               <span style={{ color: '#ffffff' }}>Login</span>
-              <ArrowRight size={15} color="#e5c06e" />
+              <ArrowRight size={15} color="var(--accent-highlight, #A78BFA)" />
             </Link>
 
             <span
@@ -255,7 +255,7 @@ export default function LuxuryLandingPage() {
               display: 'inline-flex',
               alignItems: 'center',
               gap: '8px',
-              color: '#e5c06e',
+              color: 'var(--accent-highlight, #A78BFA)',
               fontSize: '12.5px',
               fontWeight: 700,
               letterSpacing: '2.2px',
@@ -286,7 +286,7 @@ export default function LuxuryLandingPage() {
               style={{
                 fontFamily: "'Playfair Display', Georgia, serif",
                 fontStyle: 'italic',
-                color: '#e5c06e',
+                color: 'var(--accent-highlight, #A78BFA)',
                 fontWeight: 600,
               }}
             >
@@ -396,7 +396,7 @@ export default function LuxuryLandingPage() {
             style={{
               width: '80px',
               height: '1.5px',
-              background: '#e5c06e',
+              background: 'var(--accent-highlight, #A78BFA)',
               marginLeft: 'auto',
               marginTop: '6px',
             }}
@@ -922,7 +922,7 @@ export default function LuxuryLandingPage() {
               className="hover:scale-[1.04] hover:border-amber-400 active:scale-[0.98]"
             >
               <span style={{ color: '#ffffff' }}>Login to Continue</span>
-              <ArrowRight size={16} color="#e5c06e" />
+              <ArrowRight size={16} color="var(--accent-highlight, #A78BFA)" />
             </Link>
           </div>
         </div>
@@ -972,13 +972,13 @@ export default function LuxuryLandingPage() {
                 }}
               >
                 <svg width="34" height="34" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M18 3L4 10V33H32V10L18 3Z" stroke="#e5c06e" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                  <path d="M9 13V33" stroke="#e5c06e" strokeWidth="1.5" strokeLinecap="round" />
-                  <path d="M15 11V33" stroke="#e5c06e" strokeWidth="1.5" strokeLinecap="round" />
-                  <path d="M21 11V33" stroke="#e5c06e" strokeWidth="1.5" strokeLinecap="round" />
-                  <path d="M27 13V33" stroke="#e5c06e" strokeWidth="1.5" strokeLinecap="round" />
-                  <path d="M2 33H34" stroke="#e5c06e" strokeWidth="2" strokeLinecap="round" />
-                  <path d="M18 3V8" stroke="#e5c06e" strokeWidth="1.5" />
+                  <path d="M18 3L4 10V33H32V10L18 3Z" stroke="#7C5CFF" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M9 13V33" stroke="#7C5CFF" strokeWidth="1.5" strokeLinecap="round" />
+                  <path d="M15 11V33" stroke="#7C5CFF" strokeWidth="1.5" strokeLinecap="round" />
+                  <path d="M21 11V33" stroke="#7C5CFF" strokeWidth="1.5" strokeLinecap="round" />
+                  <path d="M27 13V33" stroke="#7C5CFF" strokeWidth="1.5" strokeLinecap="round" />
+                  <path d="M2 33H34" stroke="#7C5CFF" strokeWidth="2" strokeLinecap="round" />
+                  <path d="M18 3V8" stroke="#7C5CFF" strokeWidth="1.5" />
                 </svg>
               </div>
               <div>
@@ -1052,7 +1052,7 @@ export default function LuxuryLandingPage() {
                 style={{
                   width: '70px',
                   height: '1.5px',
-                  background: '#e5c06e',
+                  background: 'var(--accent-highlight, #A78BFA)',
                   marginLeft: 'auto',
                   marginTop: '4px',
                 }}

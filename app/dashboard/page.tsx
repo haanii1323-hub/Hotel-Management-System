@@ -128,14 +128,14 @@ export default function DashboardPage() {
               style={{
                 width: '64px',
                 height: '64px',
-                borderRadius: '16px',
-                background: 'rgba(212, 175, 55, 0.12)',
-                border: '1px solid rgba(212, 175, 55, 0.25)',
+                borderRadius: '12px',
+                background: 'var(--accent-dim)',
+                border: '1px solid rgba(124, 92, 255, 0.25)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 margin: '0 auto 20px',
-                color: '#e5c06e',
+                color: 'var(--accent)',
               }}
             >
               <Building2 size={32} />
@@ -167,12 +167,12 @@ export default function DashboardPage() {
               }}
             >
               <div style={{ padding: '16px', background: 'var(--card-2)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--red)', marginBottom: '4px' }}>STEP 1</div>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent)', marginBottom: '4px' }}>STEP 1</div>
                 <div style={{ fontWeight: 600, fontSize: '13px', marginBottom: '4px' }}>Add Property</div>
                 <div style={{ fontSize: '11px', color: 'var(--text-3)' }}>Enter property name, address &amp; check-in times.</div>
               </div>
               <div style={{ padding: '16px', background: 'var(--card-2)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: '12px', fontWeight: 700, color: '#e5c06e', marginBottom: '4px' }}>STEP 2</div>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-highlight)', marginBottom: '4px' }}>STEP 2</div>
                 <div style={{ fontWeight: 600, fontSize: '13px', marginBottom: '4px' }}>Room Types &amp; Rates</div>
                 <div style={{ fontSize: '11px', color: 'var(--text-3)' }}>Configure Standard, Deluxe, Superior and pricing.</div>
               </div>
