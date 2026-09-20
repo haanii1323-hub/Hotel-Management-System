@@ -34,22 +34,47 @@ export async function GET(req: NextRequest) {
     const now = new Date()
     const todayStr = format(now, 'yyyy-MM-dd')
 
-    if (!propertyId || propertyId.startsWith('prop-demo-') || propertyId.startsWith('BLR') || tenantId === 'demo-tenant') {
-      const { getFallbackDashboard } = await import('@/lib/fallback-data')
-      return NextResponse.json(getFallbackDashboard(propertyId || 'BLR3396'))
+    if (!propertyId) {
+      return NextResponse.json({
+        hasProperties: false,
+        totalProperties: 0,
+        property: null,
+        kpis: {
+          totalProperties: 0,
+          totalPhysicalRooms: 0,
+          totalRooms: 0,
+          sellableRooms: 0,
+          bookedRoomsToday: 0,
+          availableRooms: 0,
+          occupiedRooms: 0,
+          cleaningRooms: 0,
+          maintenanceRooms: 0,
+          outOfServiceRooms: 0,
+          overbookedRooms: 0,
+          isOverbooked: false,
+          overbookingStatus: 'OPTIMAL',
+          arrivingTodayCount: 0,
+          inHouseCount: 0,
+          departingTodayCount: 0,
+          totalBookings: 0,
+          occupancy: 0,
+          totalRevenue: 0,
+          collectedToday: 0,
+        },
+        arrivingToday: [],
+        departingToday: [],
+        inHouseBookings: [],
+        upcomingBookings: [],
+        recentBookings: [],
+      })
     }
 
-    let totalProperties = 3
-    try {
-      totalProperties = await prisma.property.count({
-        where: { tenantId, isActive: true },
-      })
-    } catch {
-      totalProperties = 3
-    }
+    const totalProperties = await prisma.property.count({
+      where: { isActive: true },
+    })
 
     const property = await prisma.property.findFirst({
-      where: { id: propertyId, tenantId },
+      where: { id: propertyId },
     })
 
     // 2. Bookings
@@ -82,8 +107,6 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Active bookings occupying today: status Upcoming or CheckedIn
-    // Date condition: checkIn <= today < checkOut (or same-day checkIn === today)
     const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0)
     
     let bookedRoomsToday = 0
@@ -106,17 +129,7 @@ export async function GET(req: NextRequest) {
     }
 
     // 1. Rooms breakdown
-    let rooms: any[] = []
-    try {
-      rooms = await prisma.room.findMany({ where: { propertyId } })
-    } catch {
-      rooms = []
-    }
-
-    if (!rooms || rooms.length === 0) {
-      const { getFallbackDashboard } = await import('@/lib/fallback-data')
-      return NextResponse.json(getFallbackDashboard(propertyId || 'BLR3396'))
-    }
+    const rooms = await prisma.room.findMany({ where: { propertyId } })
 
     const totalPhysicalRooms = rooms.length
     const totalRooms = totalPhysicalRooms
@@ -135,13 +148,10 @@ export async function GET(req: NextRequest) {
     const maintenanceRooms = rooms.filter((r) => r.status === 'Maintenance' && !inHouseRoomIds.has(r.id)).length
     const outOfServiceRooms = rooms.filter((r) => r.status === 'Out of Service' && !inHouseRoomIds.has(r.id)).length
 
-    // Available rooms: Physical sellable inventory minus total booked rooms today
-    // If overbooked (e.g. 50 booked on 44 capacity), availableRooms is -6 and overbookedRooms is 6
-    const availableRooms = sellableRooms - bookedRoomsToday
+    const availableRooms = Math.max(0, sellableRooms - bookedRoomsToday)
     const overbookedRooms = Math.max(0, bookedRoomsToday - sellableRooms)
     const isOverbooked = overbookedRooms > 0
 
-    // Occupancy % = (Booked Rooms / Sellable Rooms) * 100 (Uncapped: e.g. 113.64%)
     const occupancy = sellableRooms > 0
       ? Number(((bookedRoomsToday / sellableRooms) * 100).toFixed(2))
       : 0
@@ -175,7 +185,7 @@ export async function GET(req: NextRequest) {
     const collectedToday = todayPayments.reduce((s, p) => s + p.amount, 0)
 
     return NextResponse.json({
-      hasProperties: true,
+      hasProperties: totalProperties > 0,
       totalProperties,
       property: {
         id: property?.id,
@@ -214,10 +224,38 @@ export async function GET(req: NextRequest) {
       recentBookings: allBookings.slice(0, 10),
     })
   } catch (error: any) {
-    console.error('Error fetching dashboard data, serving fallback:', error?.message || error)
-    const { getFallbackDashboard } = await import('@/lib/fallback-data')
-    const { searchParams } = new URL(req.url)
-    const propertyId = searchParams.get('propertyId') || 'BLR3396'
-    return NextResponse.json(getFallbackDashboard(propertyId))
+    console.error('Error fetching dashboard data from SQL:', error?.message || error)
+    return NextResponse.json({
+      hasProperties: true,
+      totalProperties: 1,
+      property: null,
+      kpis: {
+        totalProperties: 1,
+        totalPhysicalRooms: 0,
+        totalRooms: 0,
+        sellableRooms: 0,
+        bookedRoomsToday: 0,
+        availableRooms: 0,
+        occupiedRooms: 0,
+        cleaningRooms: 0,
+        maintenanceRooms: 0,
+        outOfServiceRooms: 0,
+        overbookedRooms: 0,
+        isOverbooked: false,
+        overbookingStatus: 'OPTIMAL',
+        arrivingTodayCount: 0,
+        inHouseCount: 0,
+        departingTodayCount: 0,
+        totalBookings: 0,
+        occupancy: 0,
+        totalRevenue: 0,
+        collectedToday: 0,
+      },
+      arrivingToday: [],
+      departingToday: [],
+      inHouseBookings: [],
+      upcomingBookings: [],
+      recentBookings: [],
+    })
   }
 }

@@ -105,35 +105,20 @@ export async function GET(req: NextRequest) {
       paymentWhere.createdAt = { lte: toDate }
     }
 
-    let bookings: any[] = []
-    try {
-      bookings = await prisma.booking.findMany({
-        where: bookingWhere,
-        include: {
-          payments: true,
-        },
-        orderBy: { createdAt: 'desc' },
-      })
-    } catch {
-      bookings = []
-    }
-
-    if (!bookings || bookings.length === 0) {
-      const { getFallbackEarnings } = await import('@/lib/fallback-data')
-      return NextResponse.json(getFallbackEarnings(propertyId))
-    }
+    const bookings = await prisma.booking.findMany({
+      where: bookingWhere,
+      include: {
+        payments: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    })
 
     const bookedValue = bookings.reduce((s, b) => s + (b.totalAmount || 0), 0)
 
-    let allPayments: any[] = []
-    try {
-      allPayments = await prisma.payment.findMany({
-        where: paymentWhere,
-        orderBy: { createdAt: 'desc' },
-      })
-    } catch {
-      allPayments = []
-    }
+    const allPayments = await prisma.payment.findMany({
+      where: paymentWhere,
+      orderBy: { createdAt: 'desc' },
+    })
 
     const collected = allPayments.reduce((s: number, p: any) => s + (p.amount || 0), 0)
 
@@ -200,10 +185,17 @@ export async function GET(req: NextRequest) {
       totalPayments: allPayments.length,
     })
   } catch (error: any) {
-    console.error('Error fetching earnings, serving fallback:', error?.message || error)
-    const { getFallbackEarnings } = await import('@/lib/fallback-data')
-    const { searchParams } = new URL(req.url)
-    const propertyId = searchParams.get('propertyId') || 'BLR3396'
-    return NextResponse.json(getFallbackEarnings(propertyId))
+    console.error('Error fetching earnings from SQL:', error?.message || error)
+    return NextResponse.json({
+      property: null,
+      filter: { mode: 'all', from: null, to: null },
+      bookedValue: 0,
+      collected: 0,
+      balanceToCollect: 0,
+      channels: [],
+      paymentModes: [],
+      totalBookings: 0,
+      totalPayments: 0,
+    })
   }
 }

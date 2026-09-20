@@ -13,52 +13,40 @@ export async function GET(req: NextRequest) {
     const q = searchParams.get('q') || ''
     const search = q.trim().replace(/^#/, '')
 
-    if (!propertyId || propertyId.startsWith('prop-demo-') || propertyId.startsWith('BLR') || propertyId === 'demo') {
-      const { getFallbackBookings } = await import('@/lib/fallback-data')
-      return NextResponse.json(getFallbackBookings(propertyId || 'BLR3396', null, { search }))
+    if (!propertyId || !search) {
+      return NextResponse.json([])
     }
 
-    let bookings: any[] = []
-    try {
-      bookings = await prisma.booking.findMany({
-        where: {
-          propertyId,
-          OR: [
-            { guest: { name: { contains: search, mode: 'insensitive' } } },
-            { guest: { phone: { contains: search } } },
-            { guest: { email: { contains: search, mode: 'insensitive' } } },
-            { bookingRef: { contains: search, mode: 'insensitive' } },
-            { bookingRef: { contains: `#${search}`, mode: 'insensitive' } },
-            { roomCategory: { contains: search, mode: 'insensitive' } },
-            { source: { contains: search, mode: 'insensitive' } },
-            { bookingRooms: { some: { room: { number: { contains: search, mode: 'insensitive' } } } } },
-          ],
-        },
-        include: {
-          guest: true,
-          payments: true,
-          bookingRooms: {
-            include: {
-              room: true,
-            },
+    const bookings = await prisma.booking.findMany({
+      where: {
+        propertyId,
+        OR: [
+          { guest: { name: { contains: search, mode: 'insensitive' } } },
+          { guest: { phone: { contains: search } } },
+          { guest: { email: { contains: search, mode: 'insensitive' } } },
+          { bookingRef: { contains: search, mode: 'insensitive' } },
+          { bookingRef: { contains: `#${search}`, mode: 'insensitive' } },
+          { roomCategory: { contains: search, mode: 'insensitive' } },
+          { source: { contains: search, mode: 'insensitive' } },
+          { bookingRooms: { some: { room: { number: { contains: search, mode: 'insensitive' } } } } },
+        ],
+      },
+      include: {
+        guest: true,
+        payments: true,
+        bookingRooms: {
+          include: {
+            room: true,
           },
         },
-        take: 12,
-        orderBy: { createdAt: 'desc' },
-      })
-    } catch {
-      bookings = []
-    }
+      },
+      take: 12,
+      orderBy: { createdAt: 'desc' },
+    })
 
-    if (!bookings || bookings.length === 0) {
-      const { getFallbackBookings } = await import('@/lib/fallback-data')
-      return NextResponse.json(getFallbackBookings(propertyId, null, { search }))
-    }
-
-    return NextResponse.json(bookings)
+    return NextResponse.json(bookings || [])
   } catch (error: any) {
-    console.error('Error in search, serving fallback:', error)
-    const { getFallbackBookings } = await import('@/lib/fallback-data')
-    return NextResponse.json(getFallbackBookings())
+    console.error('Error in search from SQL:', error)
+    return NextResponse.json([])
   }
 }

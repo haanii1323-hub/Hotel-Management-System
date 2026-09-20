@@ -38,29 +38,20 @@ export async function GET(req: NextRequest) {
     const category = searchParams.get('category')
     const source = searchParams.get('source')
 
-    if (!propertyId || propertyId.startsWith('prop-demo-') || propertyId.startsWith('BLR') || propertyId === 'demo') {
-      const { getFallbackBookings } = await import('@/lib/fallback-data')
-      const fallbackBookings = getFallbackBookings(
-        propertyId || 'BLR3396',
-        statusFilter !== 'all' ? statusFilter : null,
-        { search, category: category || undefined, source: source || undefined }
-      )
-      const totalCollected = fallbackBookings.reduce((s, b) => s + (b.paidAmount || 0), 0)
+    if (!propertyId) {
       return NextResponse.json({
         summary: {
-          totalBookings: fallbackBookings.length,
-          completedCount: fallbackBookings.filter((b) => b.status === 'CheckedOut').length,
-          completedRevenue: fallbackBookings
-            .filter((b) => b.status === 'CheckedOut')
-            .reduce((s, b) => s + (b.totalAmount || 0), 0),
-          cancelledCount: fallbackBookings.filter((b) => b.status === 'Cancelled').length,
+          totalBookings: 0,
+          completedCount: 0,
+          completedRevenue: 0,
+          cancelledCount: 0,
           cancelledValue: 0,
-          noShowCount: fallbackBookings.filter((b) => b.status === 'NoShow').length,
-          totalCollected,
-          totalRoomsBooked: fallbackBookings.reduce((s, b) => s + (b.numRooms || 1), 0),
-          totalGuests: fallbackBookings.length * 2,
+          noShowCount: 0,
+          totalCollected: 0,
+          totalRoomsBooked: 0,
+          totalGuests: 0,
         },
-        bookings: fallbackBookings,
+        bookings: [],
         filter: {
           preset: datePreset,
           status: statusFilter,
@@ -271,24 +262,21 @@ export async function GET(req: NextRequest) {
       },
     })
   } catch (error: any) {
-    console.error('Error fetching booking history, serving fallback:', error)
-    const { getFallbackBookings } = await import('@/lib/fallback-data')
-    const fallbackBookings = getFallbackBookings('BLR3396')
+    console.error('Error fetching booking history from SQL:', error?.message || error)
     return NextResponse.json({
       summary: {
-        totalBookings: fallbackBookings.length,
-        completedCount: fallbackBookings.filter((b) => b.status === 'CheckedOut').length,
-        completedRevenue: fallbackBookings
-          .filter((b) => b.status === 'CheckedOut')
-          .reduce((s, b) => s + (b.totalAmount || 0), 0),
+        totalBookings: 0,
+        completedCount: 0,
+        completedRevenue: 0,
         cancelledCount: 0,
         cancelledValue: 0,
         noShowCount: 0,
-        totalCollected: fallbackBookings.reduce((s, b) => s + (b.paidAmount || 0), 0),
-        totalRoomsBooked: fallbackBookings.length,
-        totalGuests: fallbackBookings.length * 2,
+        totalCollected: 0,
+        totalRoomsBooked: 0,
+        totalGuests: 0,
       },
-      bookings: fallbackBookings,
+      bookings: [],
+      filter: { preset: 'all', status: 'all', from: null, to: null },
     })
   }
 }

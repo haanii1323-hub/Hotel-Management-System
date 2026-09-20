@@ -76,25 +76,13 @@ export async function GET(req: NextRequest) {
     }
 
     // Fetch rooms and configured categories for this property
-    let rooms: any[] = []
-    let dbCategories: any[] = []
-    try {
-      ;[rooms, dbCategories] = await Promise.all([
-        prisma.room.findMany({ where: { propertyId } }),
-        prisma.roomCategory.findMany({
-          where: { propertyId },
-          include: { rooms: true },
-        }),
-      ])
-    } catch {
-      rooms = []
-      dbCategories = []
-    }
-
-    if (!rooms || rooms.length === 0) {
-      const { getFallbackReports } = await import('@/lib/fallback-data')
-      return NextResponse.json(getFallbackReports(propertyId))
-    }
+    const [rooms, dbCategories] = await Promise.all([
+      prisma.room.findMany({ where: { propertyId } }),
+      prisma.roomCategory.findMany({
+        where: { propertyId },
+        include: { rooms: true },
+      }),
+    ])
 
     const totalRooms = rooms.length
 
@@ -320,10 +308,31 @@ export async function GET(req: NextRequest) {
       categorySummary,
     })
   } catch (error: any) {
-    console.error('Error calculating reports, serving fallback:', error?.message || error)
-    const { getFallbackReports } = await import('@/lib/fallback-data')
-    const { searchParams } = new URL(req.url)
-    const propertyId = searchParams.get('propertyId') || 'BLR3396'
-    return NextResponse.json(getFallbackReports(propertyId))
+    console.error('Error calculating reports from SQL:', error?.message || error)
+    return NextResponse.json({
+      property: null,
+      from: '',
+      to: '',
+      totalRooms: 0,
+      srn: 0,
+      urnUsed: 0,
+      occupancy: 0,
+      overbookedRoomNights: 0,
+      roomRevenue: 0,
+      arr: 0,
+      daily: [],
+      dailyBreakdown: [],
+      sources: [],
+      categories: [],
+      categorySummary: {
+        highestRevenueCategory: 'N/A',
+        highestRevenueAmount: 0,
+        highestRevenuePercent: 0,
+        totalRoomRevenue: 0,
+        totalRoomNights: 0,
+        overallArr: 0,
+        totalBookings: 0,
+      },
+    })
   }
 }

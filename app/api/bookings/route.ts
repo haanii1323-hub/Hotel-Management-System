@@ -43,15 +43,8 @@ export async function GET(req: NextRequest) {
     const from = searchParams.get('from')
     const to = searchParams.get('to')
 
-    if (!propertyId || propertyId.startsWith('prop-demo-') || propertyId.startsWith('BLR') || propertyId === 'demo') {
-      const { getFallbackBookings } = await import('@/lib/fallback-data')
-      return NextResponse.json(
-        getFallbackBookings(propertyId || 'BLR3396', status, {
-          search,
-          category: category || undefined,
-          source: source || undefined,
-        })
-      )
+    if (!propertyId) {
+      return NextResponse.json([])
     }
 
     const where: any = {
@@ -101,43 +94,26 @@ export async function GET(req: NextRequest) {
     const isCompleted = status === 'Completed' || status === 'CheckedOut'
     const orderBy: any = isCompleted ? { checkOut: 'desc' } : { checkIn: 'asc' }
 
-    let bookings: any[] = []
-    try {
-      bookings = await prisma.booking.findMany({
-        where,
-        include: {
-          guest: true,
-          bookingRooms: {
-            include: {
-              room: true,
-            },
+    const bookings = await prisma.booking.findMany({
+      where,
+      include: {
+        guest: true,
+        bookingRooms: {
+          include: {
+            room: true,
           },
-          payments: true,
-          invoices: true,
-          property: true,
         },
-        orderBy,
-      })
-    } catch {
-      bookings = []
-    }
+        payments: true,
+        invoices: true,
+        property: true,
+      },
+      orderBy,
+    })
 
-    if (!bookings || bookings.length === 0) {
-      const { getFallbackBookings } = await import('@/lib/fallback-data')
-      return NextResponse.json(
-        getFallbackBookings(propertyId, status, {
-          search,
-          category: category || undefined,
-          source: source || undefined,
-        })
-      )
-    }
-
-    return NextResponse.json(bookings)
+    return NextResponse.json(bookings || [])
   } catch (error: any) {
-    console.error('Error fetching bookings, serving fallback:', error?.message || error)
-    const { getFallbackBookings } = await import('@/lib/fallback-data')
-    return NextResponse.json(getFallbackBookings())
+    console.error('Error fetching bookings from SQL:', error?.message || error)
+    return NextResponse.json([])
   }
 }
 

@@ -34,29 +34,19 @@ export async function GET(req: NextRequest) {
       ]
     }
 
-    let guests: any[] = []
-    try {
-      guests = await prisma.guest.findMany({
-        where,
-        include: {
-          bookings: {
-            where: { propertyId },
-            include: {
-              payments: true,
-            },
-            orderBy: { checkIn: 'desc' },
+    const guests = await prisma.guest.findMany({
+      where,
+      include: {
+        bookings: {
+          where: { propertyId },
+          include: {
+            payments: true,
           },
+          orderBy: { checkIn: 'desc' },
         },
-        orderBy: { updatedAt: 'desc' },
-      })
-    } catch {
-      guests = []
-    }
-
-    if (!guests || guests.length === 0) {
-      const { getFallbackGuests } = await import('@/lib/fallback-data')
-      return NextResponse.json(getFallbackGuests(propertyId))
-    }
+      },
+      orderBy: { updatedAt: 'desc' },
+    })
 
     const result = guests.map((g: any) => {
       const totalStays = g.bookings?.length || 0
@@ -84,13 +74,10 @@ export async function GET(req: NextRequest) {
       }
     })
 
-    return NextResponse.json(result)
+    return NextResponse.json(result || [])
   } catch (error: any) {
-    console.error('Error fetching guests, serving fallback:', error?.message || error)
-    const { getFallbackGuests } = await import('@/lib/fallback-data')
-    const { searchParams } = new URL(req.url)
-    const propertyId = searchParams.get('propertyId') || 'BLR3396'
-    return NextResponse.json(getFallbackGuests(propertyId))
+    console.error('Error fetching guests from SQL:', error?.message || error)
+    return NextResponse.json([])
   }
 }
 

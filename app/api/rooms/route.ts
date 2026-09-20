@@ -101,18 +101,10 @@ export async function GET(req: NextRequest) {
       conflictingBooking: null,
     }))
 
-    if (!rooms || rooms.length === 0) {
-      const { getFallbackRooms } = await import('@/lib/fallback-data')
-      return NextResponse.json(getFallbackRooms(propertyId))
-    }
-
-    return NextResponse.json(simpleEnriched)
+    return NextResponse.json(simpleEnriched || [])
   } catch (error: any) {
-    console.error('Error fetching rooms, serving fallback:', error?.message || error)
-    const { getFallbackRooms } = await import('@/lib/fallback-data')
-    const { searchParams } = new URL(req.url)
-    const propertyId = searchParams.get('propertyId') || 'BLR3396'
-    return NextResponse.json(getFallbackRooms(propertyId))
+    console.error('Error fetching rooms from SQL:', error?.message || error)
+    return NextResponse.json([])
   }
 }
 
