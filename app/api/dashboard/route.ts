@@ -5,6 +5,8 @@ import { authOptions } from '@/lib/auth'
 import { getTenantContext } from '@/lib/property-helper'
 import { format } from 'date-fns'
 
+export const dynamic = 'force-dynamic'
+
 function parseBookingDate(d: string | Date | null | undefined): Date | null {
   if (!d) return null
   if (typeof d === 'string') {

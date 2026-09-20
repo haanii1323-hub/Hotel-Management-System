@@ -5,6 +5,8 @@ import { authOptions } from '@/lib/auth'
 import { getTenantContext } from '@/lib/property-helper'
 import { isValid } from 'date-fns'
 
+export const dynamic = 'force-dynamic'
+
 function parseDateBoundary(d: string | null, isEnd: boolean): Date | null {
   if (!d) return null
   const match = d.match(/^(\d{4})-(\d{2})-(\d{2})/)

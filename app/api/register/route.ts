@@ -27,12 +27,7 @@ export async function POST(req: NextRequest) {
     }
 
     const emailClean = email.toLowerCase().trim()
-    let existing: any = null
-    try {
-      existing = await prisma.user.findUnique({ where: { email: emailClean } })
-    } catch {
-      existing = null
-    }
+    const existing = await prisma.user.findUnique({ where: { email: emailClean } })
 
     if (existing) {
       return NextResponse.json({ error: 'This email is already registered. Please sign in.' }, { status: 409 })
@@ -42,45 +37,35 @@ export async function POST(req: NextRequest) {
     const orgSlug = generateSlug(orgName)
     const passwordHash = await bcrypt.hash(password, 10)
 
-    let tenantId = 'demo-tenant'
-    let userId = `user-${emailClean.replace(/[^a-z0-9]/g, '-')}`
+    // Create Tenant and Owner User in database
+    const tenant = await prisma.tenant.create({
+      data: {
+        name: orgName,
+        slug: orgSlug,
+        isDemo: false,
+      },
+    })
 
-    try {
-      // Create Tenant first
-      const tenant = await prisma.tenant.create({
-        data: {
-          name: orgName,
-          slug: orgSlug,
-          isDemo: false,
-        },
-      })
-      tenantId = tenant.id
-
-      // Create Owner User linked to this Tenant
-      const user = await prisma.user.create({
-        data: {
-          name: name.trim(),
-          email: emailClean,
-          passwordHash,
-          role: 'owner',
-          tenantId: tenant.id,
-        },
-      })
-      userId = user.id
-    } catch (dbErr) {
-      console.warn('DB write bypassed during registration:', dbErr)
-    }
+    const user = await prisma.user.create({
+      data: {
+        name: name.trim(),
+        email: emailClean,
+        passwordHash,
+        role: 'owner',
+        tenantId: tenant.id,
+      },
+    })
 
     return NextResponse.json(
       {
         success: true,
         message: 'Hotel account created successfully! You can now sign in.',
         user: {
-          id: userId,
+          id: user.id,
           email: emailClean,
           name: name.trim(),
           role: 'owner',
-          tenantId,
+          tenantId: tenant.id,
           tenantName: orgName,
           tenantSlug: orgSlug,
         },
@@ -89,6 +74,6 @@ export async function POST(req: NextRequest) {
     )
   } catch (error: any) {
     console.error('Registration error:', error)
-    return NextResponse.json({ error: 'Failed to create account. Please try again.' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to create account in database. Please check your database connection and try again.' }, { status: 500 })
   }
 }
