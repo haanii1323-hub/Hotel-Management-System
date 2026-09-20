@@ -77,10 +77,30 @@ export function PropertyProvider({ children }: { children: React.ReactNode }) {
   const properties = Array.isArray(propertiesData) ? propertiesData : []
   const hasProperties = properties.length > 0
 
+  // Sync with session property on login
+  useEffect(() => {
+    if (session?.user?.propertyId && properties.length > 0) {
+      const match = properties.find((p) => p.id === session.user.propertyId)
+      if (match && (!selectedId || selectedId.startsWith('prop-demo-') || !properties.some((p) => p.id === selectedId))) {
+        setSelectedId(match.id)
+        localStorage.setItem('apex_selected_property_id', match.id)
+        document.cookie = `apex_property_id=${match.id}; path=/; max-age=31536000`
+      }
+    }
+  }, [session, properties, selectedId])
+
+  // Sort properties by highest booking count first, then name
+  const sortedProperties = [...properties].sort((a, b) => {
+    const aBookings = a._count?.bookings || 0
+    const bBookings = b._count?.bookings || 0
+    if (bBookings !== aBookings) return bBookings - aBookings
+    return a.name.localeCompare(b.name)
+  })
+
   const currentProperty =
-    properties.find((p) => p.id === selectedId) ||
-    properties.find((p) => p.isActive) ||
-    properties[0] ||
+    sortedProperties.find((p) => p.id === selectedId) ||
+    (session?.user?.propertyId ? sortedProperties.find((p) => p.id === session.user.propertyId) : null) ||
+    sortedProperties[0] ||
     null
 
   useEffect(() => {
@@ -88,11 +108,11 @@ export function PropertyProvider({ children }: { children: React.ReactNode }) {
       setSelectedId(currentProperty.id)
       localStorage.setItem('apex_selected_property_id', currentProperty.id)
       document.cookie = `apex_property_id=${currentProperty.id}; path=/; max-age=31536000`
-    } else if (!currentProperty) {
+    } else if (!currentProperty && properties.length === 0 && !isLoading) {
       setSelectedId(null)
       localStorage.removeItem('apex_selected_property_id')
     }
-  }, [currentProperty, selectedId])
+  }, [currentProperty, selectedId, properties.length, isLoading])
 
   async function switchProperty(propertyId: string) {
     if (propertyId === selectedId) return

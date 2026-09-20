@@ -375,26 +375,30 @@ export default function PropertySelector() {
                 )}
               </div>
 
-              {/* Code + Chevron & Name */}
-              <div>
+              {/* Name + Chevron & Code */}
+              <div style={{ textAlign: 'left', minWidth: 0 }}>
                 <div
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: '4px',
-                    fontSize: '14px',
+                    fontSize: '13.5px',
                     fontWeight: 700,
                     color: 'var(--text)',
                     lineHeight: 1.2,
+                    maxWidth: '180px',
                   }}
                 >
-                  <span>{currentProperty.code}</span>
+                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {currentProperty.name}
+                  </span>
                   <ChevronDown
                     size={14}
                     color="var(--text-2)"
                     style={{
                       transform: open ? 'rotate(180deg)' : 'none',
                       transition: 'transform 0.15s ease',
+                      flexShrink: 0,
                     }}
                   />
                 </div>
@@ -402,14 +406,14 @@ export default function PropertySelector() {
                   style={{
                     fontSize: '11px',
                     color: 'var(--text-2)',
-                    maxWidth: '160px',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    marginTop: '1px',
+                    marginTop: '2px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
                   }}
                 >
-                  {currentProperty.name}
+                  <span style={{ fontWeight: 600, color: 'var(--red)' }}>{currentProperty.code}</span>
+                  {currentProperty.city && <span>· {currentProperty.city}</span>}
                 </div>
               </div>
             </button>
@@ -561,22 +565,34 @@ export default function PropertySelector() {
 
                         {/* Info */}
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--text)' }}>
-                              {p.code}
-                            </span>
-                            <span style={{ fontSize: '11px', color: 'var(--text-3)' }}>· {p.city}</span>
-                          </div>
                           <div
                             style={{
-                              fontSize: '11px',
-                              color: 'var(--text-2)',
+                              fontWeight: 700,
+                              fontSize: '13px',
+                              color: 'var(--text)',
                               whiteSpace: 'nowrap',
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
                             }}
                           >
                             {p.name}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: '11px',
+                              color: 'var(--text-3)',
+                              marginTop: '2px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              flexWrap: 'wrap',
+                            }}
+                          >
+                            <span style={{ fontWeight: 600, color: 'var(--red)' }}>{p.code}</span>
+                            {p.city && <span>· {p.city}</span>}
+                            {p._count?.bookings !== undefined && (
+                              <span>· {p._count.bookings} {p._count.bookings === 1 ? 'booking' : 'bookings'}</span>
+                            )}
                           </div>
                         </div>
 
