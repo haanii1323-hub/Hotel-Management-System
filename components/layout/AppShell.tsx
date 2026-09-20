@@ -174,7 +174,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               onFocus={() => setShowResults(true)}
             />
             <span className="search-shortcut-badge">⌘K</span>
-            {showResults && search.trim().length >= 1 && searchResults && searchResults.length > 0 && (
+            {showResults && search.trim().length >= 1 && Array.isArray(searchResults) && searchResults.length > 0 && (
               <div className="search-results">
                 {searchResults.map((b: any) => {
                   const collected =

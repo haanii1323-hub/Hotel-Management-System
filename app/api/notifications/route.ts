@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
     const session = await getServerSession(authOptions)
     const { propertyId } = await getTenantContext(req, session?.user as any)
 
-    if (!propertyId) {
+    if (!propertyId || propertyId.startsWith('prop-demo-') || propertyId.startsWith('BLR') || propertyId === 'demo') {
       return NextResponse.json({
         totalCount: 0,
         delayedCheckinCount: 0,
@@ -237,6 +237,14 @@ export async function GET(req: NextRequest) {
     })
   } catch (error: any) {
     console.error('Error fetching notifications:', error)
-    return NextResponse.json({ error: 'Failed to fetch notifications' }, { status: 500 })
+    return NextResponse.json({
+      totalCount: 0,
+      delayedCheckinCount: 0,
+      delayedCheckoutCount: 0,
+      arrivingCount: 0,
+      departingCount: 0,
+      cleaningCount: 0,
+      notifications: [],
+    })
   }
 }
