@@ -3,6 +3,22 @@ import { PrismaClient } from '@prisma/client'
 const prisma = new PrismaClient()
 
 async function fullCleanResetToZero() {
+  const args = process.argv.slice(2)
+  const isConfirmed = args.includes('--confirm-destructive-dev-reset-ground-zero')
+
+  if (!isConfirmed) {
+    console.error('🛑 BLOCKED: Destructive database reset is protected!')
+    console.error('   This script deletes all PMS records and is disabled by default to prevent accidental data loss.')
+    console.error('   To run in development mode only, you must explicitly pass:')
+    console.error('   npx tsx scripts/full-clean-reset-to-zero.ts --confirm-destructive-dev-reset-ground-zero')
+    process.exit(1)
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    console.error('🛑 CRITICAL ERROR: Database reset script CANNOT be executed in production environment (NODE_ENV=production).')
+    process.exit(1)
+  }
+
   console.log('🚨 EXECUTING COMPLETE 100% FULL DATABASE RESET TO GROUND ZERO...')
 
   try {

@@ -5,6 +5,21 @@ import masterArchive from '../backups/master-archive-complete-timeline.json'
 const prisma = new PrismaClient()
 
 async function resetAndSeedCleanBaseline() {
+  const args = process.argv.slice(2)
+  const isConfirmed = args.includes('--confirm-destructive-dev-reset')
+
+  if (!isConfirmed) {
+    console.error('🛑 BLOCKED: Database reset and seed script is protected!')
+    console.error('   This script modifies existing database records and is disabled by default to prevent accidental data overwrites.')
+    console.error('   To run in development mode only, pass: --confirm-destructive-dev-reset')
+    process.exit(1)
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    console.error('🛑 CRITICAL ERROR: Database seed script CANNOT be executed in production environment (NODE_ENV=production).')
+    process.exit(1)
+  }
+
   console.log('🚀 Starting Clean SQL Database Reset...')
 
   // 1. Cleanly delete all transactional demo/test records
