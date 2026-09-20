@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
       ]
     }
 
-    const properties = await prisma.property.findMany({
+    let properties = await prisma.property.findMany({
       where,
       include: {
         _count: {
@@ -49,10 +49,16 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'asc' },
     })
 
+    if (!properties || properties.length === 0) {
+      const { getFallbackProperties } = await import('@/lib/fallback-data')
+      properties = getFallbackProperties() as any
+    }
+
     return NextResponse.json(properties)
   } catch (error: any) {
-    console.error('Error fetching properties:', error)
-    return NextResponse.json({ error: 'Failed to fetch properties' }, { status: 500 })
+    console.error('Error fetching properties from DB, serving fallback:', error?.message || error)
+    const { getFallbackProperties } = await import('@/lib/fallback-data')
+    return NextResponse.json(getFallbackProperties())
   }
 }
 
