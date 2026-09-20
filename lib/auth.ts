@@ -18,7 +18,59 @@ export const authOptions: NextAuthOptions = {
         const emailLower = rawIdentifier.toLowerCase()
         const inputPassword = credentials.password.trim()
 
-        // 1. Direct SQL Database Authentication
+        // 1. Direct Built-in Live Demo Credentials
+        if (
+          (emailLower === 'admin@apexinn.com' || emailLower === 'demo@apexinn.com' || emailLower === 'admin') &&
+          (inputPassword === 'admin123' || inputPassword === 'admin' || inputPassword === '123456')
+        ) {
+          return {
+            id: 'demo-superadmin-user',
+            email: 'admin@apexinn.com',
+            name: 'Apex SuperAdmin',
+            role: 'superadmin',
+            tenantId: 'demo-tenant',
+            tenantSlug: 'demo',
+            tenantName: 'Metro Inn & Sahasra Hotel Group',
+            isDemo: true,
+            propertyId: null,
+          }
+        }
+
+        if (
+          (emailLower === 'manager@metroinn.com' || emailLower === 'manager') &&
+          (inputPassword === 'admin123' || inputPassword === 'manager123' || inputPassword === '123456')
+        ) {
+          return {
+            id: 'demo-manager-user',
+            email: 'manager@metroinn.com',
+            name: 'Hotel Manager',
+            role: 'manager',
+            tenantId: 'demo-tenant',
+            tenantSlug: 'demo',
+            tenantName: 'Metro Inn & Sahasra Hotel Group',
+            isDemo: true,
+            propertyId: null,
+          }
+        }
+
+        if (
+          (emailLower === 'staff@metroinn.com' || emailLower === 'staff') &&
+          (inputPassword === 'admin123' || inputPassword === 'staff123' || inputPassword === '123456')
+        ) {
+          return {
+            id: 'demo-staff-user',
+            email: 'staff@metroinn.com',
+            name: 'Front Desk Staff',
+            role: 'staff',
+            tenantId: 'demo-tenant',
+            tenantSlug: 'demo',
+            tenantName: 'Metro Inn & Sahasra Hotel Group',
+            isDemo: true,
+            propertyId: null,
+          }
+        }
+
+        // 2. Direct SQL Database Authentication
         try {
           const user = await prisma.user.findFirst({
             where: {
@@ -77,7 +129,7 @@ export const authOptions: NextAuthOptions = {
             }
           }
 
-          // 2. First-Time Setup / Empty Database Auto-Bootstrap
+          // 3. First-Time Setup / Empty Database Auto-Bootstrap
           const totalUsers = await prisma.user.count()
           if (totalUsers === 0) {
             const passwordHash = await bcrypt.hash(inputPassword, 10)
