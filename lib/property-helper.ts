@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getPropertyData, getFallbackProperties } from './fallback-data'
 
 export interface TenantContext {
   tenantId: string
@@ -27,29 +26,35 @@ export async function getTenantContext(
       : sessionUser?.propertyId || null
 
   if (requestedId) {
-    const prop = getPropertyData(requestedId)
+    try {
+      const prop = await prisma.property.findUnique({ where: { id: requestedId } })
+      if (prop) {
+        return {
+          tenantId: prop.tenantId,
+          propertyId: prop.id,
+        }
+      }
+    } catch {}
+  }
+
+  // 2. Look up the tenant's primary property from SQL
+  const tenantId = sessionUser?.tenantId || 'demo-tenant'
+  try {
+    const prop = await prisma.property.findFirst({
+      where: { tenantId, isActive: true },
+      orderBy: { createdAt: 'asc' },
+    })
     if (prop) {
       return {
-        tenantId: prop.tenantId || sessionUser?.tenantId || 'demo-tenant',
+        tenantId: prop.tenantId,
         propertyId: prop.id,
       }
     }
-  }
+  } catch {}
 
-  // 2. If user has a tenant, pick their tenant's primary property
-  const tenantId = sessionUser?.tenantId || 'demo-tenant'
-  const tenantProps = getFallbackProperties(tenantId)
-  if (tenantProps && tenantProps.length > 0) {
-    return {
-      tenantId,
-      propertyId: tenantProps[0].id,
-    }
-  }
-
-  const allProps = getFallbackProperties()
   return {
-    tenantId: allProps[0]?.tenantId || 'demo-tenant',
-    propertyId: allProps[0]?.id || '',
+    tenantId,
+    propertyId: sessionUser?.propertyId || null,
   }
 }
 
