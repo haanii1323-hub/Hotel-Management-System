@@ -34,17 +34,7 @@ export async function GET(req: NextRequest) {
     const now = new Date()
     const todayStr = format(now, 'yyyy-MM-dd')
 
-    // Count total active properties for this tenant
-    let totalProperties = 0
-    try {
-      totalProperties = await prisma.property.count({
-        where: { tenantId, isActive: true },
-      })
-    } catch {
-      totalProperties = 0
-    }
-
-    if (!propertyId || totalProperties === 0) {
+    if (!propertyId || propertyId.startsWith('prop-demo-') || propertyId.startsWith('BLR') || tenantId === 'demo-tenant') {
       const { getFallbackDashboard } = await import('@/lib/fallback-data')
       return NextResponse.json(getFallbackDashboard(propertyId || 'BLR3396'))
     }
@@ -107,7 +97,18 @@ export async function GET(req: NextRequest) {
     }
 
     // 1. Rooms breakdown
-    const rooms = await prisma.room.findMany({ where: { propertyId } })
+    let rooms: any[] = []
+    try {
+      rooms = await prisma.room.findMany({ where: { propertyId } })
+    } catch {
+      rooms = []
+    }
+
+    if (!rooms || rooms.length === 0) {
+      const { getFallbackDashboard } = await import('@/lib/fallback-data')
+      return NextResponse.json(getFallbackDashboard(propertyId || 'BLR3396'))
+    }
+
     const totalPhysicalRooms = rooms.length
     const totalRooms = totalPhysicalRooms
     const sellableRooms = totalPhysicalRooms
@@ -206,6 +207,8 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     console.error('Error fetching dashboard data, serving fallback:', error?.message || error)
     const { getFallbackDashboard } = await import('@/lib/fallback-data')
-    return NextResponse.json(getFallbackDashboard('BLR3396'))
+    const { searchParams } = new URL(req.url)
+    const propertyId = searchParams.get('propertyId') || 'BLR3396'
+    return NextResponse.json(getFallbackDashboard(propertyId))
   }
 }

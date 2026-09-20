@@ -432,28 +432,33 @@ function BookingsContent() {
   const startOfMonthStr = format(startOfMonth(now), 'yyyy-MM-dd')
   const endOfMonthStr = format(endOfMonth(now), 'yyyy-MM-dd')
 
-  const arrivingToday = (upcoming || []).filter((b: any) => {
+  const upcomingList = Array.isArray(upcoming) ? upcoming : []
+  const inhouseList = Array.isArray(inhouse) ? inhouse : []
+  const completedList = Array.isArray(completed) ? completed : []
+
+  const arrivingToday = upcomingList.filter((b: any) => {
     const ciStr = getDateString(b.checkIn)
     return ciStr <= todayDateStr
   })
-  const arrivingLater = (upcoming || []).filter((b: any) => {
+  const arrivingLater = upcomingList.filter((b: any) => {
     const ciStr = getDateString(b.checkIn)
     return ciStr > todayDateStr
   })
 
-  const departingTodayEarlier = (inhouse || []).filter((b: any) => {
+  const departingTodayEarlier = inhouseList.filter((b: any) => {
     const coStr = getDateString(b.checkOut)
     return coStr <= todayDateStr
   })
-  const stayingOn = (inhouse || []).filter((b: any) => {
+  const stayingOn = inhouseList.filter((b: any) => {
     const coStr = getDateString(b.checkOut)
     return coStr > todayDateStr
   })
 
   // Date filtering helper
   function filterByDate(list: any[], dateField: 'checkOut' | 'checkIn' = 'checkOut') {
-    if (datePreset === 'all') return list || []
-    return (list || []).filter((b: any) => {
+    const safeList = Array.isArray(list) ? list : []
+    if (datePreset === 'all') return safeList
+    return safeList.filter((b: any) => {
       const dStr = getDateString(b[dateField] || b.checkOut)
       if (!dStr) return false
       if (datePreset === 'today') return dStr === todayDateStr
@@ -469,9 +474,9 @@ function BookingsContent() {
     })
   }
 
-  const rawCheckedOut = (completed || []).filter((b: any) => b.status === 'CheckedOut')
-  const rawNoShow = (completed || []).filter((b: any) => b.status === 'NoShow')
-  const rawCancelled = (completed || []).filter((b: any) => b.status === 'Cancelled')
+  const rawCheckedOut = completedList.filter((b: any) => b.status === 'CheckedOut')
+  const rawNoShow = completedList.filter((b: any) => b.status === 'NoShow')
+  const rawCancelled = completedList.filter((b: any) => b.status === 'Cancelled')
 
   const filteredCheckedOut = filterByDate(rawCheckedOut, 'checkOut')
   const filteredNoShow = filterByDate(rawNoShow, 'checkOut')

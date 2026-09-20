@@ -110,7 +110,9 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     console.error('Error fetching rooms, serving fallback:', error?.message || error)
     const { getFallbackRooms } = await import('@/lib/fallback-data')
-    return NextResponse.json(getFallbackRooms('BLR3396'))
+    const { searchParams } = new URL(req.url)
+    const propertyId = searchParams.get('propertyId') || 'BLR3396'
+    return NextResponse.json(getFallbackRooms(propertyId))
   }
 }
 
