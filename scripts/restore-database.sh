@@ -31,7 +31,14 @@ echo "🎯 Target database: $DB_URL"
 read -p "Are you sure you want to restore? This will overwrite target tables. (y/N): " confirm
 
 if [[ "$confirm" =~ ^[Yy]$ ]]; then
-  gunzip -c "$BACKUP_FILE" | psql "$DB_URL"
+  if command -v psql >/dev/null 2>&1; then
+    gunzip -c "$BACKUP_FILE" | psql "$DB_URL"
+  elif docker ps --format '{{.Names}}' | grep -q 'apex_inn_postgres'; then
+    gunzip -c "$BACKUP_FILE" | docker exec -i apex_inn_postgres psql -U postgres -d apex_inn_pms
+  else
+    echo "❌ Error: Neither psql nor apex_inn_postgres docker container found."
+    exit 1
+  fi
   echo "✅ Database restore completed successfully!"
 else
   echo "❌ Restore cancelled."
