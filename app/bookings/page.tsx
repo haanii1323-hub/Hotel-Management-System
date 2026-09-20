@@ -333,7 +333,7 @@ function BookingsContent() {
     propertyId ? `/api/categories?propertyId=${propertyId}` : '/api/categories',
     fetcher
   )
-  const categoryOptions = ['All', ...(categoriesData || []).map((c: any) => c.name)]
+  const categoryOptions = ['All', ...(Array.isArray(categoriesData) ? categoriesData : []).map((c: any) => c.name)]
 
   const [tab, setTab] = useState<'Upcoming' | 'InHouse' | 'Completed'>('Upcoming')
   const [search, setSearch] = useState('')

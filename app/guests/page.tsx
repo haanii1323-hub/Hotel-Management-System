@@ -134,12 +134,12 @@ export default function GuestsPage() {
         Array.from({ length: 5 }).map((_, i) => (
           <div key={i} className="skeleton" style={{ height: 52, marginBottom: 6, borderRadius: '6px' }} />
         ))
-      ) : guests?.length === 0 ? (
+      ) : !Array.isArray(guests) || guests.length === 0 ? (
         <div className="empty-state">
           No guests found for {currentProperty?.name}.
         </div>
       ) : (
-        guests?.map((g: any) => (
+        guests.map((g: any) => (
           <div key={g.id}>
             <div
               className="guest-row"

@@ -70,7 +70,9 @@ export default function DelayedAlertsPopup() {
     }
   }, [propertyId])
 
-  const notifications = notifData?.notifications || []
+  const notifications = useMemo(() => {
+    return Array.isArray(notifData?.notifications) ? notifData.notifications : []
+  }, [notifData?.notifications])
   // Filter for delayed check-ins and delayed check-outs
   const delayedItems = useMemo(() => {
     return notifications.filter(

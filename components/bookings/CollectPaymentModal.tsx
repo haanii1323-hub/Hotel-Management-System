@@ -67,7 +67,9 @@ export default function CollectPaymentModal({ booking, onClose, onSuccess }: Pro
     return modes
   }, [config])
 
-  const [existingPayments, setExistingPayments] = useState<any[]>(booking.payments || [])
+  const [existingPayments, setExistingPayments] = useState<any[]>(
+    Array.isArray(booking?.payments) ? booking.payments : []
+  )
   const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null)
 
   const currentBookingState = useMemo(() => ({

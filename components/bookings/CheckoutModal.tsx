@@ -66,7 +66,9 @@ export default function CheckoutModal({ booking, onClose, onSuccess }: Props) {
     return modes
   }, [config])
 
-  const [existingPayments, setExistingPayments] = useState<any[]>(booking.payments || [])
+  const [existingPayments, setExistingPayments] = useState<any[]>(
+    Array.isArray(booking?.payments) ? booking.payments : []
+  )
   const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null)
 
   const currentBookingState = useMemo(() => ({

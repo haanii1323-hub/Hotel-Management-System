@@ -26,12 +26,12 @@ export default function CheckInModal({ booking, onClose, onSuccess }: Props) {
     booking.propertyId ? `/api/rooms?propertyId=${booking.propertyId}` : '/api/rooms',
     fetcher
   )
-  const categoryRooms = (allRooms || []).filter(
-    (r: any) => r.category?.name === booking.roomCategory
+  const categoryRooms = (Array.isArray(allRooms) ? allRooms : []).filter(
+    (r: any) => r.category?.name === booking?.roomCategory
   )
 
   // Currently assigned room IDs or fallback to initial assignment
-  const initialRoomIds = (booking.bookingRooms || []).map((br: any) => br.roomId)
+  const initialRoomIds = (Array.isArray(booking?.bookingRooms) ? booking.bookingRooms : []).map((br: any) => br.roomId)
   const [selectedRoomIds, setSelectedRoomIds] = useState<string[]>(initialRoomIds)
 
   const fin = calculateBookingFinancials(booking)

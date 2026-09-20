@@ -90,7 +90,7 @@ export default function BookingDetailsModal({
   const numNights = fin.nights
 
   const assignedRooms =
-    booking.bookingRooms && booking.bookingRooms.length > 0
+    Array.isArray(booking.bookingRooms) && booking.bookingRooms.length > 0
       ? booking.bookingRooms.map((br: any) => br.room?.number || br.room?.roomNumber).filter(Boolean).join(', ')
       : 'Auto-assigned upon check-in'
 
@@ -524,7 +524,7 @@ export default function BookingDetailsModal({
                 )}
               </div>
 
-              {booking.payments && booking.payments.length > 0 ? (
+              {Array.isArray(booking.payments) && booking.payments.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   {booking.payments.map((p: any) => (
                     <div

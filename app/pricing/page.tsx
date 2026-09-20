@@ -98,7 +98,7 @@ export default function PricingPage() {
     const updates = entries.map(([id, status]) => ({ id, status }))
 
     // Optimistically update local SWR cache immediately with zero refresh
-    if (rooms) {
+    if (rooms && Array.isArray(rooms)) {
       const optimisticRooms = rooms.map((r: any) =>
         pendingStatusMap[r.id] ? { ...r, status: pendingStatusMap[r.id] } : r
       )
@@ -106,22 +106,19 @@ export default function PricingPage() {
     }
 
     try {
-      const res = await fetch('/api/rooms', {
-        method: 'PATCH',
+      const res = await fetch('/api/rooms/batch-status', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ updates }),
       })
-      const data = await res.json()
-      if (res.ok) {
-        showToast(
-          `Updated ${entries.length} room status${entries.length > 1 ? 'es' : ''} successfully!`,
-          'success'
-        )
-        setPendingStatusMap({})
-        broadcastChange('ROOM_UPDATED', { updates })
+
+      if (!res.ok) {
+        showToast('Failed to update some rooms. Reverting...', 'error')
         mutateRooms()
       } else {
-        showToast(data.error || 'Failed to update room statuses', 'error')
+        showToast(`Successfully updated ${updates.length} room${updates.length > 1 ? 's' : ''}`, 'success')
+        setPendingStatusMap({})
+        broadcastChange('ROOM_UPDATED', { count: updates.length })
         mutateRooms()
       }
     } catch {
@@ -139,12 +136,13 @@ export default function PricingPage() {
 
   async function applySingleRoomStatus(roomId: string, originalStatus: string, newStatus: string) {
     if (newStatus === originalStatus) return
+    await handleDirectStatusChange(roomId, newStatus)
+  }
 
-    // Optimistically update
-    if (rooms) {
-      const optimisticRooms = rooms.map((r: any) =>
-        r.id === roomId ? { ...r, status: newStatus } : r
-      )
+  async function handleDirectStatusChange(roomId: string, newStatus: string) {
+    // Immediate single status change
+    if (rooms && Array.isArray(rooms)) {
+      const optimisticRooms = rooms.map((r: any) => (r.id === roomId ? { ...r, status: newStatus } : r))
       mutateRooms(optimisticRooms, false)
     }
     setPendingStatusMap((prev) => {
@@ -471,7 +469,7 @@ export default function PricingPage() {
             marginBottom: '28px',
           }}
         >
-          {categories.map((cat: any) => {
+          {(Array.isArray(categories) ? categories : []).map((cat: any) => {
             const isEditingThis = editingCatId === cat.id
             const roomCount = cat.totalRooms || 0
 

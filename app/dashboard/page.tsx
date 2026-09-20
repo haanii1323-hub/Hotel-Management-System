@@ -106,8 +106,8 @@ export default function DashboardPage() {
     collectedToday: 0,
   }
 
-  const arrivingToday = data?.arrivingToday || []
-  const departingToday = data?.departingToday || []
+  const arrivingToday = Array.isArray(data?.arrivingToday) ? data.arrivingToday : []
+  const departingToday = Array.isArray(data?.departingToday) ? data.departingToday : []
 
   return (
     <AppShell>

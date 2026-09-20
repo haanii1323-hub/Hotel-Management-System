@@ -100,7 +100,9 @@ export default function BookingHistoryPage() {
     totalGuests: 0,
   }
 
-  const bookings: any[] = data?.bookings || []
+  const bookings: any[] = useMemo(() => {
+    return Array.isArray(data?.bookings) ? data.bookings : []
+  }, [data?.bookings])
 
   // Extract unique channels for filter dropdown
   const channels = useMemo(() => {
