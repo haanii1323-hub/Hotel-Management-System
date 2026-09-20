@@ -11,9 +11,9 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-  title: 'Hotel Management System',
-  description: 'Hotel Property Management System for room reservations, billing, guest folios, and live property analytics.',
-  keywords: 'hotel management, property management system, PMS, hotel software',
+  title: 'APEX INN — Hotel Management System',
+  description: 'Enterprise Hotel Property Management System for room reservations, front-desk check-in, billing, guest folios, and live analytics.',
+  keywords: 'APEX INN, hotel management system, hotel PMS, room reservations, property management',
   manifest: '/manifest.json',
   icons: {
     icon: [
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Hotel PMS',
+    title: 'APEX INN',
   },
 }
 
@@ -38,6 +38,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="manifest" href="/manifest.json" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="APEX INN" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="application-name" content="APEX INN" />
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -50,6 +53,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     document.documentElement.setAttribute('data-theme', 'dark');
                   }
                 } catch (e) {}
+
+                // Register PWA Service Worker
+                if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
+                  window.addEventListener('load', function() {
+                    navigator.serviceWorker.register('/sw.js').catch(function() {});
+                  });
+                }
               })();
             `,
           }}
