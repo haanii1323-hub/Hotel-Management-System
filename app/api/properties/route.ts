@@ -4,13 +4,14 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 
 export async function GET(req: NextRequest) {
+  let tenantId = 'demo-tenant'
   try {
     const session = await getServerSession(authOptions)
     const { searchParams } = new URL(req.url)
     const q = searchParams.get('search') || searchParams.get('q') || ''
     const includeInactive = searchParams.get('includeInactive') === 'true'
 
-    const tenantId = (session?.user as any)?.tenantId || 'demo-tenant'
+    tenantId = (session?.user as any)?.tenantId || 'demo-tenant'
 
     const where: any = {
       tenantId,
@@ -51,14 +52,14 @@ export async function GET(req: NextRequest) {
 
     if (!properties || properties.length === 0) {
       const { getFallbackProperties } = await import('@/lib/fallback-data')
-      properties = getFallbackProperties() as any
+      properties = getFallbackProperties(tenantId) as any
     }
 
     return NextResponse.json(properties)
   } catch (error: any) {
     console.error('Error fetching properties from DB, serving fallback:', error?.message || error)
     const { getFallbackProperties } = await import('@/lib/fallback-data')
-    return NextResponse.json(getFallbackProperties())
+    return NextResponse.json(getFallbackProperties(tenantId))
   }
 }
 
