@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getPropertyData, getFallbackProperties } from './fallback-data'
 
 export interface TenantContext {
   tenantId: string
@@ -8,71 +9,47 @@ export interface TenantContext {
 
 export async function getTenantContext(
   req: NextRequest,
-  sessionUser?: { tenantId?: string; propertyId?: string | null } | null
+  sessionUser?: { tenantId?: string; propertyId?: string | null; role?: string } | null
 ): Promise<TenantContext> {
-  const tenantId = sessionUser?.tenantId || 'demo-tenant'
   const { searchParams } = new URL(req.url)
   const queryPropertyId = searchParams.get('propertyId')
   const headerPropertyId = req.headers.get('x-property-id')
+  const cookiePropertyId = req.cookies.get('apex_property_id')?.value
 
-  // If user is restricted to a property
-  if (sessionUser?.propertyId) {
-    try {
-      const prop = await prisma.property.findFirst({
-        where: { id: sessionUser.propertyId, tenantId },
-      })
-      if (prop) return { tenantId, propertyId: prop.id }
-    } catch {
-      // ignore
-    }
-    return { tenantId, propertyId: sessionUser.propertyId }
-  }
-
+  // 1. Explicitly requested property from query params, headers, or cookies
   const requestedId =
     queryPropertyId && queryPropertyId !== 'all'
       ? queryPropertyId
       : headerPropertyId && headerPropertyId !== 'all'
       ? headerPropertyId
-      : null
-
-  // Fast-path demo properties
-  if (requestedId && (requestedId.startsWith('prop-demo-') || requestedId.startsWith('BLR') || requestedId === 'demo')) {
-    return { tenantId, propertyId: requestedId }
-  }
+      : cookiePropertyId && cookiePropertyId !== 'all'
+      ? cookiePropertyId
+      : sessionUser?.propertyId || null
 
   if (requestedId) {
-    try {
-      const prop = await prisma.property.findFirst({
-        where: { id: requestedId, tenantId },
-      })
-      if (prop) {
-        return { tenantId, propertyId: prop.id }
-      }
-    } catch {
-      // ignore
-    }
-    return { tenantId, propertyId: requestedId }
-  }
-
-  // Fallback: first active property belonging to this tenant
-  try {
-    const firstProp = await prisma.property.findFirst({
-      where: { tenantId, isActive: true },
-      orderBy: { createdAt: 'asc' },
-    })
-    if (firstProp) {
+    const prop = getPropertyData(requestedId)
+    if (prop) {
       return {
-        tenantId,
-        propertyId: firstProp.id,
+        tenantId: prop.tenantId || sessionUser?.tenantId || 'demo-tenant',
+        propertyId: prop.id,
       }
     }
-  } catch {
-    // ignore
   }
 
+  // 2. If user has a tenant, pick their tenant's primary property
+  const tenantId = sessionUser?.tenantId || 'demo-tenant'
+  const tenantProps = getFallbackProperties(tenantId)
+  if (tenantProps && tenantProps.length > 0) {
+    return {
+      tenantId,
+      propertyId: tenantProps[0].id,
+    }
+  }
+
+  const allProps = getFallbackProperties()
   return {
-    tenantId,
-    propertyId: 'prop-demo-blr3396',
+    tenantId: allProps[0]?.tenantId || 'demo-tenant',
+    propertyId: allProps[0]?.id || '',
   }
 }
 

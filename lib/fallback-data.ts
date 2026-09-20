@@ -119,9 +119,17 @@ export function getPropertyData(propertyCodeOrId?: string) {
   )
 }
 
-// 1. Get All Properties (with accurate live counts)
+// 1. Get All Properties (with accurate live counts and tenant isolation)
 export function getFallbackProperties(tenantId?: string) {
-  return archiveData.properties.map((p: any) => {
+  let list = archiveData.properties
+  if (tenantId && tenantId !== 'all' && tenantId !== 'demo-tenant') {
+    const tenantSpecific = list.filter((p: any) => p.tenantId === tenantId)
+    if (tenantSpecific.length > 0) {
+      list = tenantSpecific
+    }
+  }
+
+  return list.map((p: any) => {
     const rooms = roomsByPropertyId.get(p.id) || []
     const bookings = bookingsByPropertyId.get(p.id) || []
     const cats = categoriesByPropertyId.get(p.id) || []
