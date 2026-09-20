@@ -10,15 +10,20 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-apex_inn_pms}
     ports:
+      # Port 5432 is bound for TLS-encrypted connections only (pg_hba.conf rejects non-SSL)
       - "5432:5432"
     volumes:
       - postgres_prod_data:/var/lib/postgresql/data
       - ./ssl:/var/lib/postgresql/ssl:ro
+      - ./config/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     command: >
       postgres
         -c ssl=on
         -c ssl_cert_file=/var/lib/postgresql/ssl/server.crt
         -c ssl_key_file=/var/lib/postgresql/ssl/server.key
+        -c ssl_min_protocol_version=TLSv1.3
+        -c password_encryption=scram-sha-256
+        -c hba_file=/etc/postgresql/pg_hba.conf
         -c max_connections=100
         -c shared_buffers=512MB
         -c effective_cache_size=1536MB
@@ -27,6 +32,9 @@ services:
         -c wal_buffers=16MB
         -c default_statistics_target=100
         -c random_page_cost=1.1
+        -c log_connections=on
+        -c log_disconnections=on
+        -c log_line_prefix='%m [%p] %q%u@%d '
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-apex_inn_pms}"]
       interval: 10s
