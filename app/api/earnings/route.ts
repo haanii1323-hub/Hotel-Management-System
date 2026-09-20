@@ -135,14 +135,14 @@ export async function GET(req: NextRequest) {
       allPayments = []
     }
 
-    const collected = allPayments.reduce((s, p) => s + p.amount, 0)
+    const collected = allPayments.reduce((s: number, p: any) => s + (p.amount || 0), 0)
 
     // Calculate outstanding balance across these bookings
     let balanceToCollect = 0
     for (const b of bookings) {
       const bPaid = (b.payments || [])
-        .filter((p) => p.status !== 'Pending' && p.status !== 'Failed' && p.status !== 'Cancelled')
-        .reduce((sum, p) => sum + p.amount, 0)
+        .filter((p: any) => p.status !== 'Pending' && p.status !== 'Failed' && p.status !== 'Cancelled')
+        .reduce((sum: number, p: any) => sum + (p.amount || 0), 0)
       const due = Math.max(0, (b.totalAmount || 0) - bPaid)
       balanceToCollect += due
     }

@@ -39,6 +39,15 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(getFallbackDashboard(propertyId || 'BLR3396'))
     }
 
+    let totalProperties = 3
+    try {
+      totalProperties = await prisma.property.count({
+        where: { tenantId, isActive: true },
+      })
+    } catch {
+      totalProperties = 3
+    }
+
     const property = await prisma.property.findFirst({
       where: { id: propertyId, tenantId },
     })

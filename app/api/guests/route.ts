@@ -58,17 +58,17 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(getFallbackGuests(propertyId))
     }
 
-    const result = guests.map((g) => {
-      const totalStays = g.bookings.length
-      const totalNights = g.bookings.reduce((s, b) => s + nights(b.checkIn, b.checkOut), 0)
-      const totalSpent = g.bookings.reduce((s, b) => {
-        const collected = b.payments.reduce(
-          (pSum, pay) => pSum + (pay.status !== 'Pending' ? pay.amount : 0),
+    const result = guests.map((g: any) => {
+      const totalStays = g.bookings?.length || 0
+      const totalNights = (g.bookings || []).reduce((s: number, b: any) => s + nights(b.checkIn, b.checkOut), 0)
+      const totalSpent = (g.bookings || []).reduce((s: number, b: any) => {
+        const collected = (b.payments || []).reduce(
+          (pSum: number, pay: any) => pSum + (pay.status !== 'Pending' ? pay.amount || 0 : 0),
           0
         )
         return s + collected
       }, 0)
-      const lastStay = g.bookings[0]?.checkIn || null
+      const lastStay = g.bookings?.[0]?.checkIn || null
 
       return {
         id: g.id,

@@ -28,6 +28,13 @@ export async function getTenantContext(
     return { tenantId, propertyId: sessionUser.propertyId }
   }
 
+  const requestedId =
+    queryPropertyId && queryPropertyId !== 'all'
+      ? queryPropertyId
+      : headerPropertyId && headerPropertyId !== 'all'
+      ? headerPropertyId
+      : null
+
   // Fast-path demo properties
   if (requestedId && (requestedId.startsWith('prop-demo-') || requestedId.startsWith('BLR') || requestedId === 'demo')) {
     return { tenantId, propertyId: requestedId }

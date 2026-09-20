@@ -35,6 +35,14 @@ export async function GET(req: NextRequest) {
     const session = await getServerSession(authOptions)
     const { propertyId } = await getTenantContext(req, session?.user as any)
 
+    const { searchParams } = new URL(req.url)
+    const status = searchParams.get('status')
+    const search = searchParams.get('search') || ''
+    const category = searchParams.get('category')
+    const source = searchParams.get('source')
+    const from = searchParams.get('from')
+    const to = searchParams.get('to')
+
     if (!propertyId || propertyId.startsWith('prop-demo-') || propertyId.startsWith('BLR') || propertyId === 'demo') {
       const { getFallbackBookings } = await import('@/lib/fallback-data')
       return NextResponse.json(
@@ -45,14 +53,6 @@ export async function GET(req: NextRequest) {
         })
       )
     }
-
-    const { searchParams } = new URL(req.url)
-    const status = searchParams.get('status')
-    const search = searchParams.get('search') || ''
-    const category = searchParams.get('category')
-    const source = searchParams.get('source')
-    const from = searchParams.get('from')
-    const to = searchParams.get('to')
 
     const where: any = {
       propertyId,
