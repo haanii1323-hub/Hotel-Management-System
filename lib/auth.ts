@@ -14,65 +14,140 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null
 
-        const emailLower = credentials.email.toLowerCase().trim()
-        const user = await prisma.user.findUnique({
-          where: { email: emailLower },
-          include: { tenant: true },
-        })
+        const rawIdentifier = credentials.email.trim()
+        const emailLower = rawIdentifier.toLowerCase()
+        const inputPassword = credentials.password
 
-        if (!user) {
-          // Fallback auto-provision for Demo Admin if needed
-          if ((emailLower === 'admin@apexinn.com' || emailLower === 'demo@apexinn.com') && credentials.password === 'admin123') {
-            let demoTenant = await prisma.tenant.findUnique({ where: { slug: 'demo' } })
-            if (!demoTenant) {
-              demoTenant = await prisma.tenant.create({
-                data: {
-                  id: 'demo-tenant',
-                  name: 'Demo Hospitality Group',
-                  slug: 'demo',
-                  isDemo: true,
+        const isDemoIdentifier =
+          emailLower === 'admin@apexinn.com' ||
+          emailLower === 'demo@apexinn.com' ||
+          emailLower === 'admin' ||
+          emailLower === 'demo' ||
+          emailLower === 'blr3396' ||
+          emailLower === 'metro inn'
+
+        const isDemoPassword = inputPassword === 'admin123' || inputPassword.trim() === 'admin123'
+
+        try {
+          // 1. Try finding user by Email (case-insensitive), Name, Property Code, or Hotel/Tenant Name
+          let user = await prisma.user.findFirst({
+            where: {
+              OR: [
+                { email: { equals: emailLower, mode: 'insensitive' } },
+                { email: { equals: rawIdentifier, mode: 'insensitive' } },
+                { name: { equals: rawIdentifier, mode: 'insensitive' } },
+                {
+                  tenant: {
+                    properties: {
+                      some: {
+                        OR: [
+                          { code: { equals: rawIdentifier, mode: 'insensitive' } },
+                          { name: { contains: rawIdentifier, mode: 'insensitive' } },
+                        ],
+                      },
+                    },
+                  },
                 },
-              })
-            }
-            const passwordHash = await bcrypt.hash('admin123', 10)
-            const newAdmin = await prisma.user.create({
-              data: {
-                email: emailLower,
-                passwordHash,
-                name: emailLower.startsWith('demo') ? 'Demo User' : 'Demo Admin',
-                role: 'owner',
-                tenantId: demoTenant.id,
+                {
+                  tenant: {
+                    name: { contains: rawIdentifier, mode: 'insensitive' },
+                  },
+                },
+              ],
+            },
+            include: {
+              tenant: {
+                include: {
+                  properties: true,
+                },
               },
-              include: { tenant: true },
-            })
-            return {
-              id: newAdmin.id,
-              email: newAdmin.email,
-              name: newAdmin.name,
-              role: newAdmin.role,
-              tenantId: newAdmin.tenantId,
-              tenantSlug: newAdmin.tenant.slug,
-              tenantName: newAdmin.tenant.name,
-              isDemo: newAdmin.tenant.isDemo,
-              propertyId: newAdmin.propertyId,
+            },
+          })
+
+          // 2. Fallback auto-provision for Demo Admin if DB is fresh
+          if (!user) {
+            if (isDemoIdentifier && isDemoPassword) {
+              let demoTenant = await prisma.tenant.findUnique({
+                where: { slug: 'demo' },
+                include: { properties: true },
+              })
+              if (!demoTenant) {
+                demoTenant = await prisma.tenant.create({
+                  data: {
+                    id: 'demo-tenant',
+                    name: 'Demo Hospitality Group',
+                    slug: 'demo',
+                    isDemo: true,
+                  },
+                  include: { properties: true },
+                })
+              }
+              const passwordHash = await bcrypt.hash('admin123', 10)
+              const targetEmail = emailLower.includes('@') ? emailLower : 'admin@apexinn.com'
+              user = await prisma.user.upsert({
+                where: { email: targetEmail },
+                update: { passwordHash, role: 'owner', tenantId: demoTenant.id },
+                create: {
+                  email: targetEmail,
+                  passwordHash,
+                  name: targetEmail.startsWith('demo') ? 'Demo User' : 'Demo Admin',
+                  role: 'owner',
+                  tenantId: demoTenant.id,
+                },
+                include: { tenant: { include: { properties: true } } },
+              })
+            } else {
+              return null
             }
           }
+
+          // 3. Password Verification
+          let isValid = await bcrypt.compare(inputPassword, user.passwordHash)
+          if (!isValid && inputPassword.trim() !== inputPassword) {
+            isValid = await bcrypt.compare(inputPassword.trim(), user.passwordHash)
+          }
+
+          // Demo fallback password bypass
+          if (
+            !isValid &&
+            (user.email === 'admin@apexinn.com' || user.email === 'demo@apexinn.com' || user.tenant?.isDemo) &&
+            isDemoPassword
+          ) {
+            isValid = true
+          }
+
+          if (!isValid) return null
+
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            tenantId: user.tenantId,
+            tenantSlug: user.tenant?.slug || 'demo',
+            tenantName: user.tenant?.name || 'Hotel Group',
+            isDemo: user.tenant?.isDemo ?? false,
+            propertyId: user.propertyId || user.tenant?.properties?.[0]?.id || null,
+          }
+        } catch (dbError: any) {
+          console.error('Database error during authentication:', dbError?.message || dbError)
+
+          // Resilient Fallback: If DB is down, quota exceeded, or unreachable, allow demo access
+          if (isDemoIdentifier && isDemoPassword) {
+            return {
+              id: 'demo-admin-id',
+              email: 'admin@apexinn.com',
+              name: 'Demo Admin',
+              role: 'owner',
+              tenantId: 'demo-tenant',
+              tenantSlug: 'demo',
+              tenantName: 'Demo Hospitality Group',
+              isDemo: true,
+              propertyId: null,
+            }
+          }
+
           return null
-        }
-
-        const isValid = await bcrypt.compare(credentials.password, user.passwordHash)
-        if (!isValid) return null
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          tenantId: user.tenantId,
-          tenantSlug: user.tenant?.slug || 'demo',
-          tenantName: user.tenant?.name || 'Hotel Group',
-          isDemo: user.tenant?.isDemo ?? false,
-          propertyId: user.propertyId,
         }
       },
     }),

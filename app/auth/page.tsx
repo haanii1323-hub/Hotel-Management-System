@@ -645,12 +645,14 @@ export default function AuthPage() {
                   )}
 
                   <div className="form-group" style={{ marginBottom: '16px' }}>
-                    <label className="form-label" style={{ marginBottom: '6px', color: 'var(--text-1)', fontWeight: 600 }}>Email Address *</label>
+                    <label className="form-label" style={{ marginBottom: '6px', color: 'var(--text-1)', fontWeight: 600 }}>
+                      {ownerMode === 'signin' ? 'Email Address or Property Code *' : 'Work Email Address *'}
+                    </label>
                     <div style={{ position: 'relative' }}>
                       <input
                         className="form-control"
-                        type="email"
-                        placeholder="owner@yourhotel.com"
+                        type={ownerMode === 'signin' ? 'text' : 'email'}
+                        placeholder={ownerMode === 'signin' ? 'e.g. admin@apexinn.com or BLR3396' : 'owner@yourhotel.com'}
                         value={form.email}
                         onChange={(e) => update('email', e.target.value)}
                         required
