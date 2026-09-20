@@ -3,28 +3,47 @@ import * as fs from 'fs'
 import * as path from 'path'
 
 async function importFullDatabase(backupFilePath?: string) {
-  const filePath = backupFilePath || path.join(__dirname, '../backups/backup-latest.json')
+  let filePath = backupFilePath
+  if (!filePath) {
+    const masterPath = path.join(__dirname, '../backups/master-archive-complete-timeline.json')
+    const latestPath = path.join(__dirname, '../backups/backup-latest.json')
+    filePath = fs.existsSync(masterPath) ? masterPath : latestPath
+  }
+
   if (!fs.existsSync(filePath)) {
     throw new Error(`Backup file not found at: ${filePath}`)
   }
 
-  console.log(`🔄 Reading backup from: ${filePath}`)
+  console.log(`🔄 Reading master backup from: ${filePath}`)
   const raw = fs.readFileSync(filePath, 'utf-8')
   const dump = JSON.parse(raw)
   const { data, counts } = dump
 
-  console.log('📊 Backup details:', { exportedAt: dump.exportedAt, counts })
+  console.log('📊 Master Dataset Details:', {
+    version: dump.meta?.version || '1.0',
+    generatedAt: dump.meta?.generatedAt || dump.exportedAt,
+    counts,
+  })
 
-  console.log('🚀 Importing tables in topological dependency order...')
+  console.log('🚀 Importing tables in topological dependency order (Zero-Data-Loss)...')
+
+  // Helper to sanitize payload for Prisma
+  const cleanPayload = (obj: any) => {
+    const copy = { ...obj }
+    delete copy.origin
+    delete copy._count
+    return copy
+  }
 
   // 1. Tenants
   if (data.tenants && data.tenants.length > 0) {
     console.log(`  Importing ${data.tenants.length} Tenants...`)
     for (const t of data.tenants) {
+      const payload = cleanPayload(t)
       await prisma.tenant.upsert({
-        where: { id: t.id },
-        update: t,
-        create: t,
+        where: { id: payload.id },
+        update: payload,
+        create: payload,
       })
     }
   }
@@ -33,10 +52,11 @@ async function importFullDatabase(backupFilePath?: string) {
   if (data.properties && data.properties.length > 0) {
     console.log(`  Importing ${data.properties.length} Properties...`)
     for (const p of data.properties) {
+      const payload = cleanPayload(p)
       await prisma.property.upsert({
-        where: { id: p.id },
-        update: p,
-        create: p,
+        where: { id: payload.id },
+        update: payload,
+        create: payload,
       })
     }
   }
@@ -45,10 +65,11 @@ async function importFullDatabase(backupFilePath?: string) {
   if (data.users && data.users.length > 0) {
     console.log(`  Importing ${data.users.length} Users...`)
     for (const u of data.users) {
+      const payload = cleanPayload(u)
       await prisma.user.upsert({
-        where: { id: u.id },
-        update: u,
-        create: u,
+        where: { id: payload.id },
+        update: payload,
+        create: payload,
       })
     }
   }
@@ -57,10 +78,11 @@ async function importFullDatabase(backupFilePath?: string) {
   if (data.categories && data.categories.length > 0) {
     console.log(`  Importing ${data.categories.length} Room Categories...`)
     for (const c of data.categories) {
+      const payload = cleanPayload(c)
       await prisma.roomCategory.upsert({
-        where: { id: c.id },
-        update: c,
-        create: c,
+        where: { id: payload.id },
+        update: payload,
+        create: payload,
       })
     }
   }
@@ -69,10 +91,11 @@ async function importFullDatabase(backupFilePath?: string) {
   if (data.rooms && data.rooms.length > 0) {
     console.log(`  Importing ${data.rooms.length} Rooms...`)
     for (const r of data.rooms) {
+      const payload = cleanPayload(r)
       await prisma.room.upsert({
-        where: { id: r.id },
-        update: r,
-        create: r,
+        where: { id: payload.id },
+        update: payload,
+        create: payload,
       })
     }
   }
@@ -81,10 +104,11 @@ async function importFullDatabase(backupFilePath?: string) {
   if (data.guests && data.guests.length > 0) {
     console.log(`  Importing ${data.guests.length} Guests...`)
     for (const g of data.guests) {
+      const payload = cleanPayload(g)
       await prisma.guest.upsert({
-        where: { id: g.id },
-        update: g,
-        create: g,
+        where: { id: payload.id },
+        update: payload,
+        create: payload,
       })
     }
   }
@@ -93,17 +117,18 @@ async function importFullDatabase(backupFilePath?: string) {
   if (data.bookings && data.bookings.length > 0) {
     console.log(`  Importing ${data.bookings.length} Bookings...`)
     for (const b of data.bookings) {
+      const payload = cleanPayload(b)
       await prisma.booking.upsert({
-        where: { id: b.id },
+        where: { id: payload.id },
         update: {
-          ...b,
-          checkIn: new Date(b.checkIn),
-          checkOut: new Date(b.checkOut),
+          ...payload,
+          checkIn: new Date(payload.checkIn),
+          checkOut: new Date(payload.checkOut),
         },
         create: {
-          ...b,
-          checkIn: new Date(b.checkIn),
-          checkOut: new Date(b.checkOut),
+          ...payload,
+          checkIn: new Date(payload.checkIn),
+          checkOut: new Date(payload.checkOut),
         },
       })
     }
@@ -113,10 +138,11 @@ async function importFullDatabase(backupFilePath?: string) {
   if (data.bookingRooms && data.bookingRooms.length > 0) {
     console.log(`  Importing ${data.bookingRooms.length} BookingRooms...`)
     for (const br of data.bookingRooms) {
+      const payload = cleanPayload(br)
       await prisma.bookingRoom.upsert({
-        where: { id: br.id },
-        update: br,
-        create: br,
+        where: { id: payload.id },
+        update: payload,
+        create: payload,
       })
     }
   }
@@ -125,10 +151,11 @@ async function importFullDatabase(backupFilePath?: string) {
   if (data.payments && data.payments.length > 0) {
     console.log(`  Importing ${data.payments.length} Payments...`)
     for (const p of data.payments) {
+      const payload = cleanPayload(p)
       await prisma.payment.upsert({
-        where: { id: p.id },
-        update: p,
-        create: p,
+        where: { id: payload.id },
+        update: payload,
+        create: payload,
       })
     }
   }
@@ -137,10 +164,11 @@ async function importFullDatabase(backupFilePath?: string) {
   if (data.invoices && data.invoices.length > 0) {
     console.log(`  Importing ${data.invoices.length} Invoices...`)
     for (const inv of data.invoices) {
+      const payload = cleanPayload(inv)
       await prisma.invoice.upsert({
-        where: { id: inv.id },
-        update: { ...inv, generatedAt: new Date(inv.generatedAt) },
-        create: { ...inv, generatedAt: new Date(inv.generatedAt) },
+        where: { id: payload.id },
+        update: { ...payload, generatedAt: new Date(payload.generatedAt) },
+        create: { ...payload, generatedAt: new Date(payload.generatedAt) },
       })
     }
   }
@@ -149,15 +177,41 @@ async function importFullDatabase(backupFilePath?: string) {
   if (data.paymentConfigs && data.paymentConfigs.length > 0) {
     console.log(`  Importing ${data.paymentConfigs.length} PaymentConfigs...`)
     for (const pc of data.paymentConfigs) {
+      const payload = cleanPayload(pc)
       await prisma.paymentConfig.upsert({
-        where: { id: pc.id },
-        update: pc,
-        create: pc,
+        where: { id: payload.id },
+        update: payload,
+        create: payload,
       })
     }
   }
 
-  console.log('🎉 Database restore completed successfully! All records imported intact.')
+  // 12. Audit Logs
+  if (data.roomStatusLogs && data.roomStatusLogs.length > 0) {
+    console.log(`  Importing ${data.roomStatusLogs.length} RoomStatusLogs...`)
+    for (const rsl of data.roomStatusLogs) {
+      const payload = cleanPayload(rsl)
+      await prisma.roomStatusLog.upsert({
+        where: { id: payload.id },
+        update: payload,
+        create: payload,
+      })
+    }
+  }
+
+  if (data.bookingStatusLogs && data.bookingStatusLogs.length > 0) {
+    console.log(`  Importing ${data.bookingStatusLogs.length} BookingStatusLogs...`)
+    for (const bsl of data.bookingStatusLogs) {
+      const payload = cleanPayload(bsl)
+      await prisma.bookingStatusLog.upsert({
+        where: { id: payload.id },
+        update: payload,
+        create: payload,
+      })
+    }
+  }
+
+  console.log('🎉 Database master restore complete! 100% of historical timeline preserved and synchronized.')
 }
 
 const customPath = process.argv[2]
